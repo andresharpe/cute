@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using Cut.Constants;
 using Spectre.Console;
 
 namespace Cut.Services;
@@ -57,16 +58,14 @@ public static class VersionChecker
             if (installedVersionNo < latestVersionNo)
             {
                 AnsiConsole.MarkupLine("");
-                AnsiConsole.MarkupLine(@$"[seagreen1]This version of [bold underline]cut[/] ({installedVersion}) is older than that of the latest version ({latestVersion}). Update the tool for the latest features and bug fixes:[/]");
+                AnsiConsole.MarkupLine(@$"[{Globals.ColourInfo}]This version of [bold underline]cut[/] ({installedVersion}) is older than that of the latest version ({latestVersion}). Update the tool for the latest features and bug fixes:[/]");
                 AnsiConsole.MarkupLine("");
-                AnsiConsole.MarkupLine(@$"[bold seagreen1]dotnet tool update -g cut[/]");
+                AnsiConsole.MarkupLine(@$"[bold {Globals.ColourInfoAccent}]dotnet tool update -g cut[/]");
                 AnsiConsole.MarkupLine("");
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine(ex.ToString());
-            throw;
             // fail silently
         }
     }
