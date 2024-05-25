@@ -56,11 +56,17 @@ public static class VersionChecker
             
             if (installedVersionNo < latestVersionNo)
             {
-                AnsiConsole.MarkupLine(@$"{Environment.NewLine}[bold underline seagreen1]This version of the cut cli ({installedVersion}) is older than that of the latest version ({latestVersion}). Update the tools for the latest features and bug fixes (`dotnet tool update -g cut.cli`).[/]{Environment.NewLine}");
+                AnsiConsole.MarkupLine("");
+                AnsiConsole.MarkupLine(@$"[seagreen1]This version of [bold underline]cut[/] ({installedVersion}) is older than that of the latest version ({latestVersion}). Update the tool for the latest features and bug fixes:[/]");
+                AnsiConsole.MarkupLine("");
+                AnsiConsole.MarkupLine(@$"[bold seagreen1]dotnet tool update -g cut[/]");
+                AnsiConsole.MarkupLine("");
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.WriteLine(ex.ToString());
+            throw;
             // fail silently
         }
     }

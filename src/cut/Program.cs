@@ -10,10 +10,12 @@ if (!isGettingVersion || args.Length == 0)
 {
     var installedVersion = VersionChecker.GetInstalledCliVersion();
 
+    AnsiConsole.Write(new Rule());
     AnsiConsole.MarkupLine(@$"[bold]Contentful Update Tool[/]");
     AnsiConsole.MarkupLine(@$"[gray]Bulk upload and download from excel/csv/tsv/yaml/json/sql.[/]");
     AnsiConsole.MarkupLine(@$"[gray]version {installedVersion}[/]");
     AnsiConsole.MarkupLine(@$"");
+    AnsiConsole.Write(new Rule());
 }
 
 try
