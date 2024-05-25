@@ -5,7 +5,7 @@ namespace Cut.Services;
 
 public static class VersionChecker
 {
-    private const string projectURL = "https://github.com/andresharpe/cut/releases/latest";
+    private const string projectReleasePage = "https://github.com/andresharpe/cut/releases/latest";
 
     public static async Task CheckForLatestVersion()
     {
@@ -13,14 +13,13 @@ public static class VersionChecker
         {
             var installedVersion = GetInstalledCliVersion();
 
-            using var client = new HttpClient(
-                new HttpClientHandler
-                {
-                    AllowAutoRedirect = false
-                }
-            );
+            using var request = new HttpRequestMessage(HttpMethod.Get, projectReleasePage);
 
-            using var response = await client.GetAsync(projectURL);
+            request.Headers.Add("Accept", "text/html");
+
+            using var client = new HttpClient( new HttpClientHandler { AllowAutoRedirect = false });
+
+            using var response = await client.SendAsync(request);
 
             using var content = response.Content;
 
