@@ -56,6 +56,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                         .ContentTypeIs(settings.ContentType)
                         .Skip(skip)
                         .Limit(page)
+                        .OrderBy($"fields.{contentInfo.DisplayField}")
                         .Build();
 
                     var entries = await _contentfulClient.GetEntriesCollection<Entry<ExpandoObject>>(query);
