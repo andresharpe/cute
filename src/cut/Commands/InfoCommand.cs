@@ -36,7 +36,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);
 
-        typesTable.AddColumn("Type");
+        typesTable.AddColumn("Type Name");
         typesTable.AddColumn("Id");
         typesTable.AddColumn("Fields").RightAligned();
         typesTable.AddColumn("Display Field");
@@ -45,8 +45,8 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);
 
-        localesTable.AddColumn("Code");
         localesTable.AddColumn("Name");
+        localesTable.AddColumn("Code");
 
         await AnsiConsole.Status()
             .Spinner(Spinner.Known.Aesthetic)
@@ -73,8 +73,8 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                 foreach (var locale in locales)
                 {
                     localesTable.AddRow(
-                        new Markup(locale.Code),
-                        new Markup(locale.Name)
+                        new Markup(locale.Name),
+                        new Markup(locale.Code, Globals.StyleAlertAccent)
                     );
                 }
 
