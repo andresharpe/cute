@@ -1,7 +1,12 @@
-﻿namespace Cut.Constants;
+﻿using Spectre.Console;
 
-internal class Globals
+namespace Cut.Constants;
+
+internal static class Globals
 {
-    public const string ColourInfo = "darkorange";
-    public const string ColourInfoAccent = "cadetblue";
+
+    public static readonly Style StyleHeading = new (Color.White, null, Decoration.Bold);
+    public static readonly Style StyleBody = new (Color.Grey);
+    public static readonly Style StyleAlert = new (Color.DarkOrange);
+    public static readonly Style StyleAlertAccent = new(Color.CadetBlue, null, Decoration.Bold);
 }
