@@ -61,21 +61,17 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
     {
         if (!_isLoggedIn)
         {
-            _console.WriteBlankLine();
             _console.WriteAlert("You are not authenticated to Contentful. To authenticate type:");
             _console.WriteBlankLine();
             _console.WriteAlertAccent("cut login");
-            _console.WriteBlankLine();
             return Task.FromResult(-1);
         }
 
         if (!_isCacheValid)
         {
-            _console.WriteBlankLine();
             _console.WriteAlert("The credential cache is corrupt. To re-authenticate type:");
             _console.WriteBlankLine();
             _console.WriteAlertAccent("cut login");
-            _console.WriteBlankLine();
             return Task.FromResult(-1);
         }
 

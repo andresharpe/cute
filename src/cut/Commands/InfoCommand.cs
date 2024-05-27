@@ -18,7 +18,6 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        _console.WriteBlankLine();
         
         var result = await base.ExecuteAsync(context, settings);
 
@@ -41,14 +40,13 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
         typesTable.AddColumn("Fields").RightAligned();
         typesTable.AddColumn("Display Field");
 
-
-        AnsiConsole.Status()
+        await AnsiConsole.Status()
             .Spinner(Spinner.Known.Aesthetic)
-            .Start("Getting info...", ctx =>
+            .StartAsync("Getting info...", async ctx =>
             {
-                var space = _contentfulClient.GetSpace(_spaceId).Result;
+                var space = await _contentfulClient.GetSpace(_spaceId);
 
-                var contentTypes = (_contentfulClient.GetContentTypes(spaceId: _spaceId).Result)
+                var contentTypes = (await _contentfulClient.GetContentTypes(spaceId: _spaceId))
                     .OrderBy(t => t.Name);
 
                 foreach (var contentType in contentTypes)
@@ -65,8 +63,6 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
             });
        
         AnsiConsole.Write(spaceTable);
-
-        _console.WriteBlankLine();
 
         return 0;
     }

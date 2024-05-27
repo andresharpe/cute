@@ -35,8 +35,6 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
             .Secret()
             .Validate(ValidatePat);
                 
-        _console.WriteBlankLine();
-
         var apiKey = _console.Prompt(promptToken);
 
         try

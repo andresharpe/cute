@@ -2,7 +2,7 @@
   "profiles": {
     "cut": {
       "commandName": "Project",
-      "commandLineArgs": "info",
+      "commandLineArgs": "download -c dataBrand",
       "workingDirectory": "$(ProjectDir)"
     }
   }

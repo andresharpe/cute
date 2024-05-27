@@ -51,6 +51,9 @@ app.Configure(config =>
     config.AddCommand<InfoCommand>("info")
         .WithDescription("Display information about the default or specified space.");
 
+    config.AddCommand<DownloadCommand>("download")
+        .WithDescription("Downloads content from the default or specified space.");
+
 });
 
 
@@ -68,7 +71,13 @@ finally
     await VersionChecker.CheckForLatestVersion();
 }
 
+if (!isGettingVersion)
+{
+    AnsiConsole.WriteLine();
+}
+
 return exitValue;
+
 
 static void WriteBanner()
 {
@@ -84,6 +93,7 @@ static void WriteBanner()
     cw.WriteDim(Globals.AppPurpose);
     cw.WriteDim($"version {VersionChecker.GetInstalledCliVersion()}");
     cw.WriteRuler();
+    cw.WriteBlankLine();
 }
 
 static void WriteException(Exception ex)

@@ -22,7 +22,7 @@ public class VersionCommand : AsyncCommand<VersionCommand.Settings>
     {
         var installedVersion = VersionChecker.GetInstalledCliVersion();
         
-        _console.WriteDim(installedVersion);
+        _console.WriteNormal(installedVersion);
 
         return Task.FromResult(0);
     }
