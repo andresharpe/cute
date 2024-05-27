@@ -30,7 +30,8 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
         spaceTable.AddColumn("Space");
         spaceTable.AddColumn("Id");
         spaceTable.AddColumn("Content Types");
-       
+        spaceTable.AddColumn("Locales");
+
         var typesTable = new Table()
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);
@@ -39,6 +40,13 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
         typesTable.AddColumn("Id");
         typesTable.AddColumn("Fields").RightAligned();
         typesTable.AddColumn("Display Field");
+
+        var localesTable = new Table()
+            .RoundedBorder()
+            .BorderColor(Globals.StyleDim.Foreground);
+
+        localesTable.AddColumn("Code");
+        localesTable.AddColumn("Name");
 
         await AnsiConsole.Status()
             .Spinner(Spinner.Known.Aesthetic)
@@ -59,7 +67,23 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                     );
                 }
 
-                spaceTable.AddRow(new Markup(space.Name, Globals.StyleAlert), new Markup(_spaceId), typesTable);
+                var locales = (await _contentfulClient.GetLocalesCollection(spaceId: _spaceId))
+                    .OrderBy(t => t.Name);
+
+                foreach (var locale in locales)
+                {
+                    localesTable.AddRow(
+                        new Markup(locale.Code),
+                        new Markup(locale.Name)
+                    );
+                }
+
+                spaceTable.AddRow(
+                    new Markup(space.Name, Globals.StyleAlert), 
+                    new Markup(_spaceId), 
+                    typesTable,
+                    localesTable
+                );
             });
        
         AnsiConsole.Write(spaceTable);
