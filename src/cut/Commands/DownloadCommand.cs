@@ -5,10 +5,8 @@ using Spectre.Console;
 using Cut.Constants;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
-using System.Data;
 using System.ComponentModel;
 using System.Dynamic;
-using Newtonsoft.Json.Linq;
 
 namespace Cut.Commands;
 
@@ -61,7 +59,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                     var entries = await _contentfulClient.GetEntriesCollection<Entry<ExpandoObject>>(query);
 
-                    if (entries.Count() == 0) break;
+                    if (!entries.Any()) break;
 
                     foreach (var entry in entries)
                     {
