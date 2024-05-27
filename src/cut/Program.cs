@@ -1,14 +1,17 @@
 ﻿
-
+using Contentful.Core.Errors;
 using Cut.Commands;
 using Cut.Constants;
 using Cut.Exceptions;
 using Cut.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using Spectre.Console.Cli.Help;
 using System.Runtime.InteropServices;
 using System.Text;
+using Yaml2Cf.Interceptors;
 
 var exitValue = 0;
 
@@ -22,6 +25,8 @@ if (!isGettingVersion)
 // Add services
 var services = new ServiceCollection();
 services.AddSingleton<IConsoleWriter, ConsoleWriter>();
+services.AddSingleton(DataProtectionProvider.Create(Globals.AppName));
+services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
 
 // Build cli app with DI
 var registrar = new TypeRegistrar(services);
@@ -29,12 +34,23 @@ var app = new CommandApp(registrar);
 
 app.Configure(config =>
 {
-    config.SetApplicationName("cut");
+    config.SetApplicationName(Globals.AppName);
 
     config.PropagateExceptions();
 
+    config.Settings.HelpProviderStyles = GetHelpProviderstyle();
+
+    config.SetInterceptor(new OperatingSystemInterceptor());
+
     config.AddCommand<VersionCommand>("version")
         .WithDescription("Displays the current cut cli version.");
+
+    config.AddCommand<AuthCommand>("auth")
+        .WithDescription("Authenticates the cli to a Contentful account.");
+
+    config.AddCommand<InfoCommand>("info")
+        .WithDescription("Display information about the default or specified space.");
+
 });
 
 
@@ -64,35 +80,86 @@ static void WriteBanner()
     }
 
     cw.WriteRuler();
-    cw.WriteHeading("Contentful Update Tool");
-    cw.WriteBody("Bulk upload and download content to and from excel/csv/tsv/yaml/json/sql.");
-    cw.WriteBody($"version {VersionChecker.GetInstalledCliVersion()}");
+    cw.WriteAlert(Globals.AppLongName);
+    cw.WriteDim(Globals.AppPurpose);
+    cw.WriteDim($"version {VersionChecker.GetInstalledCliVersion()}");
     cw.WriteRuler();
 }
 
 static void WriteException(Exception ex)
 {
-    if (ex is ICliException)
+    if (ex is ICliException 
+        || ex is CommandParseException 
+        || ex is ContentfulException )
 
         AnsiConsole.Console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);
     
-    else
+    else // something bigger and unhandled.
     {
         AnsiConsole.WriteException(ex, new ExceptionSettings
         {
             Format = ExceptionFormats.ShortenEverything | ExceptionFormats.ShowLinks,
             Style = new ExceptionStyle
             {
-                Exception = Globals.StyleBody,
+                Exception = Globals.StyleDim,
                 Message = Globals.StyleHeading,
-                NonEmphasized = Globals.StyleBody,
+                NonEmphasized = Globals.StyleDim,
                 Parenthesis = Globals.StyleAlertAccent,
                 Method = Globals.StyleAlert,
                 ParameterName = Globals.StyleAlertAccent,
-                ParameterType = Globals.StyleBody,
+                ParameterType = Globals.StyleDim,
                 Path = Globals.StyleAlert,
                 LineNumber = Globals.StyleHeading,
             }
         });
     }
+}
+
+static HelpProviderStyle GetHelpProviderstyle()
+{
+    return new()
+    {
+        Arguments = new()
+        {
+            Header = Globals.StyleHeading,
+            OptionalArgument = Globals.StyleDim,
+            RequiredArgument = Globals.StyleAlertAccent,
+        },
+
+        Commands = new()
+        {
+            Header = Globals.StyleHeading,
+            ChildCommand = Globals.StyleAlertAccent,
+            RequiredArgument = Globals.StyleDim,
+        },
+
+        Options = new()
+        {
+            Header = Globals.StyleHeading,
+            RequiredOption = Globals.StyleAlert,
+            OptionalOption = Globals.StyleAlertAccent,
+            DefaultValue = Globals.StyleDim,
+            DefaultValueHeader = Globals.StyleHeading,
+        },
+
+        Description = new()
+        {
+            Header = Globals.StyleDim,
+        },
+
+        Usage = new()
+        {
+            Header = Globals.StyleHeading,
+            Command = Globals.StyleAlertAccent,
+            CurrentCommand = Globals.StyleAlert,
+            Options = Globals.StyleDim, 
+        },
+
+        Examples = new()
+        {
+            Header = Globals.StyleHeading,
+            Arguments = Globals.StyleAlertAccent,
+        }
+
+    };
 }

@@ -2,6 +2,7 @@
   "profiles": {
     "cut": {
       "commandName": "Project",
+      "commandLineArgs": "info",
       "workingDirectory": "$(ProjectDir)"
     }
   }

@@ -58,11 +58,12 @@ public static class VersionChecker
             {
                 var cw = new ConsoleWriter(AnsiConsole.Console);
 
-                cw.WriteBody("");
+                cw.WriteDim("");
+                cw.WriteBlankLine();
                 cw.WriteAlert($"This version of 'cut' ({installedVersion}) is older than that of the latest version ({latestVersion}). Update the tool for the latest features and bug fixes:");
-                cw.WriteBody("");
+                cw.WriteBlankLine();
                 cw.WriteAlertAccent("dotnet tool update -g cut");
-                cw.WriteBody("");
+                cw.WriteBlankLine();
             }
         }
         catch (Exception)
