@@ -54,7 +54,7 @@ public static class VersionChecker
 
             var latestVersionNo = Convert.ToInt32(latestVersion.Replace(".", ""));
             
-            if (installedVersionNo < latestVersionNo)
+            if (installedVersionNo < latestVersionNo && installedVersionNo > 100)
             {
                 var cw = new ConsoleWriter(AnsiConsole.Console);
 
