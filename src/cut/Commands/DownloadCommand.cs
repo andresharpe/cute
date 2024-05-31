@@ -2,20 +2,24 @@
 using Spectre.Console.Cli;
 using Cut.Services;
 using Spectre.Console;
-using Cut.Constants;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
 using System.ComponentModel;
-using System.Dynamic;
 using System.Data;
 using Contentful.Core.Models.Management;
 using Cut.Exceptions;
-using ClosedXML.Excel;
+using Newtonsoft.Json;
+using HtmlAgilityPack;
+using System.Net;
+using Cut.DataAdapters;
+using Newtonsoft.Json.Linq;
 
 namespace Cut.Commands;
 
 public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
+    HtmlRenderer _htmlRenderer = new();
+
     public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
     { }
@@ -26,7 +30,9 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         [Description("Specifies the content type to download data for")]
         public string ContentType { get; set; } = null!;
 
-
+        [CommandOption("-f|--format")]
+        [Description("The output format for the download operation (Excel/Csv/Tsv/Json/Yaml)")]
+        public OutputFileFormat Format { get; set; } = OutputFileFormat.Excel;
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
@@ -36,166 +42,129 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
         if (result != 0 || _contentfulClient == null) return result;
 
-        var contentInfo = await _contentfulClient.GetContentType(settings.ContentType);
+        await AnsiConsole.Progress()
+            .HideCompleted(false)
+            .AutoRefresh(true)
+            .AutoClear(true)
+            .Columns(
+                [
+                    new TaskDescriptionColumn(),
+                    new ProgressBarColumn(), 
+                    new PercentageColumn(),
+                    new SpinnerColumn(),
+                ]
+            )
 
-        var locales = await _contentfulClient.GetLocalesCollection();
-
-        var table = new Spectre.Console.Table()
-            .RoundedBorder()
-            .Title(settings.ContentType)
-            .BorderColor(Globals.StyleDim.Foreground);
-
-        table.AddColumn("Content Id");
-        table.AddColumn(contentInfo.DisplayField);
-
-        DataTable dataTable = ToDataTable(contentInfo, locales);
-        
-        using var workbook = new XLWorkbook();
-        var sheet = workbook.Worksheets.Add(settings.ContentType);
-        var xlRow = 1; 
-        var xlCol = 1;
-        foreach (DataColumn col in dataTable.Columns)
-        {
-            sheet.Cell(xlRow, xlCol).Value = col.ColumnName;
-            sheet.Cell(xlRow, xlCol).Style.Font.SetBold();
-            sheet.Cell(xlRow, xlCol).Style.Fill.BackgroundColor = XLColor.LightCarminePink;
-            xlCol++;
-        }
-
-        await AnsiConsole.Live(table)
             .StartAsync(async ctx =>
             {
+                var taskPrepare = ctx.AddTask("Preparing download");
+                var taskExtract = ctx.AddTask($"Downloading {settings.ContentType} entries");
 
+                var totalRows = 0;
+                var increment = 0d;
                 var skip = 0;
                 var page = 100;
 
+                using var outputAdapter = DataAdapterFactory.Create(settings.Format, settings.ContentType);
+
+                var contentInfo = await _contentfulClient.GetContentType(settings.ContentType);
+                taskPrepare.Increment(40);
+
+                var locales = await _contentfulClient.GetLocalesCollection();
+                taskPrepare.Increment(40);
+
+                DataTable dataTable = ToDataTable(contentInfo, locales);
+
+                outputAdapter.AddHeadings(dataTable);
+                taskPrepare.Increment(20);
+                taskPrepare.StopTask();
+
                 while (true)
                 {
-                    var query = new QueryBuilder<dynamic>()
+                    var query = new QueryBuilder<Dictionary<string, object?>>()
                         .ContentTypeIs(settings.ContentType)
                         .Skip(skip)
                         .Limit(page)
                         .OrderBy($"fields.{contentInfo.DisplayField}")
                         .Build();
 
-                    var entries = await _contentfulClient.GetEntriesCollection<Entry<ExpandoObject>>(query);
+                    var entries = await _contentfulClient.GetEntriesCollection<Entry<JObject>>(query);
 
                     if (!entries.Any()) break;
 
+                    if (increment == 0 && entries.Total > 0)
+                    {
+                        totalRows = entries.Total;
+                        increment = (100d / entries.Total) * 100d;
+                    }
+
                     foreach (var entry in entries)
                     {
-                        xlRow++;
-                        xlCol = 1;
-                        DataRow row = ToDataRow(dataTable, entry, contentInfo, locales);
-                        foreach(var val in row.ItemArray) 
-                        {
-                            sheet.Cell(xlRow, xlCol++).Value = val?.ToString();
-                        }
-
-                        var displayValue = ToDisplayValue(entry, contentInfo.DisplayField)?.ToString() ?? string.Empty;
-                        
-                        table.AddRow(entry.SystemProperties.Id, displayValue);
-                        
-                        ctx.Refresh();
+                        DataRow row = await ToDataRow(dataTable, entry, contentInfo, locales);
+                        outputAdapter.AddRow(row);
                     }
+
+                    taskExtract.Increment(increment);
 
                     skip += page;
 
                 }
 
+                taskExtract.StopTask();
+
+                var taskSaving = ctx.AddTask("Saving results");
+
+                outputAdapter.Save();
+
+                taskSaving.Increment(100);
+                taskSaving.StopTask();
+
+                _console.WriteNormal($"{totalRows} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
+
             });
 
-        sheet.Columns().AdjustToContents();
-        workbook.SaveAs(settings.ContentType + ".xlsx");
+
 
         return 0;
     }
 
-    private DataRow ToDataRow(DataTable dataTable, Entry<ExpandoObject> entry, ContentType contentInfo, ContentfulCollection<Locale> locales)
+    private static JToken? ToDisplayValue(Entry<JObject> entry, string fieldName, string locale = "en")
     {
-        var dataRow = dataTable.NewRow();
 
-        dataRow["sys.id"] = entry.SystemProperties.Id;
-
-        foreach (var field in contentInfo.Fields)
-        {
-
-          if (field.Type.Equals("Location"))
-            {
-                var nativeValue = ToDisplayValue(entry, field.Id);
-                if (nativeValue is not null)
-                {
-                    var latLong = (IDictionary<string, object>)nativeValue;
-                    dataRow[field.Id + ".lat"] = latLong["lat"];
-                    dataRow[field.Id + ".lon"] = latLong["lon"];
-                }
-            }
-            else if (field.Type.Equals("Link"))
-            {
-                // skip for now
-            }
-            else if (field.Type.Equals("Object"))
-            {
-                // skip for now
-            }
-            else if (field.Type.Equals("Array"))
-            {
-                // skip for now
-            }
-            else if (field.Localized)
-            {
-                foreach (var locale in locales)
-                {
-                    dataRow[$"{field.Id}.{locale.Code}"] = ToDisplayValue(entry, field.Id, locale.Code) ?? DBNull.Value;
-                }
-            }
-            else
-            {
-                dataRow[field.Id] = ToDisplayValue(entry, field.Id) ?? DBNull.Value;
-            }
-        }
-
-        dataTable.Rows.Add(dataRow);
-
-        return dataRow;
-    }
-
-
-    private static object? ToDisplayValue(Entry<ExpandoObject> entry, string fieldName, string locale = "en")
-    {
-        IDictionary<string, object?> fields = entry.Fields;
-
-        if (!fields.TryGetValue(fieldName, out var selectedField))
+        if (!entry.Fields.TryGetValue(fieldName, out var selectedField))
         {
             return null;
         }
 
-        IDictionary<string, object?> selectedFieldValue = (ExpandoObject)selectedField!;
-
-        if (!selectedFieldValue.TryGetValue(locale, out var displayValue))
+        if (selectedField.Contains(locale))
         {
             return null;
         }
-        
-        return displayValue;
+
+        return selectedField[locale]; 
     }
 
     private DataTable ToDataTable(ContentType contentInfo, ContentfulCollection<Locale> locales)
     {
         var dataTable = new DataTable();
+
         dataTable.Columns.Add("sys.id");
+        dataTable.Columns.Add("sys.version");
+        
         foreach (var field in contentInfo.Fields)
         {
             var newFields = new List<string>();
+            var suffix = field.Type.Equals("Array") ? "[]" : "";
+
 
             if (field.Type.Equals("Location"))
             {
-                newFields.Add(field.Id + ".lat");
-                newFields.Add(field.Id + ".lon");
+                newFields.Add($"{field.Id}.lat{suffix}");
+                newFields.Add($"{field.Id}.lon{suffix}");
             }
             else
             {
-                newFields.Add(field.Id);
+                newFields.Add($"{field.Id}{suffix}");
             }
 
             if (field.Localized)
@@ -204,7 +173,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 {
                     foreach (var locale in locales)
                     {
-                        dataTable.Columns.Add($"{fieldName}.{locale.Code}", ToNativeType(field.Type));
+                        dataTable.Columns.Add($"{locale.Code}.{fieldName}", ToNativeType(field.Type));
                     }
                 }
             }
@@ -220,7 +189,79 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         return dataTable;
     }
 
-    private Type ToNativeType(string type)
+    private async Task<DataRow> ToDataRow(DataTable dataTable, Entry<JObject> entry, ContentType contentInfo, ContentfulCollection<Locale> locales)
+    {
+        var dataRow = dataTable.NewRow();
+
+        dataRow["sys.id"] = entry.SystemProperties.Id;
+        dataRow["sys.version"] = entry.SystemProperties.Version;
+
+        foreach (var field in contentInfo.Fields)
+        {
+            if (field.Localized)
+            {
+                foreach (var locale in locales)
+                {
+                    await SetFieldValue(entry, dataRow, field, locale.Code);           
+                }
+            }
+            else
+            {
+                await SetFieldValue(entry, dataRow, field);
+            }
+        }
+
+        return dataRow;
+    }
+
+    private async Task SetFieldValue(Entry<JObject> entry, DataRow dataRow, Field field, string locale = "en")
+    {
+        var value = ToDisplayValue(entry, field.Id, locale);
+        var fieldPrefix = field.Localized ? locale+"." : string.Empty;
+
+        if (value == null)
+        {
+            if (field.Type.Equals("Location"))
+            {
+                dataRow[fieldPrefix + field.Id + ".lat"] = DBNull.Value;
+                dataRow[fieldPrefix + field.Id + ".lon"] = DBNull.Value;
+            }
+            else if (field.Type.Equals("Array"))
+            {
+                dataRow[fieldPrefix + field.Id + "[]"] = DBNull.Value;
+            }
+            else
+            {
+                dataRow[fieldPrefix + field.Id] = DBNull.Value;
+            }
+            return;
+        }
+
+        if (field.Type.Equals("Location"))
+        {
+            var latLong = (JObject)value;
+            dataRow[fieldPrefix + field.Id + ".lat"] = latLong["lat"];
+            dataRow[fieldPrefix + field.Id + ".lon"] = latLong["lon"];
+        }
+        else if (field.Type.Equals("Link"))
+        {
+            dataRow[fieldPrefix + field.Id] = ((JObject)value)["sys"]?.Value<string>("id");
+        }
+        else if (field.Type.Equals("Object"))
+        {
+            dataRow[fieldPrefix + field.Id] = JsonConvert.SerializeObject(value);
+        }
+        else if (field.Type.Equals("Array"))
+        {
+            dataRow[fieldPrefix + field.Id + "[]"] = string.Join('|', value.Select( e => e["sys"]!["id"]!.Value<string>()));
+        }
+        else
+        {
+            dataRow[fieldPrefix + field.Id] = await ToValue(value, field.Type);
+        }
+    }
+
+    private static Type ToNativeType(string type)
     {
         return type switch
         {
@@ -235,4 +276,76 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             _ => throw new CliException($"Contentful type '{type}' has no dotnet type conversion implemented."),
         };
     }
+
+    private async Task<object> ToValue(JToken value, string type)
+    {
+        if (value == null)
+        {
+            return DBNull.Value;
+        }
+
+        return type switch
+        {
+            "Symbol" => value,
+            "RichText" => await UnHtml(value),
+            "Integer" => value,
+            "Location" => value,
+            "Link" => value,
+            "Object" => value,
+            "Array" => value,
+            "Boolean" => value,
+            _ => throw new CliException($"Contentful type '{type}' has no display value conversion implemented."),
+        };
+    }
+
+    private async Task<string> UnHtml(JToken value)
+    {
+        var html = await _htmlRenderer.ToHtml((Document)ConvertToDocument(value)!);
+        var htmlDoc = new HtmlDocument();
+        htmlDoc.LoadHtml(html);
+        return WebUtility.HtmlDecode(htmlDoc.DocumentNode.InnerText);
+    }
+
+    private object? ConvertToDocument(JToken data)
+    { 
+        var nodeType = data["nodeType"]?.Value<string>() ?? "unknown";
+
+        if (nodeType.Equals("document"))
+        {
+            var content = data["content"];
+
+            return new Document
+            {
+                Data = new() { Target = null },
+                NodeType = nodeType,
+                Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
+            };
+        }
+        else if (nodeType.Equals("paragraph"))
+        {
+            var content = data["content"];
+
+            return new Contentful.Core.Models.Paragraph
+            {
+                Data = new() { Target = null },
+                NodeType = nodeType,
+                Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
+            };
+        }
+        else if (nodeType.Equals("text"))
+        {
+            return new Contentful.Core.Models.Text
+            {
+                Data = new() { Target = null },
+                NodeType = nodeType,
+                Value = data.Value<string>("value"),
+            };
+        }
+        else
+        {
+            throw new CliException($"No IContent conversion for '{data["nodeType"]}'.");
+
+        }
+    }
+
 }

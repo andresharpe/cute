@@ -100,7 +100,8 @@ static void WriteException(Exception ex)
 {
     if (ex is ICliException 
         || ex is CommandParseException 
-        || ex is ContentfulException )
+        || ex is ContentfulException 
+        || ex is CommandRuntimeException)
 
         AnsiConsole.Console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);
     
