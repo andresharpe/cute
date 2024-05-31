@@ -35,7 +35,10 @@ internal class YamlAdapter : DataAdapterBase, IDataAdapter
         var obj = new Dictionary<string, object?>();
         var column = 0;
 
-        foreach (var fieldNamePath in _columns)
+        var columnNames = row.Table.Columns.Cast<DataColumn>()
+            .Select(c => c.ColumnName.Split('.'));
+
+        foreach (var fieldNamePath in columnNames)
         {
             var tmp = obj;
 

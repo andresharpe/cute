@@ -484,4 +484,8 @@ $RECYCLE.BIN/
 *.swp
 
 *.xlsx
+*.csv
+*.tsv
+*.json
+*.yanl
 
