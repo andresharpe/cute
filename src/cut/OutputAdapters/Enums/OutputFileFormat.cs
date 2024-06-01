@@ -1,5 +1,4 @@
-﻿
-namespace Cut.DataAdapters;
+﻿namespace Cut.OutputAdapters;
 
 public enum OutputFileFormat
 {

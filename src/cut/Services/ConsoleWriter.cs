@@ -1,5 +1,4 @@
-﻿
-using Cut.Constants;
+﻿using Cut.Constants;
 using Spectre.Console;
 
 namespace Cut.Services;
@@ -17,14 +16,17 @@ public class ConsoleWriter : IConsoleWriter
     {
         _console.WriteLine(text, Globals.StyleHeading);
     }
+
     public void WriteDim(string text)
     {
         _console.WriteLine(text, Globals.StyleDim);
     }
+
     public void WriteAlert(string text)
     {
         _console.WriteLine(text, Globals.StyleAlert);
     }
+
     public void WriteAlertAccent(string text)
     {
         _console.WriteLine(text, Globals.StyleAlertAccent);

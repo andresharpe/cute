@@ -1,5 +1,5 @@
-﻿using System.Reflection;
-using Spectre.Console;
+﻿using Spectre.Console;
+using System.Reflection;
 
 namespace Cut.Services;
 
@@ -17,13 +17,13 @@ public static class VersionChecker
 
             request.Headers.Add("Accept", "text/html");
 
-            using var client = new HttpClient( new HttpClientHandler { AllowAutoRedirect = false });
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
 
             using var response = await client.SendAsync(request);
 
             using var content = response.Content;
 
-            if(response.StatusCode != System.Net.HttpStatusCode.Found) 
+            if (response.StatusCode != System.Net.HttpStatusCode.Found)
             {
                 return;
             }
@@ -53,7 +53,7 @@ public static class VersionChecker
             var installedVersionNo = Convert.ToInt32(installedVersion.Replace(".", ""));
 
             var latestVersionNo = Convert.ToInt32(latestVersion.Replace(".", ""));
-            
+
             if (installedVersionNo < latestVersionNo && installedVersionNo > 100)
             {
                 var cw = new ConsoleWriter(AnsiConsole.Console);
@@ -76,7 +76,7 @@ public static class VersionChecker
     {
         var installedVersion = Assembly.GetExecutingAssembly().GetName().Version!.ToString();
 
-        installedVersion = installedVersion[0..^2]; 
+        installedVersion = installedVersion[0..^2];
 
         return installedVersion;
     }

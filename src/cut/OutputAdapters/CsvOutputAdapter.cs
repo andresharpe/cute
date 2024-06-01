@@ -1,20 +1,17 @@
-﻿
-using CsvHelper;
+﻿using CsvHelper;
 using CsvHelper.Configuration;
 using System.Data;
 using System.Globalization;
 
-namespace Cut.DataAdapters;
+namespace Cut.OutputAdapters;
 
-
-internal class CsvAdapter : DataAdapterBase, IDataAdapter
+internal class CsvOutputAdapter : OutputAdapterBase, IDataAdapter
 {
-
     private readonly StreamWriter _writer;
 
     private readonly CsvWriter _csv;
 
-    public CsvAdapter(string contentName, string? fileName, string delimeter = ",") 
+    public CsvOutputAdapter(string contentName, string? fileName, string delimeter = ",")
         : base(contentName, fileName ?? contentName + (delimeter == "\t" ? ".tsv" : ".csv"))
     {
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -29,7 +26,7 @@ internal class CsvAdapter : DataAdapterBase, IDataAdapter
 
     public override void AddHeadings(DataTable table)
     {
-        foreach (DataColumn col in table.Columns) 
+        foreach (DataColumn col in table.Columns)
         {
             _csv.WriteField(col.ColumnName);
         }
@@ -38,7 +35,7 @@ internal class CsvAdapter : DataAdapterBase, IDataAdapter
 
     public override void AddRow(DataRow row)
     {
-        foreach(var value in row.ItemArray) 
+        foreach (var value in row.ItemArray)
         {
             _csv.WriteField(value);
         }

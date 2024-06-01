@@ -1,14 +1,13 @@
-﻿
-using Spectre.Console.Cli;
+﻿using Cut.Constants;
 using Cut.Services;
 using Spectre.Console;
-using Cut.Constants;
+using Spectre.Console.Cli;
 
 namespace Cut.Commands;
 
 public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 {
-    public InfoCommand(IConsoleWriter console, IPersistedTokenCache tokenCache) 
+    public InfoCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
     { }
 
@@ -18,7 +17,6 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        
         var result = await base.ExecuteAsync(context, settings);
 
         if (result != 0 || _contentfulClient == null) return result;
@@ -79,16 +77,15 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                 }
 
                 spaceTable.AddRow(
-                    new Markup(space.Name, Globals.StyleAlert), 
-                    new Markup(_spaceId), 
+                    new Markup(space.Name, Globals.StyleAlert),
+                    new Markup(_spaceId),
                     typesTable,
                     localesTable
                 );
             });
-       
+
         AnsiConsole.Write(spaceTable);
 
         return 0;
     }
-
 }

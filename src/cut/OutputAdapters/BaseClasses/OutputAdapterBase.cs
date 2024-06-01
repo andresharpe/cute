@@ -1,16 +1,15 @@
 ﻿using Cut.Exceptions;
 using System.Data;
 
-namespace Cut.DataAdapters;
+namespace Cut.OutputAdapters;
 
-internal abstract class DataAdapterBase : IDataAdapter
+internal abstract class OutputAdapterBase : IDataAdapter
 {
-
     private readonly string _fileName;
 
     public string FileName => new FileInfo(_fileName).FullName;
 
-    public DataAdapterBase(string contentName, string fileName)
+    public OutputAdapterBase(string contentName, string fileName)
     {
         _fileName ??= fileName;
         try
@@ -30,5 +29,4 @@ internal abstract class DataAdapterBase : IDataAdapter
     public abstract void AddRow(DataRow row);
 
     public abstract void Save();
-
 }

@@ -1,45 +1,19 @@
-﻿using Newtonsoft.Json;
-using System.Data;
+﻿using System.Data;
 
-namespace Cut.DataAdapters;
+namespace Cut.OutputAdapters;
 
-internal class JsonAdapter : DataAdapterBase, IDataAdapter
+internal class DataTableHelper
 {
+    private readonly List<string[]> _columns;
 
-    private readonly StreamWriter _writer;
-
-    private readonly JsonTextWriter _json;
-
-    private readonly List<string[]> _columns = new ();
-
-    private int _count = 0;
-
-    public JsonAdapter(string contentName, string? fileName) : base(contentName, fileName ?? contentName + ".json")
+    public DataTableHelper(DataTable table)
     {
-
-        _writer = new(FileName, false, System.Text.Encoding.UTF8);
-
-        _json = new JsonTextWriter(_writer)
-        {
-            Formatting = Formatting.Indented
-        };
-
-        _json.WriteStartObject();
-        _json.WritePropertyName(contentName);
-        _json.WriteStartArray();
+        _columns = table.Columns.Cast<DataColumn>()
+            .Select(c => c.ColumnName.Split('.'))
+            .ToList();
     }
 
-    public override void AddHeadings(DataTable table)
-    {
-        foreach(DataColumn col in table.Columns) 
-        {
-            var fieldNamePath = col.ColumnName.Split(".");
-            _columns.Add(fieldNamePath);
-        }
-    }
-
-
-    public override void AddRow(DataRow row)
+    public Dictionary<string, object?> ToDictionary(DataRow row, bool ignoreNull = false)
     {
         var obj = new Dictionary<string, object?>();
         var column = 0;
@@ -58,7 +32,7 @@ internal class JsonAdapter : DataAdapterBase, IDataAdapter
                 {
                     if (i == fieldNamePath.Length - 1)
                     {
-                        if (row[column] == DBNull.Value) // my surpress this later, better to see the key and null
+                        if (!ignoreNull && row[column] == DBNull.Value)
                         {
                             if (fieldNamePath[i].EndsWith("[]"))
                             {
@@ -88,27 +62,6 @@ internal class JsonAdapter : DataAdapterBase, IDataAdapter
                 }
             }
         }
-
-        if (_count > 0)
-        {
-            _json.WriteRaw(",\n");
-        }
-
-        // Indenting - although we can proably control this too with a param for more compact output
-        _json.WriteRaw(JsonConvert.SerializeObject(obj,Formatting.Indented));
-
-        _count++;
-    }
-
-    public override void Dispose()
-    {
-        _writer.Dispose();
-    }
-
-    public override void Save()
-    {
-        _json.WriteEndArray();
-        _json.WriteEndObject();
-        _json.Flush();
+        return obj;
     }
 }

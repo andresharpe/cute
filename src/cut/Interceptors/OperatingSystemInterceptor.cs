@@ -1,8 +1,8 @@
 ﻿namespace Yaml2Cf.Interceptors;
 
+using Spectre.Console.Cli;
 using System.Runtime.InteropServices;
 using System.Text;
-using Spectre.Console.Cli;
 
 public class OperatingSystemInterceptor : ICommandInterceptor
 {

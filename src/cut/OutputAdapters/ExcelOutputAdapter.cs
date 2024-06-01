@@ -1,11 +1,9 @@
-﻿
-
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using System.Data;
 
-namespace Cut.DataAdapters;
+namespace Cut.OutputAdapters;
 
-internal class ExcelAdapter : DataAdapterBase
+internal class ExcelOutputAdapter : OutputAdapterBase
 {
     private readonly XLWorkbook _workbook;
     private readonly IXLWorksheet _sheet;
@@ -15,7 +13,7 @@ internal class ExcelAdapter : DataAdapterBase
 
     private readonly List<string> _columns = new List<string>();
 
-    public ExcelAdapter(string contentName, string? fileName = null) : base(contentName, fileName ?? contentName + ".xlsx")
+    public ExcelOutputAdapter(string contentName, string? fileName = null) : base(contentName, fileName ?? contentName + ".xlsx")
     {
         _workbook = new XLWorkbook();
         _sheet = _workbook.Worksheets.Add(contentName);

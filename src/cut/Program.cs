@@ -1,5 +1,4 @@
-﻿
-using Contentful.Core.Errors;
+﻿using Contentful.Core.Errors;
 using Cut.Commands;
 using Cut.Constants;
 using Cut.Exceptions;
@@ -53,9 +52,7 @@ app.Configure(config =>
 
     config.AddCommand<DownloadCommand>("download")
         .WithDescription("Downloads content from the default or specified space.");
-
 });
-
 
 try
 {
@@ -78,7 +75,6 @@ if (!isGettingVersion)
 
 return exitValue;
 
-
 static void WriteBanner()
 {
     var cw = new ConsoleWriter(AnsiConsole.Console);
@@ -98,13 +94,12 @@ static void WriteBanner()
 
 static void WriteException(Exception ex)
 {
-    if (ex is ICliException 
-        || ex is CommandParseException 
-        || ex is ContentfulException 
+    if (ex is ICliException
+        || ex is CommandParseException
+        || ex is ContentfulException
         || ex is CommandRuntimeException)
 
         AnsiConsole.Console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);
-    
     else // something bigger and unhandled.
     {
         AnsiConsole.WriteException(ex, new ExceptionSettings
@@ -163,7 +158,7 @@ static HelpProviderStyle GetHelpProviderstyle()
             Header = Globals.StyleHeading,
             Command = Globals.StyleAlertAccent,
             CurrentCommand = Globals.StyleAlert,
-            Options = Globals.StyleDim, 
+            Options = Globals.StyleDim,
         },
 
         Examples = new()
@@ -171,6 +166,5 @@ static HelpProviderStyle GetHelpProviderstyle()
             Header = Globals.StyleHeading,
             Arguments = Globals.StyleAlertAccent,
         }
-
     };
 }

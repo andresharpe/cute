@@ -1,24 +1,23 @@
-﻿
-using Spectre.Console.Cli;
-using Cut.Services;
-using Spectre.Console;
-using Contentful.Core.Models;
+﻿using Contentful.Core.Models;
+using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
+using Cut.Exceptions;
+using Cut.OutputAdapters;
+using Cut.Services;
+using HtmlAgilityPack;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Spectre.Console;
+using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Data;
-using Contentful.Core.Models.Management;
-using Cut.Exceptions;
-using Newtonsoft.Json;
-using HtmlAgilityPack;
 using System.Net;
-using Cut.DataAdapters;
-using Newtonsoft.Json.Linq;
 
 namespace Cut.Commands;
 
 public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
-    HtmlRenderer _htmlRenderer = new();
+    private HtmlRenderer _htmlRenderer = new();
 
     public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
@@ -37,7 +36,6 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-
         var result = await base.ExecuteAsync(context, settings);
 
         if (result != 0 || _contentfulClient == null) return result;
@@ -49,7 +47,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             .Columns(
                 [
                     new TaskDescriptionColumn(),
-                    new ProgressBarColumn(), 
+                    new ProgressBarColumn(),
                     new PercentageColumn(),
                     new SpinnerColumn(),
                 ]
@@ -65,7 +63,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 var skip = 0;
                 var page = 100;
 
-                using var outputAdapter = DataAdapterFactory.Create(settings.Format, settings.ContentType);
+                using var outputAdapter = OutputAdapterFactory.Create(settings.Format, settings.ContentType);
 
                 var contentInfo = await _contentfulClient.GetContentType(settings.ContentType);
                 taskPrepare.Increment(40);
@@ -107,7 +105,6 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                     taskExtract.Increment(increment);
 
                     skip += page;
-
                 }
 
                 taskExtract.StopTask();
@@ -120,17 +117,13 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 taskSaving.StopTask();
 
                 _console.WriteNormal($"{totalRows} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
-
             });
-
-
 
         return 0;
     }
 
     private static JToken? ToDisplayValue(Entry<JObject> entry, string fieldName, string locale = "en")
     {
-
         if (!entry.Fields.TryGetValue(fieldName, out var selectedField))
         {
             return null;
@@ -141,7 +134,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             return null;
         }
 
-        return selectedField[locale]; 
+        return selectedField[locale];
     }
 
     private DataTable ToDataTable(ContentType contentInfo, ContentfulCollection<Locale> locales)
@@ -150,12 +143,11 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
         dataTable.Columns.Add("sys.id");
         dataTable.Columns.Add("sys.version");
-        
+
         foreach (var field in contentInfo.Fields)
         {
             var newFields = new List<string>();
             var suffix = field.Type.Equals("Array") ? "[]" : "";
-
 
             if (field.Type.Equals("Location"))
             {
@@ -202,7 +194,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             {
                 foreach (var locale in locales)
                 {
-                    await SetFieldValue(entry, dataRow, field, locale.Code);           
+                    await SetFieldValue(entry, dataRow, field, locale.Code);
                 }
             }
             else
@@ -217,7 +209,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
     private async Task SetFieldValue(Entry<JObject> entry, DataRow dataRow, Field field, string locale = "en")
     {
         var value = ToDisplayValue(entry, field.Id, locale);
-        var fieldPrefix = field.Localized ? locale+"." : string.Empty;
+        var fieldPrefix = field.Localized ? locale + "." : string.Empty;
 
         if (value == null)
         {
@@ -253,7 +245,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         }
         else if (field.Type.Equals("Array"))
         {
-            dataRow[fieldPrefix + field.Id + "[]"] = string.Join('|', value.Select( e => e["sys"]!["id"]!.Value<string>()));
+            dataRow[fieldPrefix + field.Id + "[]"] = string.Join('|', value.Select(e => e["sys"]!["id"]!.Value<string>()));
         }
         else
         {
@@ -307,7 +299,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
     }
 
     private object? ConvertToDocument(JToken data)
-    { 
+    {
         var nodeType = data["nodeType"]?.Value<string>() ?? "unknown";
 
         if (nodeType.Equals("document"))
@@ -344,8 +336,6 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         else
         {
             throw new CliException($"No IContent conversion for '{data["nodeType"]}'.");
-
         }
     }
-
 }

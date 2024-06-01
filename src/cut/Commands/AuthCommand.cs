@@ -1,11 +1,10 @@
-﻿
-using Spectre.Console.Cli;
-using Cut.Services;
-using Cut.Exceptions;
-using Spectre.Console;
-using Cut.Constants;
-using Contentful.Core;
+﻿using Contentful.Core;
 using Contentful.Core.Errors;
+using Cut.Constants;
+using Cut.Exceptions;
+using Cut.Services;
+using Spectre.Console;
+using Spectre.Console.Cli;
 
 namespace Cut.Commands;
 
@@ -34,7 +33,7 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
             .PromptStyle(Globals.StyleAlertAccent)
             .Secret()
             .Validate(ValidatePat);
-                
+
         var apiKey = _console.Prompt(promptToken);
 
         try
@@ -60,13 +59,12 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
             var spaceId = spaces.First(s => s.Name.Equals(spaceName)).SystemProperties.Id;
 
-            await _tokenCache.SaveAsync(Globals.AppName, apiKey+"|"+spaceId);
+            await _tokenCache.SaveAsync(Globals.AppName, apiKey + "|" + spaceId);
         }
         catch (ContentfulException ex)
         {
             throw new CliException(ex.Message, ex);
         }
-
 
         return 0;
     }
@@ -86,5 +84,4 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
         return ValidationResult.Success();
     }
-
 }
