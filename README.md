@@ -1,4 +1,4 @@
-# Contentful Upload Tool
+# Contentful Update Tool
 
 <div style="text-align:center">
 
