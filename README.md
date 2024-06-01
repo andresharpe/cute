@@ -2,7 +2,7 @@
 
 <div style="text-align:center">
 
-![image](docs/images/cut.png)
+![image](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/cut.png)
 
 </div>
 
@@ -53,20 +53,20 @@ cut help. You are ready to go! 🚀
 ```
 cut --help
 ```
-![cut help screenshot](docs/images/help-screen.png)
+![cut help screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/help-screen.png)
 
 ## Logging into Contentful
 ```
 cut auth
 ```
 
-![cut auth screenshot](docs/images/auth.png)
+![cut auth screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/auth.png)
 
 ## Display space summary
 ``` 
 cut info
 ```
-![cut info screenshot](docs/images/info.png)
+![cut info screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/info.png)
 
 ## Downloading data
 The default format is 'excel' so the following is equivelent.
@@ -91,7 +91,7 @@ For downloading to Yaml:
 ```
 cut download --content-type <contentType> --format yaml
 ```
-![cut download screenshot](docs/images/download.png)
+![cut download screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/download.png)
 
 ## Uploading/synchronizing data
 
