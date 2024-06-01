@@ -14,6 +14,8 @@ public interface IConsoleWriter
 
     void WriteHeading(string text);
 
+    void WriteSubHeading(string text);
+
     void WriteNormal(string text);
 
     void WriteRuler();

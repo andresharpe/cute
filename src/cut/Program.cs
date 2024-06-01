@@ -45,7 +45,7 @@ app.Configure(config =>
         .WithDescription("Displays the current cut cli version.");
 
     config.AddCommand<AuthCommand>("auth")
-        .WithDescription("Authenticates the cli to a Contentful account.");
+        .WithDescription("Authenticates to a Contentful account.");
 
     config.AddCommand<InfoCommand>("info")
         .WithDescription("Display information about the default or specified space.");
@@ -84,9 +84,9 @@ static void WriteBanner()
         Console.OutputEncoding = Encoding.Unicode;
     }
 
-    cw.WriteRuler();
+    cw.WriteBlankLine();
     cw.WriteAlert(Globals.AppLongName);
-    cw.WriteDim(Globals.AppPurpose);
+    cw.WriteDim(Globals.AppMoreInfo);
     cw.WriteDim($"version {VersionChecker.GetInstalledCliVersion()}");
     cw.WriteRuler();
     cw.WriteBlankLine();
@@ -115,7 +115,8 @@ static void WriteException(Exception ex)
                 ParameterName = Globals.StyleAlertAccent,
                 ParameterType = Globals.StyleDim,
                 Path = Globals.StyleAlert,
-                LineNumber = Globals.StyleHeading,
+                LineNumber = Globals.StyleNormal,
+                Dimmed = Globals.StyleDim,
             }
         });
     }
@@ -127,25 +128,25 @@ static HelpProviderStyle GetHelpProviderstyle()
     {
         Arguments = new()
         {
-            Header = Globals.StyleHeading,
+            Header = Globals.StyleSubHeading,
             OptionalArgument = Globals.StyleDim,
             RequiredArgument = Globals.StyleAlertAccent,
         },
 
         Commands = new()
         {
-            Header = Globals.StyleHeading,
+            Header = Globals.StyleSubHeading,
             ChildCommand = Globals.StyleAlertAccent,
             RequiredArgument = Globals.StyleDim,
         },
 
         Options = new()
         {
-            Header = Globals.StyleHeading,
+            Header = Globals.StyleSubHeading,
             RequiredOption = Globals.StyleAlert,
             OptionalOption = Globals.StyleAlertAccent,
             DefaultValue = Globals.StyleDim,
-            DefaultValueHeader = Globals.StyleHeading,
+            DefaultValueHeader = Globals.StyleNormal,
         },
 
         Description = new()
@@ -155,7 +156,7 @@ static HelpProviderStyle GetHelpProviderstyle()
 
         Usage = new()
         {
-            Header = Globals.StyleHeading,
+            Header = Globals.StyleSubHeading,
             Command = Globals.StyleAlertAccent,
             CurrentCommand = Globals.StyleAlert,
             Options = Globals.StyleDim,

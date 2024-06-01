@@ -2,7 +2,7 @@
   "profiles": {
     "cut": {
       "commandName": "Project",
-      "commandLineArgs": "download -c dataGeo -f yaml",
+      "commandLineArgs": "download -c articles",
       "workingDirectory": "$(ProjectDir)"
     }
   }

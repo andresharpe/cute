@@ -25,26 +25,26 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);
 
-        spaceTable.AddColumn("Space");
-        spaceTable.AddColumn("Id");
-        spaceTable.AddColumn("Content Types");
-        spaceTable.AddColumn("Locales");
+        spaceTable.AddColumn(new TableColumn(new Text("Space", Globals.StyleSubHeading)));
+        spaceTable.AddColumn(new TableColumn(new Text("Id", Globals.StyleSubHeading)));
+        spaceTable.AddColumn(new TableColumn(new Text("Content Types", Globals.StyleSubHeading)));
+        spaceTable.AddColumn(new TableColumn(new Text("Locales", Globals.StyleSubHeading)));
 
         var typesTable = new Table()
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);
 
-        typesTable.AddColumn("Type Name");
-        typesTable.AddColumn("Id");
-        typesTable.AddColumn("Fields").RightAligned();
-        typesTable.AddColumn("Display Field");
+        typesTable.AddColumn(new TableColumn(new Text("Type Name", Globals.StyleSubHeading)));
+        typesTable.AddColumn(new TableColumn(new Text("Content Id", Globals.StyleSubHeading)));
+        typesTable.AddColumn(new TableColumn(new Text("Field #", Globals.StyleSubHeading))).RightAligned();
+        typesTable.AddColumn(new TableColumn(new Text("Display Field", Globals.StyleSubHeading)));
 
         var localesTable = new Table()
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);
 
-        localesTable.AddColumn("Name");
-        localesTable.AddColumn("Code");
+        localesTable.AddColumn(new TableColumn(new Text("Name", Globals.StyleSubHeading)));
+        localesTable.AddColumn(new TableColumn(new Text("Code", Globals.StyleSubHeading)));
 
         await AnsiConsole.Status()
             .Spinner(Spinner.Known.Aesthetic)
@@ -58,10 +58,10 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                 foreach (var contentType in contentTypes)
                 {
                     typesTable.AddRow(
-                        new Markup(contentType.Name),
+                        new Markup(contentType.Name, Globals.StyleNormal),
                         new Markup(contentType.SystemProperties.Id, Globals.StyleAlertAccent),
-                        new Markup(contentType.Fields.Count.ToString()).RightJustified(),
-                        new Markup(contentType.DisplayField)
+                        new Markup(contentType.Fields.Count.ToString(), Globals.StyleNormal).RightJustified(),
+                        new Markup(contentType.DisplayField, Globals.StyleNormal)
                     );
                 }
 
@@ -71,14 +71,14 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                 foreach (var locale in locales)
                 {
                     localesTable.AddRow(
-                        new Markup(locale.Name),
+                        new Markup(locale.Name, Globals.StyleNormal),
                         new Markup(locale.Code, Globals.StyleAlertAccent)
                     );
                 }
 
                 spaceTable.AddRow(
                     new Markup(space.Name, Globals.StyleAlert),
-                    new Markup(_spaceId),
+                    new Markup(_spaceId, Globals.StyleNormal),
                     typesTable,
                     localesTable
                 );

@@ -1,6 +1,7 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
+using Cut.Constants;
 using Cut.Exceptions;
 using Cut.OutputAdapters;
 using Cut.Services;
@@ -43,20 +44,36 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         await AnsiConsole.Progress()
             .HideCompleted(false)
             .AutoRefresh(true)
-            .AutoClear(true)
+            .AutoClear(false)
             .Columns(
                 [
-                    new TaskDescriptionColumn(),
-                    new ProgressBarColumn(),
-                    new PercentageColumn(),
-                    new SpinnerColumn(),
+                    new TaskDescriptionColumn()
+                    {
+                        Alignment = Justify.Left
+                    },
+                    new ProgressBarColumn()
+                    {
+                        CompletedStyle = Globals.StyleAlertAccent,
+                        FinishedStyle = Globals.StyleAlertAccent,
+                        IndeterminateStyle = Globals.StyleDim,
+                        RemainingStyle = Globals.StyleDim,
+                    },
+                    new PercentageColumn()
+                    {
+                        CompletedStyle = Globals.StyleAlertAccent,
+                        Style = Globals.StyleNormal,
+                    },
+                    new SpinnerColumn()
+                    {
+                        Style = Globals.StyleSubHeading,
+                    },
                 ]
             )
 
             .StartAsync(async ctx =>
             {
-                var taskPrepare = ctx.AddTask("Preparing download");
-                var taskExtract = ctx.AddTask($"Downloading {settings.ContentType} entries");
+                var taskPrepare = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Alien} Initializing[/]");
+                var taskExtract = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.SatelliteAntenna} Downloading[/]");
 
                 var totalRows = 0;
                 var increment = 0d;
@@ -109,14 +126,14 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 taskExtract.StopTask();
 
-                var taskSaving = ctx.AddTask("Saving results");
+                var taskSaving = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Rocket} Saving[/]");
 
                 outputAdapter.Save();
 
                 taskSaving.Increment(100);
                 taskSaving.StopTask();
 
-                _console.WriteNormal($"{totalRows} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
+                _console.WriteSubHeading($"{totalRows:N} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
             });
 
         return 0;
@@ -137,12 +154,12 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         return selectedField[locale];
     }
 
-    private DataTable ToDataTable(ContentType contentInfo, ContentfulCollection<Locale> locales)
+    private static DataTable ToDataTable(ContentType contentInfo, ContentfulCollection<Locale> locales)
     {
         var dataTable = new DataTable();
 
         dataTable.Columns.Add("sys.id");
-        dataTable.Columns.Add("sys.version");
+        dataTable.Columns.Add("sys.version", typeof(int));
 
         foreach (var field in contentInfo.Fields)
         {
@@ -213,43 +230,51 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
         if (value == null)
         {
-            if (field.Type.Equals("Location"))
+            switch (field.Type)
             {
-                dataRow[fieldPrefix + field.Id + ".lat"] = DBNull.Value;
-                dataRow[fieldPrefix + field.Id + ".lon"] = DBNull.Value;
-            }
-            else if (field.Type.Equals("Array"))
-            {
-                dataRow[fieldPrefix + field.Id + "[]"] = DBNull.Value;
-            }
-            else
-            {
-                dataRow[fieldPrefix + field.Id] = DBNull.Value;
+                case "Location":
+                    dataRow[fieldPrefix + field.Id + ".lat"] = DBNull.Value;
+                    dataRow[fieldPrefix + field.Id + ".lon"] = DBNull.Value;
+                    break;
+
+                case "Array":
+                    dataRow[fieldPrefix + field.Id + "[]"] = DBNull.Value;
+                    break;
+
+                default:
+                    dataRow[fieldPrefix + field.Id] = DBNull.Value;
+                    break;
             }
             return;
         }
 
-        if (field.Type.Equals("Location"))
+        switch (field.Type)
         {
-            var latLong = (JObject)value;
-            dataRow[fieldPrefix + field.Id + ".lat"] = latLong["lat"];
-            dataRow[fieldPrefix + field.Id + ".lon"] = latLong["lon"];
-        }
-        else if (field.Type.Equals("Link"))
-        {
-            dataRow[fieldPrefix + field.Id] = ((JObject)value)["sys"]?.Value<string>("id");
-        }
-        else if (field.Type.Equals("Object"))
-        {
-            dataRow[fieldPrefix + field.Id] = JsonConvert.SerializeObject(value);
-        }
-        else if (field.Type.Equals("Array"))
-        {
-            dataRow[fieldPrefix + field.Id + "[]"] = string.Join('|', value.Select(e => e["sys"]!["id"]!.Value<string>()));
-        }
-        else
-        {
-            dataRow[fieldPrefix + field.Id] = await ToValue(value, field.Type);
+            case "Location":
+                {
+                    var latLong = (JObject)value;
+                    dataRow[fieldPrefix + field.Id + ".lat"] = latLong["lat"];
+                    dataRow[fieldPrefix + field.Id + ".lon"] = latLong["lon"];
+                    break;
+                }
+
+            case "Link":
+                dataRow[fieldPrefix + field.Id] = ((JObject)value)["sys"]?.Value<string>("id");
+                break;
+
+            case "Object":
+                dataRow[fieldPrefix + field.Id] = JsonConvert.SerializeObject(value);
+                break;
+
+            case "Array":
+                {
+                    dataRow[fieldPrefix + field.Id + "[]"] = string.Join('|', value.Select(e => e["sys"]!["id"]!.Value<string>()));
+                    break;
+                }
+
+            default:
+                dataRow[fieldPrefix + field.Id] = await ToValue(value, field.Type);
+                break;
         }
     }
 
@@ -260,11 +285,13 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             "Symbol" => typeof(string),
             "RichText" => typeof(string),
             "Integer" => typeof(int),
+            "Number" => typeof(double),
             "Location" => typeof(double),
             "Link" => typeof(string),
             "Object" => typeof(string),
             "Array" => typeof(string),
             "Boolean" => typeof(bool),
+            "Date" => typeof(DateTime),
             _ => throw new CliException($"Contentful type '{type}' has no dotnet type conversion implemented."),
         };
     }
@@ -278,14 +305,16 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
         return type switch
         {
-            "Symbol" => value,
+            "Symbol" => value.Value<string>(),
             "RichText" => await UnHtml(value),
-            "Integer" => value,
-            "Location" => value,
+            "Integer" => value.Value<int>(),
+            "Location" => value.Value<double>(),
+            "Number" => value.Value<double>(),
             "Link" => value,
             "Object" => value,
             "Array" => value,
-            "Boolean" => value,
+            "Boolean" => value.Value<bool>(),
+            "Date" => value.Value<DateTime>(),
             _ => throw new CliException($"Contentful type '{type}' has no display value conversion implemented."),
         };
     }
@@ -293,8 +322,11 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
     private async Task<string> UnHtml(JToken value)
     {
         var html = await _htmlRenderer.ToHtml((Document)ConvertToDocument(value)!);
+
         var htmlDoc = new HtmlDocument();
+
         htmlDoc.LoadHtml(html);
+
         return WebUtility.HtmlDecode(htmlDoc.DocumentNode.InnerText);
     }
 
@@ -302,40 +334,42 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
     {
         var nodeType = data["nodeType"]?.Value<string>() ?? "unknown";
 
-        if (nodeType.Equals("document"))
+        switch (nodeType)
         {
-            var content = data["content"];
+            case "document":
+                {
+                    var content = data["content"];
 
-            return new Document
-            {
-                Data = new() { Target = null },
-                NodeType = nodeType,
-                Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
-            };
-        }
-        else if (nodeType.Equals("paragraph"))
-        {
-            var content = data["content"];
+                    return new Document
+                    {
+                        Data = new() { Target = null },
+                        NodeType = nodeType,
+                        Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
+                    };
+                }
 
-            return new Contentful.Core.Models.Paragraph
-            {
-                Data = new() { Target = null },
-                NodeType = nodeType,
-                Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
-            };
-        }
-        else if (nodeType.Equals("text"))
-        {
-            return new Contentful.Core.Models.Text
-            {
-                Data = new() { Target = null },
-                NodeType = nodeType,
-                Value = data.Value<string>("value"),
-            };
-        }
-        else
-        {
-            throw new CliException($"No IContent conversion for '{data["nodeType"]}'.");
+            case "paragraph":
+                {
+                    var content = data["content"];
+
+                    return new Contentful.Core.Models.Paragraph
+                    {
+                        Data = new() { Target = null },
+                        NodeType = nodeType,
+                        Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
+                    };
+                }
+
+            case "text":
+                return new Contentful.Core.Models.Text
+                {
+                    Data = new() { Target = null },
+                    NodeType = nodeType,
+                    Value = data.Value<string>("value"),
+                };
+
+            default:
+                throw new CliException($"No IContent conversion for '{data["nodeType"]}'.");
         }
     }
 }

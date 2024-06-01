@@ -17,6 +17,11 @@ public class ConsoleWriter : IConsoleWriter
         _console.WriteLine(text, Globals.StyleHeading);
     }
 
+    public void WriteSubHeading(string text)
+    {
+        _console.WriteLine(text, Globals.StyleSubHeading);
+    }
+
     public void WriteDim(string text)
     {
         _console.WriteLine(text, Globals.StyleDim);
@@ -34,7 +39,7 @@ public class ConsoleWriter : IConsoleWriter
 
     public void WriteRuler()
     {
-        _console.Write(new Rule());
+        _console.Write(new Rule() { Style = Globals.StyleDim });
     }
 
     public void WriteBlankLine()
@@ -49,6 +54,6 @@ public class ConsoleWriter : IConsoleWriter
 
     public void WriteNormal(string text)
     {
-        _console.WriteLine(text);
+        _console.WriteLine(text, Globals.StyleNormal);
     }
 }

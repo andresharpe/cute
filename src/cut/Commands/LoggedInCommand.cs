@@ -9,8 +9,6 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
 {
     private readonly bool _isLoggedIn;
 
-    private readonly bool _isCacheValid;
-
     protected readonly IConsoleWriter _console;
 
     protected readonly IPersistedTokenCache _tokenCache;
@@ -27,9 +25,9 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
         _tokenCache = tokenCache;
         _httpClient = new HttpClient();
 
-        var token = _tokenCache.LoadAsync(Globals.AppName).Result;
+        var settings = _tokenCache.LoadAsync(Globals.AppName).Result;
 
-        if (token == null)
+        if (settings == null)
         {
             _isLoggedIn = false;
             return;
@@ -37,18 +35,8 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
 
         _isLoggedIn = true;
 
-        var components = token.Split('|');
-
-        if (components.Length != 2)
-        {
-            _isCacheValid = false;
-            return;
-        }
-
-        _spaceId = components[1];
-        var apiKey = components[0];
-
-        _isCacheValid = true;
+        _spaceId = settings.DefaultSpace;
+        var apiKey = settings.ApiKey;
 
         _contentfulClient = new ContentfulManagementClient(_httpClient, apiKey, _spaceId);
     }
@@ -59,15 +47,7 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
         {
             _console.WriteAlert("You are not authenticated to Contentful. To authenticate type:");
             _console.WriteBlankLine();
-            _console.WriteAlertAccent("cut login");
-            return Task.FromResult(-1);
-        }
-
-        if (!_isCacheValid)
-        {
-            _console.WriteAlert("The credential cache is corrupt. To re-authenticate type:");
-            _console.WriteBlankLine();
-            _console.WriteAlertAccent("cut login");
+            _console.WriteAlertAccent("cut auth");
             return Task.FromResult(-1);
         }
 

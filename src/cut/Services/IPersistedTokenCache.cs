@@ -1,9 +1,11 @@
-﻿namespace Cut.Services
+﻿using Cut.Config;
+
+namespace Cut.Services
 {
     public interface IPersistedTokenCache
     {
-        Task<string?> LoadAsync(string tokenName);
+        Task<AppSettings?> LoadAsync(string tokenName);
 
-        Task SaveAsync(string tokenName, string token);
+        Task SaveAsync(string tokenName, AppSettings settings);
     }
 }

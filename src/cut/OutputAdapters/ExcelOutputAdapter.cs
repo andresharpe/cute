@@ -38,7 +38,7 @@ internal class ExcelOutputAdapter : OutputAdapterBase
         var xlRow = _xlRow;
         foreach (var val in row.ItemArray)
         {
-            _sheet.Cell(xlRow, xlCol).Value = val?.ToString();
+            _sheet.Cell(xlRow, xlCol).Value = ToExcelCellValue(val);
             if (_columns[xlCol - 1].StartsWith("sys."))
             {
                 _sheet.Cell(xlRow, xlCol).Style.Fill.BackgroundColor = XLColor.LightGray;
@@ -46,6 +46,35 @@ internal class ExcelOutputAdapter : OutputAdapterBase
             xlCol++;
         }
         _xlRow++;
+    }
+
+    private XLCellValue ToExcelCellValue(object? val)
+    {
+        if (val is string @string)
+        {
+            return @string;
+        }
+        else if (val is int integer)
+        {
+            return integer;
+        }
+        else if (val is double @double)
+        {
+            return @double;
+        }
+        else if (val is bool @bool)
+        {
+            return @bool;
+        }
+        else if (val is DateTime datetime)
+        {
+            return datetime;
+        }
+        else if (val is TimeSpan timespan)
+        {
+            return timespan;
+        }
+        return val?.ToString();
     }
 
     private void AddHeading(string columnName)
