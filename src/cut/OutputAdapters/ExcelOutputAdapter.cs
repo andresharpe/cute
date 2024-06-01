@@ -11,9 +11,9 @@ internal class ExcelOutputAdapter : OutputAdapterBase
     private int _xlRow = 2;
     private int _xlHeadingCol = 1;
 
-    private readonly List<string> _columns = new List<string>();
+    private readonly List<string> _columns = [];
 
-    public ExcelOutputAdapter(string contentName, string? fileName = null) : base(contentName, fileName ?? contentName + ".xlsx")
+    public ExcelOutputAdapter(string contentName, string? fileName = null) : base(fileName ?? contentName + ".xlsx")
     {
         _workbook = new XLWorkbook();
         _sheet = _workbook.Worksheets.Add(contentName);

@@ -3,13 +3,13 @@ using System.Data;
 
 namespace Cut.OutputAdapters;
 
-internal abstract class OutputAdapterBase : IDataAdapter
+internal abstract class OutputAdapterBase : IOutputAdapter
 {
     private readonly string _fileName;
 
     public string FileName => new FileInfo(_fileName).FullName;
 
-    public OutputAdapterBase(string contentName, string fileName)
+    public OutputAdapterBase(string fileName)
     {
         _fileName ??= fileName;
         try

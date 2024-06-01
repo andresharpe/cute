@@ -52,6 +52,9 @@ app.Configure(config =>
 
     config.AddCommand<DownloadCommand>("download")
         .WithDescription("Downloads content from the default or specified space.");
+
+    config.AddCommand<UploadCommand>("upload")
+        .WithDescription("Uploads local content to the default or specified space.");
 });
 
 try

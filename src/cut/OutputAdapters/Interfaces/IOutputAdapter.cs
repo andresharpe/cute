@@ -2,7 +2,7 @@
 
 namespace Cut.OutputAdapters
 {
-    internal interface IDataAdapter : IDisposable
+    internal interface IOutputAdapter : IDisposable
     {
         string FileName { get; }
 

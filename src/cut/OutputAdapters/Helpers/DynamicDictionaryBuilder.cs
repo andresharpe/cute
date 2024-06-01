@@ -1,19 +1,15 @@
-﻿using System.Data;
+﻿namespace Cut.OutputAdapters;
 
-namespace Cut.OutputAdapters;
-
-internal class DataTableHelper
+internal class DynamicDictionaryBuilder
 {
-    private readonly List<string[]> _columns;
+    private readonly IEnumerable<string[]> _columns;
 
-    public DataTableHelper(DataTable table)
+    public DynamicDictionaryBuilder(IEnumerable<string[]> columns)
     {
-        _columns = table.Columns.Cast<DataColumn>()
-            .Select(c => c.ColumnName.Split('.'))
-            .ToList();
+        _columns = columns;
     }
 
-    public Dictionary<string, object?> ToDictionary(DataRow row, bool ignoreNull = false)
+    public Dictionary<string, object?> ToDictionary(IReadOnlyList<object?> row, bool ignoreNull = false)
     {
         var obj = new Dictionary<string, object?>();
         var column = 0;
@@ -45,7 +41,7 @@ internal class DataTableHelper
                         }
                         else if (fieldNamePath[i].EndsWith("[]"))
                         {
-                            tmp.Add(fieldNamePath[i][..^2], ((string)row[column]).Split('|'));
+                            tmp.Add(fieldNamePath[i][..^2], row[column]?.ToString()?.Split('|') ?? null);
                         }
                         else
                         {

@@ -4,7 +4,7 @@ namespace Cut.OutputAdapters;
 
 internal class OutputAdapterFactory
 {
-    public static IDataAdapter Create(OutputFileFormat fileType, string contentName, string? fileName = null)
+    public static IOutputAdapter Create(OutputFileFormat fileType, string contentName, string? fileName = null)
     {
         return fileType switch
         {

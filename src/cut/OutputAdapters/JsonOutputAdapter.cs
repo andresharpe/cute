@@ -1,19 +1,20 @@
-﻿using Newtonsoft.Json;
+﻿using Cut.Exceptions;
+using Newtonsoft.Json;
 using System.Data;
 
 namespace Cut.OutputAdapters;
 
-internal class JsonOutputAdapter : OutputAdapterBase, IDataAdapter
+internal class JsonOutputAdapter : OutputAdapterBase, IOutputAdapter
 {
     private readonly StreamWriter _writer;
 
     private readonly JsonTextWriter _json;
 
-    private DataTableHelper? _dataTableHelper;
+    private DynamicDictionaryBuilder? _dataTableHelper;
 
     private int _count = 0;
 
-    public JsonOutputAdapter(string contentName, string? fileName) : base(contentName, fileName ?? contentName + ".json")
+    public JsonOutputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".json")
     {
         _writer = new(FileName, false, System.Text.Encoding.UTF8);
 
@@ -29,14 +30,19 @@ internal class JsonOutputAdapter : OutputAdapterBase, IDataAdapter
 
     public override void AddHeadings(DataTable table)
     {
-        _dataTableHelper ??= new DataTableHelper(table);
+        _dataTableHelper ??= new DynamicDictionaryBuilder(table.Columns.Cast<DataColumn>()
+            .Select(c => c.ColumnName.Split('.'))
+            .ToList());
     }
 
     public override void AddRow(DataRow row)
     {
-        _dataTableHelper ??= new DataTableHelper(row.Table);
+        if (_dataTableHelper == null)
+        {
+            throw new CliException("'AddHeadings' should be called before 'AddRows'");
+        }
 
-        var obj = _dataTableHelper.ToDictionary(row);
+        var obj = _dataTableHelper.ToDictionary(row.ItemArray);
 
         if (_count > 0)
         {

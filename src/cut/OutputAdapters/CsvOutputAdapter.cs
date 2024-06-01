@@ -5,14 +5,14 @@ using System.Globalization;
 
 namespace Cut.OutputAdapters;
 
-internal class CsvOutputAdapter : OutputAdapterBase, IDataAdapter
+internal class CsvOutputAdapter : OutputAdapterBase, IOutputAdapter
 {
     private readonly StreamWriter _writer;
 
     private readonly CsvWriter _csv;
 
     public CsvOutputAdapter(string contentName, string? fileName, string delimeter = ",")
-        : base(contentName, fileName ?? contentName + (delimeter == "\t" ? ".tsv" : ".csv"))
+        : base(fileName ?? contentName + (delimeter == "\t" ? ".tsv" : ".csv"))
     {
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {

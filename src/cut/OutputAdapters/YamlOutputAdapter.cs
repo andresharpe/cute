@@ -1,19 +1,20 @@
-﻿using Cut.Services;
+﻿using Cut.Exceptions;
+using Cut.Services;
 using System.Data;
 using System.Text;
 using YamlDotNet.Serialization;
 
 namespace Cut.OutputAdapters;
 
-internal class YamlOutputAdapter : OutputAdapterBase, IDataAdapter
+internal class YamlOutputAdapter : OutputAdapterBase, IOutputAdapter
 {
     private readonly StreamWriter _writer;
 
-    private DataTableHelper? _dataTableHelper;
+    private DynamicDictionaryBuilder? _dataTableHelper;
 
     private readonly ISerializer _yaml;
 
-    public YamlOutputAdapter(string contentName, string? fileName) : base(contentName, fileName ?? contentName + ".yaml")
+    public YamlOutputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".yaml")
     {
         _yaml = new SerializerBuilder().Build();
 
@@ -28,14 +29,19 @@ internal class YamlOutputAdapter : OutputAdapterBase, IDataAdapter
 
     public override void AddHeadings(DataTable table)
     {
-        _dataTableHelper ??= new DataTableHelper(table);
+        _dataTableHelper ??= new DynamicDictionaryBuilder(table.Columns.Cast<DataColumn>()
+            .Select(c => c.ColumnName.Split('.'))
+            .ToList());
     }
 
     public override void AddRow(DataRow row)
     {
-        _dataTableHelper ??= new DataTableHelper(row.Table);
+        if (_dataTableHelper == null)
+        {
+            throw new CliException("'AddHeadings' should be called before 'AddRows'");
+        }
 
-        var obj = _dataTableHelper.ToDictionary(row);
+        var obj = _dataTableHelper.ToDictionary(row.ItemArray);
 
         var sb = new StringBuilder(_yaml.Serialize(obj));
         sb.Replace("\n", "\n  ");

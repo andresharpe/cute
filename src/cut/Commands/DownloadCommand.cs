@@ -5,6 +5,7 @@ using Cut.Constants;
 using Cut.Exceptions;
 using Cut.OutputAdapters;
 using Cut.Services;
+using Cut.UiComponents;
 using HtmlAgilityPack;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -18,7 +19,9 @@ namespace Cut.Commands;
 
 public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
-    private HtmlRenderer _htmlRenderer = new();
+    private readonly HtmlRenderer _htmlRenderer = new();
+
+    private string _defaultLocale = null!;
 
     public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
@@ -41,35 +44,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
         if (result != 0 || _contentfulClient == null) return result;
 
-        await AnsiConsole.Progress()
-            .HideCompleted(false)
-            .AutoRefresh(true)
-            .AutoClear(false)
-            .Columns(
-                [
-                    new TaskDescriptionColumn()
-                    {
-                        Alignment = Justify.Left
-                    },
-                    new ProgressBarColumn()
-                    {
-                        CompletedStyle = Globals.StyleAlertAccent,
-                        FinishedStyle = Globals.StyleAlertAccent,
-                        IndeterminateStyle = Globals.StyleDim,
-                        RemainingStyle = Globals.StyleDim,
-                    },
-                    new PercentageColumn()
-                    {
-                        CompletedStyle = Globals.StyleAlertAccent,
-                        Style = Globals.StyleNormal,
-                    },
-                    new SpinnerColumn()
-                    {
-                        Style = Globals.StyleSubHeading,
-                    },
-                ]
-            )
-
+        await ProgressBars.Instance()
             .StartAsync(async ctx =>
             {
                 var taskPrepare = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Alien} Initializing[/]");
@@ -87,6 +62,8 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 var locales = await _contentfulClient.GetLocalesCollection();
                 taskPrepare.Increment(40);
+
+                _defaultLocale = locales.First().Code;
 
                 DataTable dataTable = ToDataTable(contentInfo, locales);
 
@@ -139,7 +116,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         return 0;
     }
 
-    private static JToken? ToDisplayValue(Entry<JObject> entry, string fieldName, string locale = "en")
+    private static JToken? ToDisplayValue(Entry<JObject> entry, string fieldName, string locale)
     {
         if (!entry.Fields.TryGetValue(fieldName, out var selectedField))
         {
@@ -154,7 +131,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
         return selectedField[locale];
     }
 
-    private static DataTable ToDataTable(ContentType contentInfo, ContentfulCollection<Locale> locales)
+    private DataTable ToDataTable(ContentType contentInfo, ContentfulCollection<Locale> locales)
     {
         var dataTable = new DataTable();
 
@@ -163,34 +140,34 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
         foreach (var field in contentInfo.Fields)
         {
-            var newFields = new List<string>();
-            var suffix = field.Type.Equals("Array") ? "[]" : "";
+            var newFields = new List<(string preFix, string postFix)>();
+            var arraySuffix = field.Type.Equals("Array") ? "[]" : string.Empty;
 
             if (field.Type.Equals("Location"))
             {
-                newFields.Add($"{field.Id}.lat{suffix}");
-                newFields.Add($"{field.Id}.lon{suffix}");
+                newFields.Add((field.Id, ".lat"));
+                newFields.Add((field.Id, ".lon"));
             }
             else
             {
-                newFields.Add($"{field.Id}{suffix}");
+                newFields.Add((field.Id, arraySuffix));
             }
 
             if (field.Localized)
             {
-                foreach (var fieldName in newFields)
+                foreach (var (preFix, postFix) in newFields)
                 {
                     foreach (var locale in locales)
                     {
-                        dataTable.Columns.Add($"{locale.Code}.{fieldName}", ToNativeType(field.Type));
+                        dataTable.Columns.Add($"{preFix}.{locale.Code}{postFix}", ToNativeType(field.Type));
                     }
                 }
             }
             else
             {
-                foreach (var fieldName in newFields)
+                foreach (var (preFix, postFix) in newFields)
                 {
-                    dataTable.Columns.Add($"{fieldName}", ToNativeType(field.Type));
+                    dataTable.Columns.Add($"{preFix}.{_defaultLocale}{postFix}", ToNativeType(field.Type));
                 }
             }
         }
@@ -216,33 +193,33 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             }
             else
             {
-                await SetFieldValue(entry, dataRow, field);
+                await SetFieldValue(entry, dataRow, field, _defaultLocale);
             }
         }
 
         return dataRow;
     }
 
-    private async Task SetFieldValue(Entry<JObject> entry, DataRow dataRow, Field field, string locale = "en")
+    private async Task SetFieldValue(Entry<JObject> entry, DataRow dataRow, Field field, string locale)
     {
         var value = ToDisplayValue(entry, field.Id, locale);
-        var fieldPrefix = field.Localized ? locale + "." : string.Empty;
+        var fieldId = field.Id + "." + locale;
 
         if (value == null)
         {
             switch (field.Type)
             {
                 case "Location":
-                    dataRow[fieldPrefix + field.Id + ".lat"] = DBNull.Value;
-                    dataRow[fieldPrefix + field.Id + ".lon"] = DBNull.Value;
+                    dataRow[fieldId + ".lat"] = DBNull.Value;
+                    dataRow[fieldId + ".lon"] = DBNull.Value;
                     break;
 
                 case "Array":
-                    dataRow[fieldPrefix + field.Id + "[]"] = DBNull.Value;
+                    dataRow[fieldId + "[]"] = DBNull.Value;
                     break;
 
                 default:
-                    dataRow[fieldPrefix + field.Id] = DBNull.Value;
+                    dataRow[fieldId] = DBNull.Value;
                     break;
             }
             return;
@@ -253,27 +230,27 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             case "Location":
                 {
                     var latLong = (JObject)value;
-                    dataRow[fieldPrefix + field.Id + ".lat"] = latLong["lat"];
-                    dataRow[fieldPrefix + field.Id + ".lon"] = latLong["lon"];
+                    dataRow[fieldId + ".lat"] = latLong["lat"];
+                    dataRow[fieldId + ".lon"] = latLong["lon"];
                     break;
                 }
 
             case "Link":
-                dataRow[fieldPrefix + field.Id] = ((JObject)value)["sys"]?.Value<string>("id");
+                dataRow[fieldId] = ((JObject)value)["sys"]?.Value<string>("id");
                 break;
 
             case "Object":
-                dataRow[fieldPrefix + field.Id] = JsonConvert.SerializeObject(value);
+                dataRow[fieldId] = JsonConvert.SerializeObject(value);
                 break;
 
             case "Array":
                 {
-                    dataRow[fieldPrefix + field.Id + "[]"] = string.Join('|', value.Select(e => e["sys"]!["id"]!.Value<string>()));
+                    dataRow[fieldId + "[]"] = string.Join('|', value.Select(e => e["sys"]!["id"]!.Value<string>()));
                     break;
                 }
 
             default:
-                dataRow[fieldPrefix + field.Id] = await ToValue(value, field.Type);
+                dataRow[fieldId] = await ToValue(value, field.Type);
                 break;
         }
     }
@@ -286,12 +263,12 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             "RichText" => typeof(string),
             "Integer" => typeof(int),
             "Number" => typeof(double),
+            "Boolean" => typeof(bool),
+            "Date" => typeof(DateTime),
             "Location" => typeof(double),
             "Link" => typeof(string),
             "Object" => typeof(string),
             "Array" => typeof(string),
-            "Boolean" => typeof(bool),
-            "Date" => typeof(DateTime),
             _ => throw new CliException($"Contentful type '{type}' has no dotnet type conversion implemented."),
         };
     }
@@ -308,13 +285,14 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             "Symbol" => value.Value<string>(),
             "RichText" => await UnHtml(value),
             "Integer" => value.Value<int>(),
-            "Location" => value.Value<double>(),
             "Number" => value.Value<double>(),
+            "Boolean" => value.Value<bool>(),
+            "Date" => value.Value<DateTime>(),
+            "Location" => value.Value<double>(),
             "Link" => value,
             "Object" => value,
             "Array" => value,
-            "Boolean" => value.Value<bool>(),
-            "Date" => value.Value<DateTime>(),
+
             _ => throw new CliException($"Contentful type '{type}' has no display value conversion implemented."),
         };
     }
