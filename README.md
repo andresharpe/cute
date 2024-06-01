@@ -53,7 +53,7 @@ cut help. You are ready to go! 🚀
 ```
 cut --help
 ```
-![cut help screenshot](docs/images/help.png)
+![cut help screenshot](docs/images/help-screen.png)
 
 ## Logging into Contentful
 ```
