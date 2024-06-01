@@ -18,6 +18,9 @@
 - **Json** - Contentful -> Json -> Contentful
 - **Yaml** - Contentful -> Yaml -> Contentful
 
+![cut help screenshot](docs/images/help.png)
+
+
 ## Installation
 
 ### Firstly, make sure you have the Dotnet SDK 8.0 package installed.
@@ -59,13 +62,13 @@ cut --help
 cut auth
 ```
 
-![auth image](docs/images/auth.png)
+![cut auth screenshot](docs/images/auth.png)
 
 ## Display space summary
 ``` 
 cut info
 ```
-![auth image](docs/images/info.png)
+![cut info screenshot](docs/images/info.png)
 
 ## Downloading data
 The default format is 'excel' so the following is equivelent.
@@ -90,7 +93,7 @@ For downloading to Yaml:
 ```
 cut download --content-type <contentType> --format yaml
 ```
-![auth image](docs/images/download.png)
+![cut download screenshot](docs/images/download.png)
 
 ## Uploading/synchronizing data
 
