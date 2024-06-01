@@ -12,9 +12,9 @@
 
 ***cut*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing and uploads to and from a Contentful space and supports the following :-
 
-- **CSV** - Contentfult -> Comma delimeted files -> Contentful
-- **TSV** - Contentfult -> Tab delimeted files -> Contentful
-- **Excel** - Contentfult -> Excel xlsx workbook -> Contentful
+- **CSV** - Contentful -> Comma delimeted files -> Contentful
+- **TSV** - Contentful -> Tab delimeted files -> Contentful
+- **Excel** - Contentful -> Excel xlsx workbook -> Contentful
 - **Json** - Contentful -> Json -> Contentful
 - **Yaml** - Contentful -> Yaml -> Contentful
 
@@ -59,10 +59,13 @@ cut --help
 cut auth
 ```
 
+![auth image](docs/images/auth.png)
+
 ## Display space summary
 ``` 
 cut info
 ```
+![auth image](docs/images/info.png)
 
 ## Downloading data
 The default format is 'excel' so the following is equivelent.
@@ -87,6 +90,7 @@ For downloading to Yaml:
 ```
 cut download --content-type <contentType> --format yaml
 ```
+![auth image](docs/images/download.png)
 
 ## Uploading/synchronizing data
 

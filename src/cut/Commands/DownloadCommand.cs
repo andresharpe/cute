@@ -133,7 +133,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 taskSaving.Increment(100);
                 taskSaving.StopTask();
 
-                _console.WriteSubHeading($"{totalRows:N} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
+                _console.WriteSubHeading($"{totalRows} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
             });
 
         return 0;
