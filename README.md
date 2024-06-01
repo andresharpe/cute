@@ -1,10 +1,6 @@
 # Contentful Update Tool
 
-<div style="text-align:center">
-
 ![image](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/cut.png)
-
-</div>
 
 ## Introduction 
 
