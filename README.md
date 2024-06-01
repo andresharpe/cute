@@ -18,9 +18,6 @@
 - **Json** - Contentful -> Json -> Contentful
 - **Yaml** - Contentful -> Yaml -> Contentful
 
-![cut help screenshot](docs/images/help.png)
-
-
 ## Installation
 
 ### Firstly, make sure you have the Dotnet SDK 8.0 package installed.
@@ -56,6 +53,7 @@ cut help. You are ready to go! 🚀
 ```
 cut --help
 ```
+![cut help screenshot](docs/images/help.png)
 
 ## Logging into Contentful
 ```
