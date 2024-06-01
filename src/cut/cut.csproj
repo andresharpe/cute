@@ -23,6 +23,7 @@
 		<RepositoryUrl>https://github.com/andresharpe/cut.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageIcon>cut.png</PackageIcon>
+		<PackageTags>cli;contentful;csv;excel;tsv;yaml;json</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
 	<ItemGroup>
