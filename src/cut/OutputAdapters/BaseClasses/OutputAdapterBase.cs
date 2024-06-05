@@ -24,9 +24,9 @@ internal abstract class OutputAdapterBase : IOutputAdapter
 
     public abstract void Dispose();
 
-    public abstract void AddHeadings(DataTable table);
+    public abstract void AddHeadings(IEnumerable<string> headings);
 
-    public abstract void AddRow(DataRow row);
+    public abstract void AddRow(IDictionary<string, object?> row);
 
     public abstract void Save();
 }

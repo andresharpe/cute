@@ -10,8 +10,6 @@ internal class YamlOutputAdapter : OutputAdapterBase, IOutputAdapter
 {
     private readonly StreamWriter _writer;
 
-    private DynamicDictionaryBuilder? _dataTableHelper;
-
     private readonly ISerializer _yaml;
 
     public YamlOutputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".yaml")
@@ -27,23 +25,14 @@ internal class YamlOutputAdapter : OutputAdapterBase, IOutputAdapter
         _writer.WriteLine($"{contentName}:");
     }
 
-    public override void AddHeadings(DataTable table)
+    public override void AddHeadings(IEnumerable<string> table)
     {
-        _dataTableHelper ??= new DynamicDictionaryBuilder(table.Columns.Cast<DataColumn>()
-            .Select(c => c.ColumnName.Split('.'))
-            .ToList());
+        // do nothing
     }
 
-    public override void AddRow(DataRow row)
+    public override void AddRow(IDictionary<string, object?> row)
     {
-        if (_dataTableHelper == null)
-        {
-            throw new CliException("'AddHeadings' should be called before 'AddRows'");
-        }
-
-        var obj = _dataTableHelper.ToDictionary(row.ItemArray);
-
-        var sb = new StringBuilder(_yaml.Serialize(obj));
+        var sb = new StringBuilder(_yaml.Serialize(row));
         sb.Replace("\n", "\n  ");
         sb.Length -= 2;
 

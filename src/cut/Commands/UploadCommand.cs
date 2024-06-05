@@ -3,6 +3,8 @@ using Contentful.Core.Extensions;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
+using cut.lib.Contentful;
+using cut.lib.Serializers;
 using Cut.Constants;
 using Cut.Exceptions;
 using Cut.InputAdapters;
@@ -97,21 +99,24 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
             taskExtractLocal.StopTask();
 
             // Get cloud entries (Contentful)
-            var cloudEntries = await GetContentfulEntries(_contentfulClient, settings.ContentType, contentInfo.DisplayField, taskExtractCloud);
+            var cloudEntries = GetContentfulEntries(_contentfulClient, settings.ContentType, contentInfo.DisplayField, taskExtractCloud);
             taskExtractCloud.StopTask();
 
             // Match 'em
-            var indexedLocalEntries = localEntries.ToDictionary(o => GetValueWithKeys(o, "sys", "id")?.ToString() ?? ContentfulIdGenerator.NewId(), o => o);
+            var serializer = new EntrySerializer(contentInfo, locales.Items);
+            var indexedLocalEntries = localEntries.ToDictionary(o => o["sys.id"]?.ToString() ?? ContentfulIdGenerator.NewId(), o => o);
             var indexedCloudEntries = cloudEntries.ToDictionary(o => o.SystemProperties.Id, o => o);
             var matched = 0;
             var cloudNewer = 0;
             var localNewer = 0;
             var valuesDiffer = 0;
             var uploaded = 0;
+
             taskMatchEntries.MaxValue = indexedLocalEntries.Count;
+
             foreach (var (localKey, localValue) in indexedLocalEntries)
             {
-                var newEntry = ToValidContentfulObject(localValue, contentInfo);
+                var newEntry = serializer.DeserializeEntry(localValue);
 
                 if (indexedCloudEntries.TryGetValue(localKey, out var cloudEntry))
                 {
@@ -152,7 +157,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
         return 0;
     }
 
-    private bool ValuesDiffer(Entry<dynamic> newEntry, Entry<JObject> cloudEntry)
+    private static bool ValuesDiffer(Entry<JObject> newEntry, Entry<JObject> cloudEntry)
     {
         var versionLocal = newEntry.SystemProperties.Version;
         var versionCloud = cloudEntry.SystemProperties.Version;
@@ -160,240 +165,25 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
         return versionLocal != versionCloud;
     }
 
-    private Entry<dynamic> ToValidContentfulObject(IDictionary<string, object?> localValue, ContentType contentType)
-    {
-        Entry<dynamic> result = new Entry<dynamic>();
-
-        dynamic expandoFields = new ExpandoObject();
-
-        string? id = null;
-        int? version = null;
-
-        if (localValue.TryGetValue("sys", out var sysValue) && sysValue is IDictionary<string, object?> sys)
-        {
-            if (sys.TryGetValue("id", out var idValue) && idValue is string idString)
-                id = idString;
-
-            if (sys.TryGetValue("version", out var versionValue) && versionValue is double versionInt)
-                version = (int)versionInt;
-        }
-
-        result.Fields = expandoFields;
-        result.Metadata = new() { Tags = [] };
-        result.SystemProperties = new SystemProperties()
-        {
-            Id = id ?? ContentfulIdGenerator.NewId(),
-            Version = version ?? 0
-        };
-
-        var fields = (IDictionary<string, object?>)expandoFields;
-
-        foreach (var (key, value) in localValue)
-        {
-            if (key == "sys") continue; // strip this out
-
-            if (value is null) continue;
-
-            var fld = contentType.Fields.First(f => f.Id == key);
-
-            var fldType = fld.Type;
-
-            var localeValues = (IDictionary<string, object?>)value;
-
-            switch (fldType)
-            {
-                case "Symbol":
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => kv.Value?.ToString()));
-                    break;
-
-                case "RichText":
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => ToDocument(kv.Value)));
-                    break;
-
-                case "Integer":
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => Convert.ToInt32(kv.Value)));
-                    break;
-
-                case "Number":
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => Convert.ToDouble(kv.Value)));
-                    break;
-
-                case "Boolean":
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => Convert.ToBoolean(kv.Value)));
-                    break;
-
-                case "Date":
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => Convert.ToDateTime(kv.Value)));
-                    break;
-
-                case "Location":
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => ToLocation(kv.Value)));
-                    break;
-
-                case "Link":
-                    var linkEntries = localeValues.Where(kv => kv.Value is not null);
-                    if (linkEntries.Any())
-                    {
-                        fields.Add(key, linkEntries.ToDictionary(kv => kv.Key, kv => ToLink(kv.Value, fld.LinkType)));
-                    }
-                    break;
-
-                case "Object": // untested
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => new
-                    {
-                        type = "Link",
-                        linkType = fld.LinkType,
-                        id = kv.Value?.ToString()
-                    }));
-                    break;
-
-                case "Array":
-
-                    fields.Add(key, localeValues.ToDictionary(kv => kv.Key, kv => ToLinkArray(kv.Value)));
-                    break;
-
-                default:
-                    throw new CliException($"No handler for converting '{key}' to Contentful type '{fldType}'");
-            }
-        }
-
-        return result;
-    }
-
-    private object ToLink(object? value, string linkType)
-    {
-        return new
-        {
-            sys = new
-            {
-                type = "Link",
-                linkType,
-                id = value?.ToString()
-            }
-        };
-    }
-
-    private object? ToLinkArray(object? value)
-    {
-        if (value == null) return null;
-
-        var arrayValue = (string[])value;
-        var links = new List<object>();
-
-        foreach (var id in arrayValue)
-        {
-            links.Add(new
-            {
-                sys = new
-                {
-                    type = "Link",
-                    linkType = "Entry",
-                    id,
-                }
-            });
-        }
-        return links.ToArray();
-    }
-
-    private static Location? ToLocation(object? fldValue)
-    {
-        if (fldValue == null) return null;
-
-        var location = (IDictionary<string, object?>)fldValue;
-
-        if (location is null) return null;
-
-        return new Location()
-        {
-            Lat = (double)location["lat"]!,
-            Lon = (double)location["lon"]!
-        };
-    }
-
-    private Document? ToDocument(object? fldValue)
-    {
-        if (fldValue == null) return null;
-
-        var text = fldValue.ToString();
-
-        return new Document()
-        {
-            NodeType = "document",
-            Data = new(),
-            Content = [
-                new Contentful.Core.Models.Paragraph()
-                {
-                    NodeType = "paragraph",
-                    Data = new(),
-                    Content = [
-                        new Contentful.Core.Models.Text()
-                        {
-                            NodeType = "text",
-                            Data = new(),
-                            Marks = [],
-                            Value = text
-                        }]
-                }
-            ],
-        };
-    }
-
-    private static object? GetValueWithKeys(IDictionary<string, object?> obj, params string[] keys)
-    {
-        if (keys.Length == 0) return obj;
-
-        if (obj.TryGetValue(keys[0], out object? value))
-        {
-            if (value is IDictionary<string, object?> dict)
-            {
-                return GetValueWithKeys(dict, keys[1..]);
-            }
-            else
-            {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    private static async Task<IEnumerable<Entry<JObject>>> GetContentfulEntries(ContentfulManagementClient client,
+    private static IEnumerable<Entry<JObject>> GetContentfulEntries(ContentfulManagementClient client,
         string contentType,
         string sortOrder,
         ProgressTask taskExtractCloud)
     {
         List<Entry<JObject>> result = [];
 
-        var skip = 0;
-        var page = 100;
         taskExtractCloud.MaxValue = 1;
 
-        while (true)
+        foreach (var (entry, entries) in EntryEnumerator.Entries(client, contentType, sortOrder))
         {
-            var query = new QueryBuilder<Dictionary<string, object?>>()
-                .ContentTypeIs(contentType)
-                .Skip(skip)
-                .Limit(page)
-                .OrderBy($"fields.{sortOrder}")
-                .Build();
-
-            var entries = await client.GetEntriesCollection<Entry<JObject>>(query);
-
-            if (!entries.Any()) break;
-
             if (taskExtractCloud.MaxValue == 1)
             {
                 taskExtractCloud.MaxValue = entries.Total;
             }
 
-            foreach (var entry in entries)
-            {
-                result.Add(entry);
-                taskExtractCloud.Increment(1);
-            }
-
-            skip += page;
+            result.Add(entry);
+            taskExtractCloud.Increment(1);
         }
-
         return result;
     }
 }

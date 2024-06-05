@@ -1,6 +1,8 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
+using cut.lib.Contentful;
+using cut.lib.Serializers;
 using Cut.Constants;
 using Cut.Exceptions;
 using Cut.OutputAdapters;
@@ -50,11 +52,6 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 var taskPrepare = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Alien} Initializing[/]");
                 var taskExtract = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.SatelliteAntenna} Downloading[/]");
 
-                var totalRows = 0;
-                var increment = 0d;
-                var skip = 0;
-                var page = 100;
-
                 using var outputAdapter = OutputAdapterFactory.Create(settings.Format, settings.ContentType);
 
                 var contentInfo = await _contentfulClient.GetContentType(settings.ContentType);
@@ -63,42 +60,22 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 var locales = await _contentfulClient.GetLocalesCollection();
                 taskPrepare.Increment(40);
 
-                _defaultLocale = locales.First().Code;
+                var serializer = new EntrySerializer(contentInfo, locales.Items);
 
-                DataTable dataTable = ToDataTable(contentInfo, locales);
-
-                outputAdapter.AddHeadings(dataTable);
+                outputAdapter.AddHeadings(serializer.ColumnFieldNames);
                 taskPrepare.Increment(20);
                 taskPrepare.StopTask();
 
-                while (true)
+                taskExtract.MaxValue = 1;
+
+                foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulClient, settings.ContentType, contentInfo.DisplayField))
                 {
-                    var query = new QueryBuilder<Dictionary<string, object?>>()
-                        .ContentTypeIs(settings.ContentType)
-                        .Skip(skip)
-                        .Limit(page)
-                        .OrderBy($"fields.{contentInfo.DisplayField}")
-                        .Build();
-
-                    var entries = await _contentfulClient.GetEntriesCollection<Entry<JObject>>(query);
-
-                    if (!entries.Any()) break;
-
-                    if (increment == 0 && entries.Total > 0)
+                    if (taskExtract.MaxValue == 1)
                     {
-                        totalRows = entries.Total;
-                        increment = (100d / entries.Total) * 100d;
+                        taskExtract.MaxValue = entries.Total;
                     }
-
-                    foreach (var entry in entries)
-                    {
-                        DataRow row = await ToDataRow(dataTable, entry, contentInfo, locales);
-                        outputAdapter.AddRow(row);
-                    }
-
-                    taskExtract.Increment(increment);
-
-                    skip += page;
+                    outputAdapter.AddRow(serializer.SerializeEntry(entry));
+                    taskExtract.Increment(1);
                 }
 
                 taskExtract.StopTask();
@@ -110,7 +87,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 taskSaving.Increment(100);
                 taskSaving.StopTask();
 
-                _console.WriteSubHeading($"{totalRows:N0} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
+                _console.WriteSubHeading($"{taskExtract.MaxValue:N0} {settings.ContentType} entries downloaded to {outputAdapter.FileName}");
             });
 
         return 0;

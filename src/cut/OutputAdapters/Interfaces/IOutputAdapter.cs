@@ -6,9 +6,9 @@ namespace Cut.OutputAdapters
     {
         string FileName { get; }
 
-        void AddHeadings(DataTable table);
+        void AddHeadings(IEnumerable<string> headings);
 
-        void AddRow(DataRow row);
+        void AddRow(IDictionary<string, object?> row);
 
         void Save();
     }

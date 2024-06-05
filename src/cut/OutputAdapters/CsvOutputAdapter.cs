@@ -24,18 +24,18 @@ internal class CsvOutputAdapter : OutputAdapterBase, IOutputAdapter
         _csv = new CsvWriter(_writer, config);
     }
 
-    public override void AddHeadings(DataTable table)
+    public override void AddHeadings(IEnumerable<string> headings)
     {
-        foreach (DataColumn col in table.Columns)
+        foreach (var col in headings)
         {
-            _csv.WriteField(col.ColumnName);
+            _csv.WriteField(col);
         }
         _csv.NextRecord();
     }
 
-    public override void AddRow(DataRow row)
+    public override void AddRow(IDictionary<string, object?> row)
     {
-        foreach (var value in row.ItemArray)
+        foreach (var (_, value) in row)
         {
             _csv.WriteField(value);
         }

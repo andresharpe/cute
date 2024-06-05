@@ -4,8 +4,6 @@
 
 ## Introduction 
 
-[Contentful](https://www.contentful.com/) is a headless content management system (CMS) that allows teams to store, manage and retrieve content for websites and apps.
-
 ***cut*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing and uploads to and from a Contentful space and supports the following :-
 
 - **CSV** - Contentful -> Comma delimeted files -> Contentful
@@ -13,6 +11,8 @@
 - **Excel** - Contentful -> Excel xlsx workbook -> Contentful
 - **Json** - Contentful -> Json -> Contentful
 - **Yaml** - Contentful -> Yaml -> Contentful
+
+[Contentful](https://www.contentful.com/) is a headless content management system (CMS) that allows teams to store, manage and retrieve content for websites and apps.
 
 ## Installation
 
@@ -91,8 +91,8 @@ cut download --content-type <contentType> --format yaml
 
 ## Uploading/synchronizing data
 
-***This feature will be coming soon...***
+*This feature will be coming soon*
 
 ## For generating Javascript or Dotnet types
 
-***This feature will be coming soon...***
+*This feature will be coming soon...*

@@ -24,19 +24,19 @@ internal class ExcelOutputAdapter : OutputAdapterBase
         _workbook.Dispose();
     }
 
-    public override void AddHeadings(DataTable table)
+    public override void AddHeadings(IEnumerable<string> headings)
     {
-        foreach (DataColumn col in table.Columns)
+        foreach (var col in headings)
         {
-            AddHeading(col.ColumnName);
+            AddHeading(col);
         }
     }
 
-    public override void AddRow(DataRow row)
+    public override void AddRow(IDictionary<string, object?> row)
     {
         var xlCol = 1;
         var xlRow = _xlRow;
-        foreach (var val in row.ItemArray)
+        foreach (var (_, val) in row)
         {
             _sheet.Cell(xlRow, xlCol).Value = ToExcelCellValue(val);
             if (_columns[xlCol - 1].StartsWith("sys."))
@@ -48,7 +48,7 @@ internal class ExcelOutputAdapter : OutputAdapterBase
         _xlRow++;
     }
 
-    private XLCellValue ToExcelCellValue(object? val)
+    private static XLCellValue ToExcelCellValue(object? val)
     {
         if (val is string @string)
         {

@@ -10,8 +10,6 @@ internal class JsonOutputAdapter : OutputAdapterBase, IOutputAdapter
 
     private readonly JsonTextWriter _json;
 
-    private DynamicDictionaryBuilder? _dataTableHelper;
-
     private int _count = 0;
 
     public JsonOutputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".json")
@@ -28,29 +26,20 @@ internal class JsonOutputAdapter : OutputAdapterBase, IOutputAdapter
         _json.WriteStartArray();
     }
 
-    public override void AddHeadings(DataTable table)
+    public override void AddHeadings(IEnumerable<string?> headings)
     {
-        _dataTableHelper ??= new DynamicDictionaryBuilder(table.Columns.Cast<DataColumn>()
-            .Select(c => c.ColumnName.Split('.'))
-            .ToList());
+        // nothing to do here
     }
 
-    public override void AddRow(DataRow row)
+    public override void AddRow(IDictionary<string, object?> row)
     {
-        if (_dataTableHelper == null)
-        {
-            throw new CliException("'AddHeadings' should be called before 'AddRows'");
-        }
-
-        var obj = _dataTableHelper.ToDictionary(row.ItemArray);
-
         if (_count > 0)
         {
             _json.WriteRaw(",\n");
         }
 
         // Currently pretty-fied - although we can proably control this too with a param for more compact output
-        _json.WriteRaw(JsonConvert.SerializeObject(obj, Formatting.Indented));
+        _json.WriteRaw(JsonConvert.SerializeObject(row, Formatting.Indented));
 
         _count++;
     }
