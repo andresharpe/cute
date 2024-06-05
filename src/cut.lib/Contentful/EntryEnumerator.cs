@@ -1,10 +1,9 @@
-﻿using Contentful.Core.Models.Management;
-using Contentful.Core.Models;
+﻿using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Newtonsoft.Json.Linq;
 using Contentful.Core;
 
-namespace cut.lib.Contentful;
+namespace Cut.Lib.Contentful;
 
 public static class EntryEnumerator
 {

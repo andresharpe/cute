@@ -1,4 +1,4 @@
-﻿namespace cut.lib.Enums;
+﻿namespace Cut.Lib.Enums;
 
 public enum FieldType
 {

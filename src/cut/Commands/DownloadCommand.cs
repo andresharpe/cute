@@ -1,10 +1,9 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
-using Contentful.Core.Search;
-using cut.lib.Contentful;
-using cut.lib.Serializers;
 using Cut.Constants;
 using Cut.Exceptions;
+using Cut.Lib.Contentful;
+using Cut.Lib.Serializers;
 using Cut.OutputAdapters;
 using Cut.Services;
 using Cut.UiComponents;
@@ -14,7 +13,6 @@ using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Data;
 using System.Net;
 
 namespace Cut.Commands;
@@ -22,8 +20,6 @@ namespace Cut.Commands;
 public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
     private readonly HtmlRenderer _htmlRenderer = new();
-
-    private string _defaultLocale = null!;
 
     public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
@@ -91,240 +87,5 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             });
 
         return 0;
-    }
-
-    private static JToken? ToDisplayValue(Entry<JObject> entry, string fieldName, string locale)
-    {
-        if (!entry.Fields.TryGetValue(fieldName, out var selectedField))
-        {
-            return null;
-        }
-
-        if (selectedField.Contains(locale))
-        {
-            return null;
-        }
-
-        return selectedField[locale];
-    }
-
-    private DataTable ToDataTable(ContentType contentInfo, ContentfulCollection<Locale> locales)
-    {
-        var dataTable = new DataTable();
-
-        dataTable.Columns.Add("sys.id");
-        dataTable.Columns.Add("sys.version", typeof(int));
-
-        foreach (var field in contentInfo.Fields)
-        {
-            var newFields = new List<(string preFix, string postFix)>();
-            var arraySuffix = field.Type.Equals("Array") ? "[]" : string.Empty;
-
-            if (field.Type.Equals("Location"))
-            {
-                newFields.Add((field.Id, ".lat"));
-                newFields.Add((field.Id, ".lon"));
-            }
-            else
-            {
-                newFields.Add((field.Id, arraySuffix));
-            }
-
-            if (field.Localized)
-            {
-                foreach (var (preFix, postFix) in newFields)
-                {
-                    foreach (var locale in locales)
-                    {
-                        dataTable.Columns.Add($"{preFix}.{locale.Code}{postFix}", ToNativeType(field.Type));
-                    }
-                }
-            }
-            else
-            {
-                foreach (var (preFix, postFix) in newFields)
-                {
-                    dataTable.Columns.Add($"{preFix}.{_defaultLocale}{postFix}", ToNativeType(field.Type));
-                }
-            }
-        }
-
-        return dataTable;
-    }
-
-    private async Task<DataRow> ToDataRow(DataTable dataTable, Entry<JObject> entry, ContentType contentInfo, ContentfulCollection<Locale> locales)
-    {
-        var dataRow = dataTable.NewRow();
-
-        dataRow["sys.id"] = entry.SystemProperties.Id;
-        dataRow["sys.version"] = entry.SystemProperties.Version;
-
-        foreach (var field in contentInfo.Fields)
-        {
-            if (field.Localized)
-            {
-                foreach (var locale in locales)
-                {
-                    await SetFieldValue(entry, dataRow, field, locale.Code);
-                }
-            }
-            else
-            {
-                await SetFieldValue(entry, dataRow, field, _defaultLocale);
-            }
-        }
-
-        return dataRow;
-    }
-
-    private async Task SetFieldValue(Entry<JObject> entry, DataRow dataRow, Field field, string locale)
-    {
-        var value = ToDisplayValue(entry, field.Id, locale);
-        var fieldId = field.Id + "." + locale;
-
-        if (value == null)
-        {
-            switch (field.Type)
-            {
-                case "Location":
-                    dataRow[fieldId + ".lat"] = DBNull.Value;
-                    dataRow[fieldId + ".lon"] = DBNull.Value;
-                    break;
-
-                case "Array":
-                    dataRow[fieldId + "[]"] = DBNull.Value;
-                    break;
-
-                default:
-                    dataRow[fieldId] = DBNull.Value;
-                    break;
-            }
-            return;
-        }
-
-        switch (field.Type)
-        {
-            case "Location":
-                {
-                    var latLong = (JObject)value;
-                    dataRow[fieldId + ".lat"] = latLong["lat"];
-                    dataRow[fieldId + ".lon"] = latLong["lon"];
-                    break;
-                }
-
-            case "Link":
-                dataRow[fieldId] = ((JObject)value)["sys"]?.Value<string>("id");
-                break;
-
-            case "Object":
-                dataRow[fieldId] = JsonConvert.SerializeObject(value);
-                break;
-
-            case "Array":
-                {
-                    dataRow[fieldId + "[]"] = string.Join('|', value.Select(e => e["sys"]!["id"]!.Value<string>()));
-                    break;
-                }
-
-            default:
-                dataRow[fieldId] = await ToValue(value, field.Type);
-                break;
-        }
-    }
-
-    private static Type ToNativeType(string type)
-    {
-        return type switch
-        {
-            "Symbol" => typeof(string),
-            "RichText" => typeof(string),
-            "Integer" => typeof(int),
-            "Number" => typeof(double),
-            "Boolean" => typeof(bool),
-            "Date" => typeof(DateTime),
-            "Location" => typeof(double),
-            "Link" => typeof(string),
-            "Object" => typeof(string),
-            "Array" => typeof(string),
-            _ => throw new CliException($"Contentful type '{type}' has no dotnet type conversion implemented."),
-        };
-    }
-
-    private async Task<object> ToValue(JToken value, string type)
-    {
-        if (value == null)
-        {
-            return DBNull.Value;
-        }
-
-        return type switch
-        {
-            "Symbol" => value.Value<string>(),
-            "RichText" => await UnHtml(value),
-            "Integer" => value.Value<int>(),
-            "Number" => value.Value<double>(),
-            "Boolean" => value.Value<bool>(),
-            "Date" => value.Value<DateTime>(),
-            "Location" => value.Value<double>(),
-            "Link" => value,
-            "Object" => value,
-            "Array" => value,
-
-            _ => throw new CliException($"Contentful type '{type}' has no display value conversion implemented."),
-        };
-    }
-
-    private async Task<string> UnHtml(JToken value)
-    {
-        var html = await _htmlRenderer.ToHtml((Document)ConvertToDocument(value)!);
-
-        var htmlDoc = new HtmlDocument();
-
-        htmlDoc.LoadHtml(html);
-
-        return WebUtility.HtmlDecode(htmlDoc.DocumentNode.InnerText);
-    }
-
-    private object? ConvertToDocument(JToken data)
-    {
-        var nodeType = data["nodeType"]?.Value<string>() ?? "unknown";
-
-        switch (nodeType)
-        {
-            case "document":
-                {
-                    var content = data["content"];
-
-                    return new Document
-                    {
-                        Data = new() { Target = null },
-                        NodeType = nodeType,
-                        Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
-                    };
-                }
-
-            case "paragraph":
-                {
-                    var content = data["content"];
-
-                    return new Contentful.Core.Models.Paragraph
-                    {
-                        Data = new() { Target = null },
-                        NodeType = nodeType,
-                        Content = content!.Select(ConvertToDocument!).Cast<IContent>().ToList(),
-                    };
-                }
-
-            case "text":
-                return new Contentful.Core.Models.Text
-                {
-                    Data = new() { Target = null },
-                    NodeType = nodeType,
-                    Value = data.Value<string>("value"),
-                };
-
-            default:
-                throw new CliException($"No IContent conversion for '{data["nodeType"]}'.");
-        }
     }
 }

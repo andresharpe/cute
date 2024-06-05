@@ -1,29 +1,21 @@
 ﻿using Contentful.Core;
-using Contentful.Core.Extensions;
 using Contentful.Core.Models;
-using Contentful.Core.Models.Management;
-using Contentful.Core.Search;
-using cut.lib.Contentful;
-using cut.lib.Serializers;
 using Cut.Constants;
 using Cut.Exceptions;
 using Cut.InputAdapters;
-using Cut.OutputAdapters;
+using Cut.Lib.Contentful;
+using Cut.Lib.Serializers;
 using Cut.Services;
 using Cut.UiComponents;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Dynamic;
 
 namespace Cut.Commands;
 
 public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
 {
-    private string _defaultLocale = null!;
-
     public UploadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
     { }
@@ -41,6 +33,10 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
         [CommandOption("-f|--format")]
         [Description("The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)")]
         public InputFileFormat? Format { get; set; } = null!;
+
+        [CommandOption("-a|--apply")]
+        [Description("Apply and publish all the calculated changes. The default behaviour is to only list the detected changes.")]
+        public bool Apply { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -88,7 +84,6 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
 
             // Get locale info
             var locales = await _contentfulClient.GetLocalesCollection();
-            _defaultLocale = locales.First().Code;
             taskPrepare.Increment(50);
             taskPrepare.StopTask();
 
@@ -99,7 +94,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
             taskExtractLocal.StopTask();
 
             // Get cloud entries (Contentful)
-            var cloudEntries = GetContentfulEntries(_contentfulClient, settings.ContentType, contentInfo.DisplayField, taskExtractCloud);
+            var cloudEntries = GetContentfulEntries(settings.ContentType, contentInfo.DisplayField, taskExtractCloud);
             taskExtractCloud.StopTask();
 
             // Match 'em
@@ -139,8 +134,14 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
                 }
                 else
                 {
-                    // var newCloudEntry = await _contentfulClient.CreateOrUpdateEntry(newEntry, null, settings.ContentType, 0);
-                    // await _contentfulClient.PublishEntry(newCloudEntry.SystemProperties.Id, newCloudEntry.SystemProperties.Version!.Value);
+                    if (settings.Apply)
+                    {
+                        _console.WriteAlert("Applying changes to Contentful.");
+
+                        var newCloudEntry = await _contentfulClient.CreateOrUpdateEntry(newEntry, id: null, contentTypeId: settings.ContentType, version: 0);
+
+                        await _contentfulClient.PublishEntry(newCloudEntry.SystemProperties.Id, newCloudEntry.SystemProperties.Version!.Value);
+                    }
                     uploaded++;
                 }
                 taskMatchEntries.Increment(1);
@@ -163,27 +164,5 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
         var versionCloud = cloudEntry.SystemProperties.Version;
 
         return versionLocal != versionCloud;
-    }
-
-    private static IEnumerable<Entry<JObject>> GetContentfulEntries(ContentfulManagementClient client,
-        string contentType,
-        string sortOrder,
-        ProgressTask taskExtractCloud)
-    {
-        List<Entry<JObject>> result = [];
-
-        taskExtractCloud.MaxValue = 1;
-
-        foreach (var (entry, entries) in EntryEnumerator.Entries(client, contentType, sortOrder))
-        {
-            if (taskExtractCloud.MaxValue == 1)
-            {
-                taskExtractCloud.MaxValue = entries.Total;
-            }
-
-            result.Add(entry);
-            taskExtractCloud.Increment(1);
-        }
-        return result;
     }
 }

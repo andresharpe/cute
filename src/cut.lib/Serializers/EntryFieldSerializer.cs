@@ -3,10 +3,10 @@ using Contentful.Core.Errors;
 using Contentful.Core.Models;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
-using cut.lib.Enums;
+using Cut.Lib.Enums;
 using Html2Markdown;
 
-namespace cut.lib.Serializers;
+namespace Cut.Lib.Serializers;
 
 internal class EntryFieldSerializer
 {

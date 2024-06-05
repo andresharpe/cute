@@ -1,7 +1,6 @@
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
-using cut.lib.Extensions;
-using cut.lib.Serializers;
+using Cut.Lib.Serializers;
 using FluentAssertions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -10,121 +9,6 @@ namespace Cut.Tests;
 
 public class JsonExtensionsTest
 {
-    [Fact]
-    public void ConvertingJObjectToAFlattenedDictionary_Should_Deserialize_Accurately()
-    {
-        var jsonObject = JObject.Parse("""
-            {
-              "sys": {
-                "id": "73rWjTVUTvS5pgOfEsxnKS",
-                "version": 51
-              },
-              "key": {
-                "en": "2"
-              },
-              "published": {
-                "en": "1972-06-13T05:42:42Z"
-              },
-              "title": {
-                "en": "Aalst",
-                "fr": "Alost"
-              },
-              "heroImage": {
-                "en": "5V1ZvUpjYw3YfSoOU1qxun"
-              },
-              "aboutTitle": {
-                "en": "about Aalst",
-                "fr": "about Aalst"
-              },
-              "inTitle": {
-                "en": "in Aalst",
-                "fr": "à Alost"
-              },
-              "nearTitle": {
-                "en": "near Aalst",
-                "fr": "near Aalst"
-              },
-              "ofTitle": {
-                "en": "Aalst's",
-                "fr": "Aalst's"
-              },
-              "latLong": {
-                "en": {
-                  "lat": 50.945359,
-                  "lon": 4.074311
-                }
-              },
-              "order": {
-                "en": 99
-              },
-              "icon": {
-                "en": null
-              },
-              "shortDescription": {
-                "en": "Establish your business in Aalst, between the historic cities of Brussels to the east and Ghent to the west. Choose our modern office space here and find room to flourish in this strategic location.",
-                "fr": "Implantez votre entreprise à Alost, entre les villes historiques de Bruxelles à l'est et de Gand à l'ouest. Choisissez l'un de nos bureaux modernes pour développer votre entreprise dans cette région stratégique."
-              },
-              "longDescription": {
-                "en": "Pursue your business goals in the city of Aalst. Choose modern office space here and take advantage of our flexible terms: as much or as little space as you need, for as long as you need it. Customise any of our spaces to suit your business, and get started straight away, with high-speed WiFi and ergonomic furniture all ready to use when you arrive. ",
-                "fr": "Atteignez vos objectifs professionnels dans la ville d'Alost. Choisissez un bureau moderne et profitez de nos conditions flexibles : tout l'espace dont vous avez besoin, aussi longtemps que vous en avez besoin. Personnalisez l'un de nos bureaux en fonction des besoins de votre entreprise, et lancez-vous immédiatement grâce au Wi-Fi haut débit et à un mobilier ergonomique, le tout prêt à l'emploi dès votre arrivée."
-              },
-              "slug": {
-                "en": "aalst",
-                "fr": "alost"
-              },
-              "dataGeoParent": {
-                "en": "6i2gQGYVFq6pAejUzMfkSv"
-              },
-              "hidePhoneNumber": {
-                "en": false
-              },
-              "anchorLinkToMap": {
-                "en": "#273fe61d-e3fa-4d45-b2ed-7e8a367e94c1"
-              },
-              "includeMetaTagRobot": {
-                "en": false
-              },
-              "metaTagRobotContent": {
-                "en": "noindex, nofollow"
-              },
-              "includeHrefLang": {
-                "en": false
-              },
-              "brand": {
-                "en": [
-                  "3i5v8BOH5jiG5f2aNKdEEV",
-                  "exP8sIRYdwu7AhTSxyMog"
-                ]
-              }
-            }
-            """
-        );
-
-        var values = jsonObject.ToDictionary();
-
-        values.Should().NotBeNull();
-        values.Count.Should().Be(32);
-
-        values["sys.id"].Should().BeOfType<string>(); ;
-        values["sys.id"].Should().Be("73rWjTVUTvS5pgOfEsxnKS");
-
-        values["order.en"].Should().BeOfType<long>(); ;
-        values["order.en"].Should().Be(99);
-
-        values["hidePhoneNumber.en"].Should().BeOfType<bool>();
-        values["hidePhoneNumber.en"].Should().Be(false);
-
-        values["published.en"].Should().BeOfType<DateTime>();
-        values["published.en"].As<DateTime>().Should().Be(new DateTime(1972, 6, 13, 5, 42, 42));
-
-        values["brand.en[]"].Should().BeOfType<object[]>();
-        values["brand.en[]"].As<object[]>().Length.Should().Be(2);
-        values["brand.en[]"].As<object[]>().First().Should().Be("3i5v8BOH5jiG5f2aNKdEEV");
-        values["brand.en[]"].As<object[]>().Last().Should().Be("exP8sIRYdwu7AhTSxyMog");
-
-        values["icon.en"].Should().BeNull();
-    }
-
     [Fact]
     public void DeserializeAndCondenseContentfulEntry_Should_ProduceCutEntryStructure()
     {
@@ -596,6 +480,7 @@ public class JsonExtensionsTest
         var newEntryJson = JsonConvert.SerializeObject(newEntry, Formatting.Indented);
 
         flatEntryJson.Should().NotBeNull();
+
         newEntryJson.Should().NotBeNull();
     }
 }

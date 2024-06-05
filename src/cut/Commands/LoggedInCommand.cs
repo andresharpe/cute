@@ -1,6 +1,10 @@
 ﻿using Contentful.Core;
+using Contentful.Core.Models;
 using Cut.Constants;
+using Cut.Lib.Contentful;
 using Cut.Services;
+using Newtonsoft.Json.Linq;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Cut.Commands;
@@ -52,5 +56,27 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
         }
 
         return Task.FromResult(0);
+    }
+
+    protected List<Entry<JObject>> GetContentfulEntries(string contentType, string sortOrder, ProgressTask progressTask)
+    {
+        List<Entry<JObject>> result = [];
+
+        if (_contentfulClient is null) return result;
+
+        progressTask.MaxValue = 1;
+
+        foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulClient, contentType, sortOrder))
+        {
+            if (progressTask.MaxValue == 1)
+            {
+                progressTask.MaxValue = entries.Total;
+            }
+
+            result.Add(entry);
+
+            progressTask.Increment(1);
+        }
+        return result;
     }
 }

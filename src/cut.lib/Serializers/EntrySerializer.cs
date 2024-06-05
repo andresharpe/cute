@@ -2,7 +2,7 @@
 using Contentful.Core.Models.Management;
 using Newtonsoft.Json.Linq;
 
-namespace cut.lib.Serializers;
+namespace Cut.Lib.Serializers;
 
 public class EntrySerializer
 {
@@ -133,6 +133,7 @@ public class EntrySerializer
             var localesToProcess = field.Localized ? allLocaleCodes : defaultLocaleCodes;
 
             var newObject = new JObject();
+
             foreach (var localeCode in localesToProcess)
             {
                 var entryFieldsSerializer = _fields[field.Id + "." + localeCode];
@@ -148,6 +149,7 @@ public class EntrySerializer
 
                 newObject.Add(new JProperty(localeCode, entryFieldsSerializer.Deserialize(values)));
             }
+
             entry.Fields[field.Id] = newObject;
         }
 
