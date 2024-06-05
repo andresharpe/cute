@@ -11,8 +11,6 @@ internal class ExcelInputAdapter : InputAdapterBase
 
     private int _xlRow = 2;
 
-    private readonly DynamicDictionaryBuilder _dynamicDictionaryBuilder;
-
     private readonly List<string> _columns = [];
 
     public ExcelInputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".xlsx")
@@ -21,8 +19,6 @@ internal class ExcelInputAdapter : InputAdapterBase
         _sheet = _workbook.Worksheet(contentName);
 
         ReadHeaders();
-
-        _dynamicDictionaryBuilder = new(_columns.Select(c => c.Split('.')));
     }
 
     private void ReadHeaders()
@@ -44,7 +40,7 @@ internal class ExcelInputAdapter : InputAdapterBase
     public override IDictionary<string, object?>? GetRecord()
 
     {
-        var result = new List<object?>();
+        var result = new Dictionary<string, object?>();
         var row = _xlRow++;
         var col = 1;
         var isRowBlank = true;
@@ -57,40 +53,40 @@ internal class ExcelInputAdapter : InputAdapterBase
 
             if (cell.Value.IsBlank || cell.Value.IsError)
             {
-                result.Add(null);
+                result.Add(key, null);
             }
             else if (cell.Value.IsText)
             {
-                result.Add(cell.GetValue<string>());
+                result.Add(key, cell.GetValue<string>());
             }
             else if (cell.Value.IsBoolean)
             {
-                result.Add(cell.GetValue<bool>());
+                result.Add(key, cell.GetValue<bool>());
             }
             else if (cell.Value.IsNumber)
             {
-                result.Add(cell.GetValue<double>());
+                result.Add(key, cell.GetValue<double>());
             }
             else if (cell.Value.IsNumber)
             {
-                result.Add(cell.GetValue<double>());
+                result.Add(key, cell.GetValue<double>());
             }
             else if (cell.Value.IsDateTime)
             {
-                result.Add(cell.GetValue<DateTime>());
+                result.Add(key, cell.GetValue<DateTime>());
             }
             else if (cell.Value.IsTimeSpan)
             {
-                result.Add(cell.GetValue<TimeSpan>());
+                result.Add(key, cell.GetValue<TimeSpan>());
             }
             else
             {
-                result.Add(cell.Value);
+                result.Add(key, cell.Value);
             }
             col++;
         }
 
-        return isRowBlank ? null : _dynamicDictionaryBuilder.ToDictionary(result);
+        return isRowBlank ? null : result;
     }
 
     public override int GetRecordCount()

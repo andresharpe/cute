@@ -104,7 +104,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
 
             // Match 'em
             var serializer = new EntrySerializer(contentInfo, locales.Items);
-            var indexedLocalEntries = localEntries.ToDictionary(o => o["sys.id"]?.ToString() ?? ContentfulIdGenerator.NewId(), o => o);
+            var indexedLocalEntries = localEntries.ToDictionary(o => o["sys.Id"]?.ToString() ?? ContentfulIdGenerator.NewId(), o => o);
             var indexedCloudEntries = cloudEntries.ToDictionary(o => o.SystemProperties.Id, o => o);
             var matched = 0;
             var cloudNewer = 0;
