@@ -5,6 +5,8 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using Cut.Lib.Enums;
 using Html2Markdown;
+using System.Dynamic;
+using Newtonsoft.Json.Serialization;
 
 namespace Cut.Lib.Serializers;
 
@@ -107,8 +109,8 @@ internal class EntryFieldSerializer
             sys = new
             {
                 type = "Link",
+                linkType = _linkType ?? "Entry",
                 id = value,
-                linkType = _linkType
             }
         };
         return JObject.FromObject(obj);
@@ -139,11 +141,11 @@ internal class EntryFieldSerializer
             {
                 if (_itemType.Type == "Link")
                 {
-                    var item = new JObject();
-                    item["id"] = arrayItem;
-                    item["type"] = "Link";
-                    item["linkType"] = _itemType.LinkType;
-                    obj.Add(item);
+                    var item = ToLink(arrayItem);
+                    if (item is not null)
+                    {
+                        obj.Add(item);
+                    }
                 }
                 else
                 {
@@ -177,7 +179,13 @@ internal class EntryFieldSerializer
             }]
         };
 
-        return JObject.FromObject(doc);
+        var jObj = JObject
+            .FromObject(doc)
+            .ToObject<ExpandoObject>();
+
+        if (jObj is null) return null;
+
+        return JObject.FromObject(jObj, JsonSerializer.Create(new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() }));
     }
 
     private string? ToArrayString(JToken? list)

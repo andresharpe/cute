@@ -1,9 +1,7 @@
-﻿using Contentful.Core;
-using Contentful.Core.Models;
+﻿using Contentful.Core.Models;
 using Cut.Constants;
 using Cut.Exceptions;
 using Cut.InputAdapters;
-using Cut.Lib.Contentful;
 using Cut.Lib.Serializers;
 using Cut.Services;
 using Cut.UiComponents;
@@ -136,12 +134,19 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
                 {
                     if (settings.Apply)
                     {
-                        _console.WriteAlert("Applying changes to Contentful.");
+                        _console.WriteNormal($"Creating and uploading {settings.ContentType} {localKey}...");
 
-                        var newCloudEntry = await _contentfulClient.CreateOrUpdateEntry(newEntry, id: null, contentTypeId: settings.ContentType, version: 0);
+                        var json = newEntry.Fields.ToString();
 
-                        await _contentfulClient.PublishEntry(newCloudEntry.SystemProperties.Id, newCloudEntry.SystemProperties.Version!.Value);
+                        var newCloudEntry = await _contentfulClient.CreateOrUpdateEntry<JObject>(
+                            newEntry.Fields,
+                            id: localKey,
+                            version: 1,
+                            contentTypeId: settings.ContentType);
+
+                        await _contentfulClient.PublishEntry(localKey, 1);
                     }
+
                     uploaded++;
                 }
                 taskMatchEntries.Increment(1);
