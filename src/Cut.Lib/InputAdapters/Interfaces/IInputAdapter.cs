@@ -1,4 +1,4 @@
-﻿namespace Cut.InputAdapters
+﻿namespace Cut.Lib.InputAdapters
 {
     internal interface IInputAdapter : IDisposable
     {

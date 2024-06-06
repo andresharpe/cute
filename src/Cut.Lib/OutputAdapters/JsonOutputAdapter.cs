@@ -1,8 +1,6 @@
-﻿using Cut.Exceptions;
-using Newtonsoft.Json;
-using System.Data;
+﻿using Newtonsoft.Json;
 
-namespace Cut.OutputAdapters;
+namespace Cut.Lib.OutputAdapters;
 
 internal class JsonOutputAdapter : OutputAdapterBase, IOutputAdapter
 {

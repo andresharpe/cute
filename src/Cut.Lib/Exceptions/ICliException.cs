@@ -1,4 +1,4 @@
-﻿namespace Cut.Exceptions;
+﻿namespace Cut.Lib.Exceptions;
 
 public interface ICliException
 {

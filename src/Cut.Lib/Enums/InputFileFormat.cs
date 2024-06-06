@@ -1,4 +1,4 @@
-﻿namespace Cut.InputAdapters;
+﻿namespace Cut.Lib.Enums;
 
 public enum InputFileFormat
 {

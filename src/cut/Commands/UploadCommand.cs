@@ -1,11 +1,9 @@
-﻿using Contentful.Core.Models;
-using Cut.Constants;
-using Cut.Exceptions;
-using Cut.InputAdapters;
-using Cut.Lib.Serializers;
+﻿using Cut.Constants;
+using Cut.Lib.Exceptions;
+using Cut.Lib.CommandRunners;
+using Cut.Lib.Enums;
 using Cut.Services;
 using Cut.UiComponents;
-using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
@@ -76,98 +74,84 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
             var taskExtractCloud = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.SatelliteAntenna} Downloading[/]");
             var taskMatchEntries = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.CoupleWithHeart} Matching[/]");
 
-            // Get info about content
-            var contentInfo = await _contentfulClient.GetContentType(settings.ContentType);
-            taskPrepare.Increment(50);
+            var runner = new UploadCommandRunner.Builder()
+                .WithContentfulManagemntClient(_contentfulClient)
+                .ForContentType(settings.ContentType)
+                .ApplyChanges(settings.Apply)
+                .Build();
 
-            // Get locale info
-            var locales = await _contentfulClient.GetLocalesCollection();
-            taskPrepare.Increment(50);
+            CommandRunnerResult result;
+
+            // Get info about content
+
+            result = await runner.LoadContentType((step, steps) =>
+            {
+                taskPrepare.MaxValue = steps;
+                taskPrepare.Value = step;
+            });
+
+            if (result.Result == RunnerResult.Error)
+            {
+                throw new CliException(result.Message);
+            }
+
             taskPrepare.StopTask();
 
             // Get entries from local file
-            using var inputAdapter = InputAdapterFactory.Create(settings.Format.Value, settings.ContentType);
-            taskExtractLocal.MaxValue = inputAdapter.GetRecordCount();
-            var localEntries = inputAdapter.GetRecords((o, i) => taskExtractLocal.Increment(1));
+
+            result = await runner.LoadLocalEntries((step, steps) =>
+            {
+                taskExtractLocal.MaxValue = steps;
+                taskExtractLocal.Value = step;
+            });
+
+            if (result.Result == RunnerResult.Error)
+            {
+                throw new CliException(result.Message);
+            }
+
             taskExtractLocal.StopTask();
 
             // Get cloud entries (Contentful)
-            var cloudEntries = GetContentfulEntries(settings.ContentType, contentInfo.DisplayField, taskExtractCloud);
+
+            result = await runner.LoadContentfulEntries((step, steps) =>
+            {
+                taskExtractCloud.MaxValue = steps;
+                taskExtractCloud.Value = step;
+            });
+
+            if (result.Result == RunnerResult.Error)
+            {
+                throw new CliException(result.Message);
+            }
+
             taskExtractCloud.StopTask();
 
             // Match 'em
-            var serializer = new EntrySerializer(contentInfo, locales.Items);
-            var indexedLocalEntries = localEntries.ToDictionary(o => o["sys.Id"]?.ToString() ?? ContentfulIdGenerator.NewId(), o => o);
-            var indexedCloudEntries = cloudEntries.ToDictionary(o => o.SystemProperties.Id, o => o);
-            var matched = 0;
-            var cloudNewer = 0;
-            var localNewer = 0;
-            var valuesDiffer = 0;
-            var uploaded = 0;
 
-            taskMatchEntries.MaxValue = indexedLocalEntries.Count;
-
-            foreach (var (localKey, localValue) in indexedLocalEntries)
+            var matchResult = await runner.CompareLocalAndContentfulEntries((step, steps) =>
             {
-                var newEntry = serializer.DeserializeEntry(localValue);
+                taskMatchEntries.MaxValue = steps;
+                taskMatchEntries.Value = step;
+            });
 
-                if (indexedCloudEntries.TryGetValue(localKey, out var cloudEntry))
-                {
-                    if (newEntry.SystemProperties.Version < cloudEntry.SystemProperties.Version)
-                    {
-                        cloudNewer++;
-                    }
-                    else if (newEntry.SystemProperties.Version > cloudEntry.SystemProperties.Version)
-                    {
-                        localNewer++;
-                    }
-                    else if (ValuesDiffer(newEntry, cloudEntry))
-                    {
-                        valuesDiffer++;
-                    }
-                    else
-                    {
-                        matched++;
-                    }
-                }
-                else
-                {
-                    if (settings.Apply)
-                    {
-                        _console.WriteNormal($"Creating and uploading {settings.ContentType} {localKey}...");
-
-                        var json = newEntry.Fields.ToString();
-
-                        var newCloudEntry = await _contentfulClient.CreateOrUpdateEntry<JObject>(
-                            newEntry.Fields,
-                            id: localKey,
-                            version: 1,
-                            contentTypeId: settings.ContentType);
-
-                        await _contentfulClient.PublishEntry(localKey, 1);
-                    }
-
-                    uploaded++;
-                }
-                taskMatchEntries.Increment(1);
+            if (matchResult.Result == RunnerResult.Error)
+            {
+                throw new CliException(result.Message);
             }
 
-            _console.WriteSubHeading($"{taskExtractLocal.MaxValue:N0} {settings.ContentType} entries read from {inputAdapter.FileName}");
+            taskMatchEntries.StopTask();
+
+            _console.WriteSubHeading($"{taskExtractLocal.MaxValue:N0} {settings.ContentType} entries read from {matchResult.InputFilename}");
             _console.WriteSubHeading($"{taskExtractCloud.MaxValue:N0} {settings.ContentType} entries downloaded from Contentful space");
-            _console.WriteSubHeading($"{matched:N0} local entries with matching cloud entries");
-            _console.WriteSubHeading($"{cloudNewer:N0} cloud entries newer than local entries");
-            _console.WriteSubHeading($"{localNewer:N0} local entries newer than cloud entries");
-            _console.WriteSubHeading($"{uploaded:N0} new local entry(ies) uploaded to the cloud");
+            _console.WriteSubHeading($"{matchResult.MatchedEntries:N0} local entries with matching cloud entries (id & version)");
+            _console.WriteSubHeading($"{matchResult.UpdatedCloudEntries:N0} cloud entries newer than local entries (id & version)");
+            _console.WriteSubHeading($"{matchResult.UpdatedLocalEntries:N0} local entries newer than cloud entries (id & version)");
+            _console.WriteSubHeading($"{matchResult.MismatchedValues:N0} entries with mismatched values (all fields)");
+            _console.WriteSubHeading($"{matchResult.ChangesApplied:N0} changes applied to Contentful.");
+            _console.WriteSubHeading($"{0:N0} new local entry(ies) uploaded to the cloud");
         });
 
         return 0;
-    }
-
-    private static bool ValuesDiffer(Entry<JObject> newEntry, Entry<JObject> cloudEntry)
-    {
-        var versionLocal = newEntry.SystemProperties.Version;
-        var versionCloud = cloudEntry.SystemProperties.Version;
-
-        return versionLocal != versionCloud;
     }
 }

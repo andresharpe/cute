@@ -8,9 +8,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.102.2" />
     <PackageReference Include="contentful.csharp" Version="7.5.2" />
     <PackageReference Include="Contentful.RichTextParser" Version="0.0.7" />
+    <PackageReference Include="CsvHelper" Version="32.0.3" />
     <PackageReference Include="Html2Markdown" Version="6.2.1.4" />
+    <PackageReference Include="YamlDotNet" Version="15.1.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="InputAdapters\Enums\" />
   </ItemGroup>
 
 </Project>

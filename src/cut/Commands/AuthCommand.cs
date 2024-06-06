@@ -2,7 +2,7 @@
 using Contentful.Core.Errors;
 using Cut.Config;
 using Cut.Constants;
-using Cut.Exceptions;
+using Cut.Lib.Exceptions;
 using Cut.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;

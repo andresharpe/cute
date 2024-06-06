@@ -10,7 +10,7 @@ internal static class ProgressBars
         return AnsiConsole.Progress()
             .HideCompleted(false)
             .AutoRefresh(true)
-            .AutoClear(false)
+            .AutoClear(true)
             .Columns(
                 [
                     new TaskDescriptionColumn()

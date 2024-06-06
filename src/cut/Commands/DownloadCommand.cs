@@ -1,19 +1,13 @@
 ﻿using Contentful.Core.Models;
-using Contentful.Core.Models.Management;
 using Cut.Constants;
-using Cut.Exceptions;
 using Cut.Lib.Contentful;
+using Cut.Lib.OutputAdapters;
 using Cut.Lib.Serializers;
-using Cut.OutputAdapters;
 using Cut.Services;
 using Cut.UiComponents;
-using HtmlAgilityPack;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Net;
 
 namespace Cut.Commands;
 

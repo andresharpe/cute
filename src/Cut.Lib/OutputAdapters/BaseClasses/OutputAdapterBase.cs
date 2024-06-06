@@ -1,7 +1,6 @@
-﻿using Cut.Exceptions;
-using System.Data;
+﻿using Cut.Lib.Exceptions;
 
-namespace Cut.OutputAdapters;
+namespace Cut.Lib.OutputAdapters;
 
 internal abstract class OutputAdapterBase : IOutputAdapter
 {

@@ -1,8 +1,8 @@
-﻿using Cut.Exceptions;
+﻿using Cut.Lib.Exceptions;
 
-namespace Cut.OutputAdapters;
+namespace Cut.Lib.OutputAdapters;
 
-internal class OutputAdapterFactory
+public class OutputAdapterFactory
 {
     public static IOutputAdapter Create(OutputFileFormat fileType, string contentName, string? fileName = null)
     {

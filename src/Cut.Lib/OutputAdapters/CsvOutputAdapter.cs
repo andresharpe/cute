@@ -3,7 +3,7 @@ using CsvHelper.Configuration;
 using System.Data;
 using System.Globalization;
 
-namespace Cut.OutputAdapters;
+namespace Cut.Lib.OutputAdapters;
 
 internal class CsvOutputAdapter : OutputAdapterBase, IOutputAdapter
 {

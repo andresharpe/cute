@@ -1,7 +1,6 @@
 ﻿using ClosedXML.Excel;
-using System.Data;
 
-namespace Cut.OutputAdapters;
+namespace Cut.Lib.OutputAdapters;
 
 internal class ExcelOutputAdapter : OutputAdapterBase
 {

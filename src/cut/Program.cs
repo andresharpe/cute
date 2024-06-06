@@ -1,7 +1,7 @@
 ﻿using Contentful.Core.Errors;
 using Cut.Commands;
 using Cut.Constants;
-using Cut.Exceptions;
+using Cut.Lib.Exceptions;
 using Cut.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
