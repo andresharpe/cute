@@ -1,9 +1,0 @@
-{
-  "profiles": {
-    "cut": {
-      "commandName": "Project",
-      "commandLineArgs": "upload -c dataGeo -p .\\dataGeo.yaml",
-      "workingDirectory": "$(ProjectDir)"
-    }
-  }
-}

@@ -69,10 +69,10 @@ jobs:
           dotnet-version: ${{ matrix.dotnet-version }}
 
       - name: Build
-        run: dotnet build ./src/cut --warnaserror --configuration Release
+        run: dotnet build ./source/Cut --warnaserror --configuration Release
 
       - name: Pack
-        run: dotnet pack --no-build ./src/cut --configuration Release -o ./artifacts
+        run: dotnet pack --no-build ./source/Cut --configuration Release -o ./artifacts
 
       - name: Publish
-        run: dotnet nuget push ./artifacts/cut.*.nupkg --api-key ${{secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push ./artifacts/Cut.*.nupkg --api-key ${{secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json --skip-duplicate
