@@ -16,8 +16,4 @@
     <PackageReference Include="YamlDotNet" Version="15.1.6" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="InputAdapters\Enums\" />
-  </ItemGroup>
-
 </Project>

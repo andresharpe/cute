@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\cut.lib\cut.lib.csproj" />
+    <ProjectReference Include="..\..\source\Cut.Lib\Cut.Lib.csproj" />
   </ItemGroup>
 
   <ItemGroup>
