@@ -3,15 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EE8518CE-60E5-439C-B7CE-9191260998C8}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "source", "source", "{EE8518CE-60E5-439C-B7CE-9191260998C8}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cut", "src\Cut\Cut.csproj", "{96C1092C-222D-4ECD-9124-429A4CB8C88B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cut", "source\Cut\Cut.csproj", "{96C1092C-222D-4ECD-9124-429A4CB8C88B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cut.Tests", "tests\Cut.Tests\Cut.Tests.csproj", "{72AF751B-FC53-4A08-A7DA-CC3689915B3B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D35DD32C-7382-4F4F-88D7-AFD5DD849390}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cut.Lib", "src\Cut.Lib\Cut.Lib.csproj", "{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cut.Lib", "source\Cut.Lib\Cut.Lib.csproj", "{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
