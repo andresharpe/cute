@@ -5,9 +5,7 @@ using Cut.Lib.Contentful;
 using Cut.Lib.Enums;
 using Cut.Lib.InputAdapters;
 using Cut.Lib.Serializers;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Newtonsoft.Json.Linq;
-using System;
 
 namespace Cut.Lib.CommandRunners;
 
@@ -27,7 +25,7 @@ public class UploadCommandRunner
 
     private IEnumerable<IDictionary<string, object?>> _localEntries = null!;
 
-    private List<Entry<JObject>> _contentfulEntries = new();
+    private readonly List<Entry<JObject>> _contentfulEntries = [];
 
     private string _localFileName = string.Empty;
 
@@ -94,11 +92,9 @@ public class UploadCommandRunner
 
         var steps = inputAdapter.GetRecordCount();
 
-        var currentStep = 1;
-
         _localEntries = inputAdapter.GetRecords((o, i) =>
         {
-            progressUpdater(currentStep++, steps);
+            progressUpdater(i, steps);
         });
 
         _localFileName = inputAdapter.FileName;

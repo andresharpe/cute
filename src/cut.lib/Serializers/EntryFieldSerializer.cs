@@ -7,6 +7,8 @@ using Cut.Lib.Enums;
 using Html2Markdown;
 using System.Dynamic;
 using Newtonsoft.Json.Serialization;
+using DocumentFormat.OpenXml.Bibliography;
+using Cut.Lib.Extensions;
 
 namespace Cut.Lib.Serializers;
 
@@ -24,6 +26,7 @@ internal class EntryFieldSerializer
     public readonly string _postfix;
     public readonly string _fullFieldName;
     public readonly bool _localized;
+    public readonly Type _dotnetType;
 
     public bool IsLocalized => _localized;
 
@@ -49,6 +52,27 @@ internal class EntryFieldSerializer
         }
 
         _fullFieldName = _name + "." + _localeCode + _postfix;
+
+        _dotnetType = ToDotnetType();
+    }
+
+    private Type ToDotnetType()
+    {
+        return _contentfulType switch
+        {
+            FieldType.Symbol => typeof(string),
+            FieldType.Text => typeof(string),
+            FieldType.RichText => typeof(JObject),
+            FieldType.Integer => typeof(long),
+            FieldType.Number => typeof(double),
+            FieldType.Date => typeof(DateTime),
+            FieldType.Location => typeof(JObject),
+            FieldType.Boolean => typeof(bool),
+            FieldType.Link => typeof(JObject),
+            FieldType.Array => typeof(JArray),
+            FieldType.Object => typeof(JObject),
+            _ => throw new NotImplementedException(),
+        };
     }
 
     public string[] FullFieldNames()
@@ -92,7 +116,7 @@ internal class EntryFieldSerializer
             FieldType.RichText => ToDocument(value),
             FieldType.Integer => Convert.ToInt64(value),
             FieldType.Number => Convert.ToDouble(value),
-            FieldType.Date => Convert.ToDateTime(value),
+            FieldType.Date => ObjectExtensions.FromInvariantDateTime(value),
             FieldType.Location => ToLocation(values),
             FieldType.Boolean => Convert.ToBoolean(value),
             FieldType.Link => ToLink(value),

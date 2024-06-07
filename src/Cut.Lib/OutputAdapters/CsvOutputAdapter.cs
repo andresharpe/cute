@@ -1,6 +1,5 @@
 ﻿using CsvHelper;
 using CsvHelper.Configuration;
-using System.Data;
 using System.Globalization;
 
 namespace Cut.Lib.OutputAdapters;

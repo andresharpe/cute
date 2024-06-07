@@ -37,7 +37,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        if (!System.IO.File.Exists(settings.Path))
+        if (!File.Exists(settings.Path))
         {
             return ValidationResult.Error($"Path not found - {settings.Path}");
         }
@@ -46,7 +46,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
         {
             var ext = new FileInfo(settings.Path).Extension.ToLowerInvariant();
 
-            settings.Format = ext switch
+            settings.Format ??= ext switch
             {
                 ".xlsx" => InputFileFormat.Excel,
                 ".csv" => InputFileFormat.Csv,
@@ -76,6 +76,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
 
             var runner = new UploadCommandRunner.Builder()
                 .WithContentfulManagemntClient(_contentfulClient)
+                .WithFileFormat(settings.Format ?? InputFileFormat.Excel)
                 .ForContentType(settings.ContentType)
                 .ApplyChanges(settings.Apply)
                 .Build();

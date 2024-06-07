@@ -20,7 +20,7 @@ internal class JsonOutputAdapter : OutputAdapterBase, IOutputAdapter
         };
 
         _json.WriteStartObject();
-        _json.WritePropertyName(contentName);
+        _json.WritePropertyName("Items");
         _json.WriteStartArray();
     }
 

@@ -1,6 +1,8 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
+using Cut.Lib.Extensions;
 using Newtonsoft.Json.Linq;
+using System.Globalization;
 
 namespace Cut.Lib.Serializers;
 
@@ -115,12 +117,12 @@ public class EntrySerializer
 
         if (flatEntry["sys.Id"] is not null) entry.SystemProperties.Id = (string)flatEntry["sys.Id"]!;
         if (flatEntry["sys.Type"] is not null) entry.SystemProperties.Type = (string)flatEntry["sys.Type"]!;
-        if (flatEntry["sys.UpdatedAt"] is not null) entry.SystemProperties.UpdatedAt = (DateTime)flatEntry["sys.UpdatedAt"]!;
+        if (flatEntry["sys.UpdatedAt"] is not null) entry.SystemProperties.UpdatedAt = ObjectExtensions.FromInvariantDateTime(flatEntry["sys.UpdatedAt"]!);
         if (flatEntry["sys.Version"] is not null) entry.SystemProperties.Version = Convert.ToInt32(flatEntry["sys.Version"]!);
         if (flatEntry["sys.PublishedVersion"] is not null) entry.SystemProperties.PublishedVersion = Convert.ToInt32(flatEntry["sys.PublishedVersion"]!);
         if (flatEntry["sys.PublishedCounter"] is not null) entry.SystemProperties.PublishCounter = Convert.ToInt32(flatEntry["sys.PublishedCounter"]!);
-        if (flatEntry["sys.PublishedAt"] is not null) entry.SystemProperties.PublishedAt = (DateTime)flatEntry["sys.PublishedAt"]!;
-        if (flatEntry["sys.FirstPublishedAt"] is not null) entry.SystemProperties.FirstPublishedAt = (DateTime)flatEntry["sys.FirstPublishedAt"]!;
+        if (flatEntry["sys.PublishedAt"] is not null) entry.SystemProperties.PublishedAt = ObjectExtensions.FromInvariantDateTime(flatEntry["sys.PublishedAt"]!);
+        if (flatEntry["sys.FirstPublishedAt"] is not null) entry.SystemProperties.FirstPublishedAt = ObjectExtensions.FromInvariantDateTime(flatEntry["sys.FirstPublishedAt"]!);
         if (flatEntry["sys.ContentType"] is not null) entry.SystemProperties.ContentType.SystemProperties.Id = (string)flatEntry["sys.ContentType"]!;
         if (flatEntry["sys.Space"] is not null) entry.SystemProperties.Space.SystemProperties.Id = (string)flatEntry["sys.Space"]!;
         if (flatEntry["sys.Environment"] is not null) entry.SystemProperties.Environment.SystemProperties.Id = (string)flatEntry["sys.Environment"]!;

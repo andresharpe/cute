@@ -9,10 +9,15 @@ internal class InputAdapterFactory
         return fileType switch
         {
             InputFileFormat.Excel => new ExcelInputAdapter(contentName, fileName),
-            InputFileFormat.Csv => throw new NotImplementedException(),
-            InputFileFormat.Tsv => throw new NotImplementedException(),
-            InputFileFormat.Json => throw new NotImplementedException(),
-            InputFileFormat.Yaml => throw new NotImplementedException(),
+
+            InputFileFormat.Csv => new CsvInputAdapter(contentName, fileName),
+
+            InputFileFormat.Tsv => new CsvInputAdapter(contentName, fileName, "\t"),
+
+            InputFileFormat.Json => new JsonInputAdapter(contentName, fileName),
+
+            InputFileFormat.Yaml => new YamlInputAdapter(contentName, fileName),
+
             _ => throw new Exception($"No data adapter exists matching {fileType}."),
         };
     }
