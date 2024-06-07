@@ -91,8 +91,28 @@ cut download --content-type <contentType> --format yaml
 
 ## Uploading/synchronizing data
 
-*This feature will be coming soon*
+You can upload content from a local file to contentful. The local file can be a previously downloaded and updated excel, sdv, tsv, json or yaml file.
 
-## For generating Javascript or Dotnet types
+![cut download screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/upload-progress.png)
+
+Changes are only applied to Contentful if `--apply` is specified. By default no changes will be applied so it works a bit like a "what-if" powershel switch without `--apply`.
+
+![cut download screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/upload.png)
+
+Typing `cut upload --help` will sow the full usage and options.
+
+```
+USAGE:
+    cut upload [OPTIONS]
+
+OPTIONS:
+    -h, --help            Prints help information
+    -c, --content-type    Specifies the content type to download data for
+    -p, --path            The local path to the file containg the data to sync
+    -f, --format          The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)
+    -a, --apply           Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
+```
+
+## For generating strong Javascript or Dotnet types
 
 *This feature will be coming soon...*

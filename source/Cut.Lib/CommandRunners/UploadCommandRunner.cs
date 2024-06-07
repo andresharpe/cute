@@ -29,6 +29,8 @@ public class UploadCommandRunner
 
     private string _localFileName = string.Empty;
 
+    private string? _filePath;
+
     protected UploadCommandRunner()
     {
     }
@@ -54,7 +56,7 @@ public class UploadCommandRunner
             return this;
         }
 
-        public Builder WithContentfulManagemntClient(ContentfulManagementClient contentfulManagementClient)
+        public Builder WithContentfulManagementClient(ContentfulManagementClient contentfulManagementClient)
         {
             _runner._contentfulManagementClient = contentfulManagementClient;
             return this;
@@ -63,6 +65,12 @@ public class UploadCommandRunner
         public Builder WithFileFormat(InputFileFormat fileFormat)
         {
             _runner._fileFormat = fileFormat;
+            return this;
+        }
+
+        public Builder WithFilePath(string filePath)
+        {
+            _runner._filePath = filePath;
             return this;
         }
 
@@ -88,7 +96,7 @@ public class UploadCommandRunner
 
     public Task<CommandRunnerResult> LoadLocalEntries(Action<int, int> progressUpdater)
     {
-        using var inputAdapter = InputAdapterFactory.Create(_fileFormat, _contentType);
+        using var inputAdapter = InputAdapterFactory.Create(_fileFormat, _contentType, _filePath);
 
         var steps = inputAdapter.GetRecordCount();
 

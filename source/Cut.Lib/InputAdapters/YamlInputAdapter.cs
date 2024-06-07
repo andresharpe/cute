@@ -8,7 +8,8 @@ internal class YamlInputAdapter : InputAdapterBase
 
     public YamlInputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".json")
     {
-        var yaml = new DeserializerBuilder().Build();
+        var yaml = new DeserializerBuilder()
+            .Build();
 
         _data = yaml.Deserialize<JsonInputData>(File.ReadAllText(FileName));
     }

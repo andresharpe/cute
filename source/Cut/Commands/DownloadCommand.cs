@@ -1,6 +1,8 @@
 ﻿using Contentful.Core.Models;
 using Cut.Constants;
 using Cut.Lib.Contentful;
+using Cut.Lib.Enums;
+using Cut.Lib.Exceptions;
 using Cut.Lib.OutputAdapters;
 using Cut.Lib.Serializers;
 using Cut.Services;
@@ -27,7 +29,42 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
         [CommandOption("-f|--format")]
         [Description("The output format for the download operation (Excel/Csv/Tsv/Json/Yaml)")]
-        public OutputFileFormat Format { get; set; } = OutputFileFormat.Excel;
+        public OutputFileFormat? Format { get; set; }
+
+        [CommandOption("-p|--path")]
+        [Description("The output path and filename for the download operation")]
+        public string? Path { get; set; }
+    }
+
+    public override ValidationResult Validate(CommandContext context, Settings settings)
+    {
+        if (settings.Path is not null && settings.Format is null)
+        {
+            var ext = new FileInfo(settings.Path).Extension.ToLowerInvariant();
+
+            settings.Format = ext switch
+            {
+                ".xlsx" => OutputFileFormat.Excel,
+                ".csv" => OutputFileFormat.Csv,
+                ".tsv" => OutputFileFormat.Tsv,
+                ".json" => OutputFileFormat.Json,
+                ".yaml" => OutputFileFormat.Yaml,
+                ".yml" => OutputFileFormat.Yaml,
+                _ => throw new CliException($"Could not determine the format for {settings.Path}. Use the --format switch to specify the file format.")
+            };
+        }
+
+        settings.Path ??= settings.ContentType + "." + settings.Format switch
+        {
+            OutputFileFormat.Excel => ".xlsx",
+            OutputFileFormat.Csv => ".csv",
+            OutputFileFormat.Tsv => ".tsv",
+            OutputFileFormat.Json => ".json",
+            OutputFileFormat.Yaml => ".yaml",
+            _ => throw new NotImplementedException(),
+        };
+
+        return base.Validate(context, settings);
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
@@ -42,7 +79,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 var taskPrepare = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Alien} Initializing[/]");
                 var taskExtract = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.SatelliteAntenna} Downloading[/]");
 
-                using var outputAdapter = OutputAdapterFactory.Create(settings.Format, settings.ContentType);
+                using var outputAdapter = OutputAdapterFactory.Create(settings.Format!.Value, settings.ContentType, settings.Path);
 
                 var contentInfo = await _contentfulClient.GetContentType(settings.ContentType);
                 taskPrepare.Increment(40);

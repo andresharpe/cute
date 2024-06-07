@@ -1,5 +1,4 @@
-﻿
-namespace Cut.Lib.InputAdapters;
+﻿namespace Cut.Lib.InputAdapters;
 
 internal class JsonInputData
 {
