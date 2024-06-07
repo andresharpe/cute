@@ -38,7 +38,11 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        if (settings.Path is not null && settings.Format is null)
+        if (settings.Path is null && settings.Format is null)
+        {
+            settings.Format = OutputFileFormat.Excel;
+        }
+        else if (settings.Path is not null && settings.Format is null)
         {
             var ext = new FileInfo(settings.Path).Extension.ToLowerInvariant();
 
@@ -54,7 +58,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
             };
         }
 
-        settings.Path ??= settings.ContentType + "." + settings.Format switch
+        settings.Path ??= settings.ContentType + settings.Format switch
         {
             OutputFileFormat.Excel => ".xlsx",
             OutputFileFormat.Csv => ".csv",
