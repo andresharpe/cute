@@ -1,5 +1,6 @@
 ﻿using ClosedXML;
 using Contentful.Core;
+using Cut.Config;
 using Cut.Constants;
 using Cut.Services;
 using Spectre.Console;
@@ -23,15 +24,17 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
 
     private readonly HttpClient _httpClient;
 
+    protected readonly AppSettings? _appSettings;
+
     public LoggedInCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
     {
         _console = console;
         _tokenCache = tokenCache;
         _httpClient = new HttpClient();
 
-        var settings = _tokenCache.LoadAsync(Globals.AppName).Result;
+        _appSettings = _tokenCache.LoadAsync(Globals.AppName).Result;
 
-        if (settings == null)
+        if (_appSettings == null)
         {
             _isLoggedIn = false;
             return;
@@ -39,8 +42,9 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
 
         _isLoggedIn = true;
 
-        _spaceId = settings.DefaultSpace;
-        var apiKey = settings.ApiKey;
+        _spaceId = _appSettings.DefaultSpace;
+
+        var apiKey = _appSettings.ApiKey;
 
         _contentfulClient = new ContentfulManagementClient(_httpClient, apiKey, _spaceId);
     }

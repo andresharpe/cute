@@ -31,8 +31,6 @@
 		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 	<ItemGroup>
-		<PackageReference Include="contentful.csharp" Version="7.5.2" />
-		<PackageReference Include="HtmlAgilityPack" Version="1.11.61" />
 		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="8.0.6" />
 		<PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="8.0.6" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />

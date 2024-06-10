@@ -55,6 +55,9 @@ app.Configure(config =>
 
     config.AddCommand<UploadCommand>("upload")
         .WithDescription("Uploads local content to the default or specified space.");
+
+    config.AddCommand<GenerateCommand>("generate")
+    .WithDescription("Use generative AI to help build drafts of your content.");
 });
 
 try
