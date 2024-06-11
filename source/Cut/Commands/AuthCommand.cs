@@ -48,6 +48,7 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
         var contentfulApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Contentful Management API Key:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
+            .DefaultValueStyle(Globals.StyleDim)
             .Secret()
             .DefaultValue(currentSettings?.ApiKey ?? currentSettings?.ContentfulManagementApiKey ?? string.Empty)
             .Validate(ValidateContentfulApiKey);
@@ -89,8 +90,31 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
         _console.WriteBlankLine();
 
+        var contentfulDeliveryApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Contentful Delivery API Key:[/]")
+            .PromptStyle(Globals.StyleAlertAccent)
+            .DefaultValueStyle(Globals.StyleDim)
+            .Secret()
+            .DefaultValue(currentSettings?.ContentfulDeliveryApiKey ?? string.Empty)
+            .Validate(ValidateContentfulDeliveryAndPreviewApiKey);
+
+        var contentfulDeliveryApiKey = _console.Prompt(contentfulDeliveryApiKeyPrompt);
+
+        _console.WriteBlankLine();
+
+        var contentfulPreviewApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Contentful Preview API Key:[/]")
+            .PromptStyle(Globals.StyleAlertAccent)
+            .DefaultValueStyle(Globals.StyleDim)
+            .Secret()
+            .DefaultValue(currentSettings?.ContentfulPreviewApiKey ?? string.Empty)
+            .Validate(ValidateContentfulDeliveryAndPreviewApiKey);
+
+        var contentfulPreviewApiKey = _console.Prompt(contentfulPreviewApiKeyPrompt);
+
+        _console.WriteBlankLine();
+
         var openAiApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Open AI API Key:[/]")
                 .PromptStyle(Globals.StyleAlertAccent)
+                .DefaultValueStyle(Globals.StyleDim)
                 .Secret()
                 .DefaultValue(currentSettings?.OpenAiApiKey ?? string.Empty)
                 .Validate(ValidateOpenAiApiKey);
@@ -101,6 +125,7 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
         var openAiEndpointPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Open AI Endpoint:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
+            .DefaultValueStyle(Globals.StyleDim)
             .DefaultValue(currentSettings?.OpenAiEndpoint ?? string.Empty)
             .Validate(ValidateOpenAiEndpoint);
 
@@ -110,6 +135,7 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
         var openAiDeploymentNamePrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Open AI Deployment Name:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
+            .DefaultValueStyle(Globals.StyleDim)
             .DefaultValue(currentSettings?.OpenAiDeploymentName ?? string.Empty)
             .Validate(ValidateOpenAiDeploymentName);
 
@@ -120,6 +146,8 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
             ApiKey = contentfulApiKey,
             DefaultSpace = spaceId,
             ContentfulManagementApiKey = contentfulApiKey,
+            ContentfulDeliveryApiKey = contentfulDeliveryApiKey,
+            ContentfulPreviewApiKey = contentfulPreviewApiKey,
             OpenAiApiKey = openApiKey,
             OpenAiEndpoint = openApiEndpoint,
             OpenAiDeploymentName = openAiDeploymentName,
@@ -133,6 +161,13 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
         if (pat.Length != _contentfulPatLength) return ValidationResult.Error("Invalid access token.");
 
         if (!pat.StartsWith(_contentfulPatPrefix)) return ValidationResult.Error("Invalid access token.");
+
+        return ValidationResult.Success();
+    }
+
+    private ValidationResult ValidateContentfulDeliveryAndPreviewApiKey(string pat)
+    {
+        if (pat.Length < 40) return ValidationResult.Error("Invalid access token.");
 
         return ValidationResult.Success();
     }

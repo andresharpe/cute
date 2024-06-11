@@ -14,8 +14,9 @@ public static class EntryEnumerator
 
         while (true)
         {
-            var query = new QueryBuilder<Dictionary<string, object?>>()
+            var query = new QueryBuilder<Entry<JObject>>()
                 .ContentTypeIs(contentType)
+                .Include(2)
                 .Skip(skip)
                 .Limit(page)
                 .OrderBy($"fields.{orderByField}")
