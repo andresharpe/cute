@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Console.Cli.Help;
+using System.ClientModel;
 using System.Runtime.InteropServices;
 using System.Text;
 using Yaml2Cf.Interceptors;
@@ -103,7 +104,9 @@ static void WriteException(Exception ex)
     if (ex is ICliException
         || ex is CommandParseException
         || ex is ContentfulException
-        || ex is CommandRuntimeException)
+        || ex is CommandRuntimeException
+        || ex is HttpRequestException
+        || ex is ClientResultException)
 
         AnsiConsole.Console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);
     else // something bigger and unhandled.

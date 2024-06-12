@@ -6,8 +6,10 @@ using Contentful.Core.Search;
 using Cut.Constants;
 using Cut.Lib.Exceptions;
 using Cut.Services;
+using DocumentFormat.OpenXml;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
+using Scriban;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
@@ -20,8 +22,6 @@ namespace Cut.Commands;
 
 public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
-    private static readonly Regex _regex = new("{{(?'ContentId'[a-zA-Z_0-9]+)\\.(?'FieldId'[a-zA-Z_0-9.]+)}}", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
-
     public GenerateCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
     {
@@ -100,8 +100,6 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             PresencePenalty = 0,
         };
 
-        var match = _regex.Matches(promptMainPrompt);
-
         var cfclient = new ContentfulClient(new HttpClient(), _appSettings.ContentfulDeliveryApiKey, _appSettings.ContentfulPreviewApiKey, _appSettings.DefaultSpace);
 
         var entries = Entries(cfclient, contentType.SystemProperties.Id, contentType.DisplayField);
@@ -126,9 +124,13 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
             _console.WriteBlankLine();
 
+            _console.WriteHeading(GetPropertyValue(entry, contentType.DisplayField)?.ToString() ?? string.Empty);
+
+            _console.WriteBlankLine();
+
             List<ChatMessage> messages = [
                 new SystemChatMessage(promptSystemMessage),
-                new UserChatMessage(ReplaceFields(promptMainPrompt, entry, match)),
+                new UserChatMessage(ReplaceFields(promptMainPrompt, entry)),
             ];
 
             _console.WriteBlankLine();
@@ -209,32 +211,13 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         return value;
     }
 
-    private static string ReplaceFields(string prompt, ExpandoObject entry, MatchCollection matches)
+    private static string ReplaceFields(string prompt, ExpandoObject entry)
     {
-        var newPrompt = new StringBuilder(prompt);
+        var template = Template.Parse(prompt);
 
-        foreach (Match match in matches.Cast<Match>())
-        {
-            foreach (Capture capture in match.Groups["FieldId"].Captures.Cast<Capture>())
-            {
-                var path = capture.Value.Split('.');
-                var value = GetPropertyValue(entry, path);
+        var result = template.Render(new { entry }, member => member.Name);
 
-                if (value is string stringValue)
-                {
-                    AnsiConsole.Write(new Text(stringValue + " ", Globals.StyleHeading));
-                    newPrompt.Replace(match.Value, stringValue);
-                }
-                else // rethrt remove field tags than leave 'em in - the LLM tends to repeat it in output
-                {
-                    newPrompt.Replace(match.Value, string.Empty);
-                }
-            }
-        }
-
-        AnsiConsole.WriteLine();
-
-        return newPrompt.ToString();
+        return result;
     }
 
     private static IEnumerable<(ExpandoObject, ContentfulCollection<ExpandoObject>)> Entries(ContentfulClient client, string contentType, string orderByField)
