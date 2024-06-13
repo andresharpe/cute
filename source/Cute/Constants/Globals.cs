@@ -4,10 +4,10 @@ namespace Cute.Constants;
 
 internal static class Globals
 {
-    public const string AppName = "cut";
-    public const string AppLongName = "Contentful Update Tool";
+    public const string AppName = "cute";
+    public const string AppLongName = "Contentful Update Tool & Extractor";
     public const string AppDescription = "Bulk upload and download of Contentful content (excel/csv/tsv/yaml/json/sql).";
-    public const string AppMoreInfo = "https://github.com/andresharpe/cut";
+    public const string AppMoreInfo = "https://github.com/andresharpe/cute";
 
     public static readonly Style StyleHeading = new(Color.White, null, Decoration.Bold);
     public static readonly Style StyleSubHeading = new(Color.MistyRose3, null, Decoration.Bold);

@@ -1,4 +1,6 @@
 ﻿using Cute.Config;
+using Cute.Constants;
+using Cute.Lib.Exceptions;
 using Microsoft.AspNetCore.DataProtection;
 using Newtonsoft.Json;
 
@@ -7,7 +9,8 @@ namespace Cute.Services;
 public class PersistedTokenCache : IPersistedTokenCache
 {
     private readonly IDataProtectionProvider _provider;
-    private const string ProtectorPurpose = "cut-token";
+
+    private const string ProtectorPurpose = $"{Globals.AppName}-settings";
 
     public PersistedTokenCache(
         IDataProtectionProvider provider)
@@ -29,8 +32,15 @@ public class PersistedTokenCache : IPersistedTokenCache
         var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), $".{tokenName}");
         if (!File.Exists(path)) return null;
         var content = await File.ReadAllTextAsync(path);
-        var json = protector.Unprotect(content);
-        var settings = JsonConvert.DeserializeObject<AppSettings>(json);
-        return settings;
+        try
+        {
+            var json = protector.Unprotect(content);
+            var settings = JsonConvert.DeserializeObject<AppSettings>(json);
+            return settings;
+        }
+        catch
+        {
+            throw new CliException($"The secure store may be corrupt. ({path})");
+        }
     }
 }

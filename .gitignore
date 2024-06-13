@@ -487,5 +487,6 @@ $RECYCLE.BIN/
 *.csv
 *.tsv
 *.json
+*.yaml
 *.query
 
