@@ -1,10 +1,10 @@
-# Contentful Update Tool
+# Contentful Update Tool & Extractor
 
-![image](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/cut.png)
+![image](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute.png)
 
 ## Introduction 
 
-***cut*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing and uploads to and from a Contentful space and supports the following :-
+***cute*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing and uploads to and from a Contentful space and supports the following :-
 
 - **CSV** - Contentful -> Comma delimeted files -> Contentful
 - **TSV** - Contentful -> Tab delimeted files -> Contentful
@@ -31,69 +31,69 @@ sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0
 ### Then:
 On windows you may have to close and re-open the command line propt (or Windows Terminal).
 
-Install the ***cut*** cli by typing.
+Install the ***cute*** cli by typing.
 ```
-dotnet tool install -g cut
+dotnet tool install -g cute
 ```
 
 ### To test whether the installation worked
 Simply type
 ```
-cut
+cute
 ```
 This will display the 
-cut help. You are ready to go! 🚀
+cute help. You are ready to go! 🚀
 
 ## Getting Help
 
 ```
-cut --help
+cute --help
 ```
-![cut help screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/help-screen.png)
+![cute help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/help-screen.png)
 
 ## Logging into Contentful
 ```
-cut auth
+cute auth
 ```
 
-![cut auth screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/auth.png)
+![cut auth screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/auth.png)
 
 ## Display space summary
 ``` 
-cut info
+cute info
 ```
-![cut info screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/info.png)
+![cut info screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/info.png)
 
 ## Downloading data
 The default format is 'excel' so the following is equivelent.
 ```
-cut download --content-type <contentType> 
+cute download --content-type <contentType> 
 
-cut download --content-type <contentType> --format excel
+cute download --content-type <contentType> --format excel
 ```
 For comma seperated values:
 ```
-cut download --content-type <contentType> --format csv
+cute download --content-type <contentType> --format csv
 ```
 For tab seperated values:
 ```
-cut download --content-type <contentType> --format tsv
+cute download --content-type <contentType> --format tsv
 ```
 For json output:
 ```
-cut download --content-type <contentType> --format json
+cute download --content-type <contentType> --format json
 ```
 For downloading to Yaml:
 ```
-cut download --content-type <contentType> --format yaml
+cute download --content-type <contentType> --format yaml
 ```
-![cut download screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/download.png)
+![cute download screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/download.png)
 
-Typing `cut download --help` will list all currently available options and usage
+Typing `cute download --help` will list all currently available options and usage
 
 ```
 USAGE:
-    cut download [OPTIONS]
+    cute download [OPTIONS]
 
 OPTIONS:
     -h, --help            Prints help information
@@ -105,17 +105,17 @@ OPTIONS:
 
 You can upload content from a local file to contentful. The local file can be a previously downloaded and updated excel, sdv, tsv, json or yaml file.
 
-![cut upload progress screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/upload-progress.png)
+![cute upload progress screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload-progress.png)
 
 Changes are only applied to Contentful if `--apply` is specified. By default no changes will be applied so it works a bit like a "what-if" powershel switch without `--apply`.
 
-![cut upload screenshot](https://raw.githubusercontent.com/andresharpe/cut/master/docs/images/upload.png)
+![cute upload screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload.png)
 
-Typing `cut upload --help` will sow the full usage and options.
+Typing `cute upload --help` will sow the full usage and options.
 
 ```
 USAGE:
-    cut upload [OPTIONS]
+    cute upload [OPTIONS]
 
 OPTIONS:
     -h, --help            Prints help information

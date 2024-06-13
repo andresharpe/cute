@@ -1,0 +1,43 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>Cute</RootNamespace>
+		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+	</PropertyGroup>
+	<PropertyGroup>
+		<!-- https://learn.microsoft.com/en-us/nuget/reference/msbuild-targets -->
+		<PackAsTool>true</PackAsTool>
+		<ToolCommandName>cute</ToolCommandName>
+		<PackageOutputPath>./nupkg</PackageOutputPath>
+		<PackageId>cute</PackageId>
+		<Authors>Andre Sharpe</Authors>
+		<Description>Contentful Update Tool and Extractor. Bulk upload and download from excel/csv/tsv/yaml/json/sql.</Description>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<Copyright>Copyright (c) Andre Sharpe 2024</Copyright>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/andresharpe/cute</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/andresharpe/cute.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageIcon>cute.png</PackageIcon>
+		<PackageTags>cli;contentful;csv;excel;tsv;yaml;json</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+	<ItemGroup>
+		<None Include="..\..\docs\images\cute.png" Pack="true" PackagePath="" />
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="8.0.6" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="8.0.6" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+		<PackageReference Include="Spectre.Console" Version="0.49.1" />
+		<PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
+	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\Cute.Lib\Cute.Lib.csproj" />
+	</ItemGroup>
+</Project>
