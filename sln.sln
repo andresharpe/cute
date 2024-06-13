@@ -13,8 +13,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D35DD32C
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cut.Lib", "source\Cut.Lib\Cut.Lib.csproj", "{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Contentful.Core", "..\contentful.net\Contentful.Core\Contentful.Core.csproj", "{3E897A98-C7A3-4BC6-9057-57B21BFD6CB5}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,10 +31,6 @@ Global
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3E897A98-C7A3-4BC6-9057-57B21BFD6CB5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3E897A98-C7A3-4BC6-9057-57B21BFD6CB5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3E897A98-C7A3-4BC6-9057-57B21BFD6CB5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3E897A98-C7A3-4BC6-9057-57B21BFD6CB5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

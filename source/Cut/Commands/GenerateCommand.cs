@@ -1,12 +1,15 @@
 ﻿using Azure;
 using Azure.AI.OpenAI;
 using Contentful.Core;
+using Contentful.Core.Configuration;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Cut.Constants;
 using Cut.Lib.Exceptions;
 using Cut.Services;
 using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Spreadsheet;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
 using Scriban;
@@ -100,7 +103,14 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             PresencePenalty = 0,
         };
 
-        var cfclient = new ContentfulClient(new HttpClient(), _appSettings.ContentfulDeliveryApiKey, _appSettings.ContentfulPreviewApiKey, _appSettings.DefaultSpace);
+        var cfoptions = new ContentfulOptions()
+        {
+            DeliveryApiKey = _appSettings.ContentfulDeliveryApiKey,
+            PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
+            SpaceId = _appSettings.DefaultSpace,
+            ResolveEntriesSelectively = true,
+        };
+        var cfclient = new ContentfulClient(new HttpClient(), cfoptions);
 
         var entries = Entries(cfclient, contentType.SystemProperties.Id, contentType.DisplayField);
 
@@ -128,9 +138,16 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
             _console.WriteBlankLine();
 
+            var prompt = ReplaceFields(promptMainPrompt, entry);
+
+            _console.WriteDim(prompt);
+
+            _console.WriteBlankLine();
+            _console.WriteBlankLine();
+
             List<ChatMessage> messages = [
                 new SystemChatMessage(promptSystemMessage),
-                new UserChatMessage(ReplaceFields(promptMainPrompt, entry)),
+                new UserChatMessage(prompt),
             ];
 
             _console.WriteBlankLine();
