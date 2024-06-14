@@ -88,8 +88,6 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
             throw new CliException(ex.Message, ex);
         }
 
-        _console.WriteBlankLine();
-
         var contentfulDeliveryApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Contentful Delivery API Key:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
             .DefaultValueStyle(Globals.StyleDim)
