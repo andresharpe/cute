@@ -32,9 +32,17 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
     public class Settings : CommandSettings
     {
-        [CommandOption("-t|--prompt-title")]
+        [CommandOption("-c|--prompt-content-type")]
+        [Description("The id of the content type containing prompts. Default is 'prompts'.")]
+        public string PromptContentType { get; set; } = "prompts";
+
+        [CommandOption("-f|--prompt-field")]
+        [Description("The id of the field that contains the prompt key/title/id. Default is 'title'.")]
+        public string PromptField { get; set; } = "title";
+
+        [CommandOption("-i|--prompt-id")]
         [Description("The title of the Contentful prompt entry to generate content from.")]
-        public string PromptTitle { get; set; } = default!;
+        public string PromptId { get; set; } = default!;
 
         [CommandOption("-l|--limit")]
         [Description("The total number of entries to generate content for before stopping. Default is five.")]
@@ -56,31 +64,31 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             .Code;
 
         var promptQuery = new QueryBuilder<Dictionary<string, object?>>()
-             .ContentTypeIs("prompts")
+             .ContentTypeIs(settings.PromptContentType)
              .Limit(1)
-             .FieldEquals("fields.title", settings.PromptTitle)
+             .FieldEquals($"fields.{settings.PromptField}", settings.PromptId)
              .Build();
 
         var promptEntries = await _contentfulClient.GetEntriesCollection<Entry<JObject>>(promptQuery);
 
         if (!promptEntries.Any())
         {
-            throw new CliException($"No prompt with title '{settings.PromptTitle}' found.");
+            throw new CliException($"No prompt with title '{settings.PromptId}' found.");
         }
 
         var promptEntry = promptEntries.First();
 
         var promptContentTypeId = promptEntry.Fields["contentTypeId"]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Prompt '{settings.PromptTitle}' does not contain a valid contentTypeId");
+            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentTypeId");
 
         var promptContentFieldId = promptEntry.Fields["contentFieldId"]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Prompt '{settings.PromptTitle}' does not contain a valid contentFieldId");
+            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentFieldId");
 
         var promptSystemMessage = promptEntry.Fields["systemMessage"]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Prompt '{settings.PromptTitle}' does not contain a valid systemMessage");
+            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid systemMessage");
 
         var promptMainPrompt = promptEntry.Fields["mainPrompt"]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Prompt '{settings.PromptTitle}' does not contain a valid mainPrompt");
+            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid mainPrompt");
 
         var contentType = await _contentfulClient.GetContentType(promptContentTypeId);
 
@@ -117,7 +125,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         var skipped = 0;
         var limit = 0;
 
-        foreach (var (entry, _) in entries)
+        await foreach (var (entry, _) in entries)
         {
             var fieldValue = GetPropertyValue(entry, promptContentFieldId)?.ToString();
 
@@ -237,7 +245,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         return result;
     }
 
-    private static IEnumerable<(ExpandoObject, ContentfulCollection<ExpandoObject>)> Entries(ContentfulClient client, string contentType, string orderByField)
+    private static async IAsyncEnumerable<(ExpandoObject, ContentfulCollection<ExpandoObject>)> Entries(ContentfulClient client, string contentType, string orderByField)
     {
         var skip = 0;
         var page = 100;
@@ -252,7 +260,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 .OrderBy($"fields.{orderByField}")
                 .Build();
 
-            var entries = client.GetEntries<ExpandoObject>(queryString: query).Result;
+            var entries = await client.GetEntries<ExpandoObject>(queryString: query);
 
             if (!entries.Any()) break;
 

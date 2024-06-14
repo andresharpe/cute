@@ -4,7 +4,7 @@
 
 ## Introduction 
 
-***cute*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing and uploads to and from a Contentful space and supports the following :-
+***cute*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing, AI generation and uploads to and from a Contentful space and supports the following :-
 
 - **CSV** - Contentful -> Comma delimeted files -> Contentful
 - **TSV** - Contentful -> Tab delimeted files -> Contentful
@@ -128,3 +128,31 @@ OPTIONS:
 ## For generating strong Javascript or Dotnet types
 
 *This feature will be coming soon...*
+
+## Content generation using OpenAI
+
+You can generate content using OpenAI in bulk. Prompts are retrieved from your Contentful space. A typical prompt entry has an id, a system message, a prompt, points to a content type and field.  Something like :-
+
+|Title|EntryField|
+|-|-|
+|title|Short text|
+|SystemMessage|Long text|
+|MainPrompt|Long text|
+|ContentTypeId|Short text|
+|ContentFieldId|Short text|
+
+```
+DESCRIPTION:
+Use generative AI to help build drafts of your content.
+
+USAGE:
+    cute generate [OPTIONS]
+
+OPTIONS:
+    -h, --help                   Prints help information
+    -c, --prompt-content-type    The id of the content type containing prompts. Default is 'prompts'
+    -f, --prompt-field           The id of the field that contains the prompt key/title/id. Default is 'title'
+    -i, --prompt-id              The title of the Contentful prompt entry to generate content from
+    -l, --limit                  The total number of entries to generate content for before stopping. Default is five
+    -s, --skip                   The total number of entries to skip before starting. Default is zero
+```

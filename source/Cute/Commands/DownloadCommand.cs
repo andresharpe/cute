@@ -99,7 +99,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 taskExtract.MaxValue = 1;
 
-                foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulClient, settings.ContentType, contentInfo.DisplayField))
+                await foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulClient, settings.ContentType, contentInfo.DisplayField))
                 {
                     if (taskExtract.MaxValue == 1)
                     {

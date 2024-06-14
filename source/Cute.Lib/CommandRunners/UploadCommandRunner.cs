@@ -110,12 +110,12 @@ public class UploadCommandRunner
         return Task.FromResult(new CommandRunnerResult(RunnerResult.Success));
     }
 
-    public Task<CommandRunnerResult> LoadContentfulEntries(Action<int, int> progressUpdater)
+    public async Task<CommandRunnerResult> LoadContentfulEntries(Action<int, int> progressUpdater)
     {
         var steps = -1;
         var currentStep = 1;
 
-        foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulManagementClient, _contentType, _contentInfo.DisplayField))
+        await foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulManagementClient, _contentType, _contentInfo.DisplayField))
         {
             _contentfulEntries.Add(entry);
 
@@ -126,7 +126,7 @@ public class UploadCommandRunner
 
             progressUpdater(currentStep++, steps);
         }
-        return Task.FromResult(new CommandRunnerResult(RunnerResult.Success));
+        return new CommandRunnerResult(RunnerResult.Success);
     }
 
     public async Task<UploadCommandRunnerResult> CompareLocalAndContentfulEntries(Action<int, int> progressUpdater)
