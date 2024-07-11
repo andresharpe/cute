@@ -7,9 +7,6 @@ using Contentful.Core.Search;
 using Cute.Constants;
 using Cute.Lib.Exceptions;
 using Cute.Services;
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Spreadsheet;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
 using Scriban;
@@ -18,7 +15,6 @@ using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Dynamic;
 using System.Text;
-using System.Text.RegularExpressions;
 using Text = Spectre.Console.Text;
 
 namespace Cute.Commands;

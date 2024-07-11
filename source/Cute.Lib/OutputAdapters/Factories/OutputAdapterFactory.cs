@@ -1,4 +1,5 @@
-﻿using Cute.Lib.Exceptions;
+﻿using Cute.Lib.Enums;
+using Cute.Lib.Exceptions;
 
 namespace Cute.Lib.OutputAdapters;
 

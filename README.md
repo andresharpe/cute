@@ -1,6 +1,6 @@
 # Contentful Update Tool & Extractor
 
-![image](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute.png)
+![image](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-logo.png)
 
 ## Introduction 
 
@@ -127,7 +127,19 @@ OPTIONS:
 
 ## For generating strong Javascript or Dotnet types
 
-*This feature will be coming soon...*
+You can generate stronly typed classes for both c# and TypeScript usinh `cute`.
+
+```
+USAGE:
+    cute typegen [OPTIONS]
+
+OPTIONS:
+    -h, --help            Prints help information
+    -c, --content-type    Specifies the content type to generate types for. Default is all
+    -o, --output          The local path to output the generated types to
+    -l, --language        The language to generate types for (TypeScript/CSharp)
+    -n, --namespace       The optional namespace for the generated type
+```
 
 ## Content generation using OpenAI
 

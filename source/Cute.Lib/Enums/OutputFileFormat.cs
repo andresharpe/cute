@@ -1,4 +1,4 @@
-﻿namespace Cute.Lib.OutputAdapters;
+﻿namespace Cute.Lib.Enums;
 
 public enum OutputFileFormat
 {

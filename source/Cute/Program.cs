@@ -58,7 +58,10 @@ app.Configure(config =>
         .WithDescription("Uploads local content to the default or specified space.");
 
     config.AddCommand<GenerateCommand>("generate")
-    .WithDescription("Use generative AI to help build drafts of your content.");
+        .WithDescription("Use generative AI to help build drafts of your content.");
+
+    config.AddCommand<TypeGenCommand>("typegen")
+        .WithDescription("Generate language types from Contentful content types.");
 });
 
 try

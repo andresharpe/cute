@@ -10,11 +10,11 @@
   <ItemGroup>
     <PackageReference Include="Azure.AI.OpenAI" Version="2.0.0-beta.1" />
     <PackageReference Include="ClosedXML" Version="0.102.2" />
-    <PackageReference Include="contentful.csharp" Version="7.5.3" />
-    <PackageReference Include="CsvHelper" Version="32.0.3" />
+    <PackageReference Include="contentful.csharp" Version="7.6.1" />
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
     <PackageReference Include="Html2Markdown" Version="6.2.1.4" />
     <PackageReference Include="scriban" Version="5.10.0" />
-    <PackageReference Include="YamlDotNet" Version="15.1.6" />
+    <PackageReference Include="YamlDotNet" Version="15.3.0" />
   </ItemGroup>
 
 </Project>

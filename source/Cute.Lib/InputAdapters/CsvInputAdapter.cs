@@ -46,6 +46,9 @@ internal class CsvInputAdapter : InputAdapterBase
         var result = new Dictionary<string, object?>();
 
         var i = 0;
+
+        if (_csv.HeaderRecord is null) return result;
+
         foreach (var key in _csv.HeaderRecord)
         {
             if (string.IsNullOrEmpty(_csv[i]))
