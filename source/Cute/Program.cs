@@ -109,6 +109,7 @@ static void WriteException(Exception ex)
         || ex is ContentfulException
         || ex is CommandRuntimeException
         || ex is HttpRequestException
+        || ex is IOException
         || ex is ClientResultException)
 
         AnsiConsole.Console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);

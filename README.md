@@ -12,6 +12,8 @@
 - **Json** - Contentful -> Json -> Contentful
 - **Yaml** - Contentful -> Yaml -> Contentful
 
+You can also generate types for JavaScript or dotnet to keep your project in sync with your content space.
+
 [Contentful](https://www.contentful.com/) is a headless content management system (CMS) that allows teams to store, manage and retrieve content for websites and apps.
 
 ## Installation

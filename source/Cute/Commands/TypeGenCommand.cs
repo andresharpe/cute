@@ -66,17 +66,21 @@ public class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
         if (result != 0 || _contentfulClient == null || _appSettings == null) return result;
 
         List<ContentType> contentTypes = settings.ContentType == "*"
-            ? (await _contentfulClient.GetContentTypes()).ToList()
+            ? (await _contentfulClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
             : [await _contentfulClient.GetContentType(settings.ContentType)];
+
+        ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language);
+
+        await adapter.PreGenerateTypeSource(contentTypes, settings.OutputPath, null, settings.Namespace);
 
         foreach (var contentType in contentTypes)
         {
-            ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language);
-
             var fileName = await adapter.GenerateTypeSource(contentType, settings.OutputPath, null, settings.Namespace);
 
             _console.WriteNormal(fileName);
         }
+
+        await adapter.PostGenerateTypeSource();
 
         return 0;
     }

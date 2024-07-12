@@ -7,6 +7,11 @@ namespace Cute.Lib.TypeGenAdapter;
 
 public class TypeScriptTypeGenAdapter : ITypeGenAdapter
 {
+    public Task PreGenerateTypeSource(List<ContentType> contentTypes, string path, string? fileName = null, string? namespc = null)
+    {
+        return Task.CompletedTask;
+    }
+
     public async Task<string> GenerateTypeSource(ContentType contentType, string path, string? fileName = null, string? namespc = null)
     {
         fileName ??= Path.Combine(path, contentType.SystemProperties.Id.CamelToPascalCase() + ".ts");
@@ -48,5 +53,10 @@ public class TypeScriptTypeGenAdapter : ITypeGenAdapter
         await System.IO.File.WriteAllTextAsync(fileName, ts.ToString());
 
         return fileName;
+    }
+
+    public Task PostGenerateTypeSource()
+    {
+        return Task.CompletedTask;
     }
 }

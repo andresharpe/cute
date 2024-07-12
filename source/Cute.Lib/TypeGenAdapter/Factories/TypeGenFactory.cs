@@ -1,6 +1,5 @@
 ﻿using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
-using Cute.Lib.OutputAdapters;
 
 namespace Cute.Lib.TypeGenAdapter;
 
@@ -12,6 +11,7 @@ public class TypeGenFactory
         {
             GenTypeLanguage.TypeScript => new TypeScriptTypeGenAdapter(),
             GenTypeLanguage.CSharp => new CSharpTypeGenAdapter(),
+            GenTypeLanguage.Excel => new ExcelTypeGenAdapter(),
             _ => throw new CliException($"No languge type generator adapter exists matching {language}."),
         };
     }

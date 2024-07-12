@@ -1,6 +1,4 @@
-﻿using Azure.AI.OpenAI;
-using Azure;
-using Contentful.Core;
+﻿using Contentful.Core;
 using Contentful.Core.Errors;
 using Cute.Config;
 using Cute.Constants;
@@ -8,7 +6,6 @@ using Cute.Lib.Exceptions;
 using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using System;
 
 namespace Cute.Commands;
 
@@ -17,7 +14,6 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
     private const string _contentfulPatPrefix = "CFPAT-";
     private const int _contentfulPatLength = 49;
     private const int _openAiPatLength = 32;
-    private const int _spaceIdMinLength = 10;
 
     private readonly IConsoleWriter _console;
     private readonly IPersistedTokenCache _tokenCache;
@@ -50,12 +46,13 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
             .PromptStyle(Globals.StyleAlertAccent)
             .DefaultValueStyle(Globals.StyleDim)
             .Secret()
-            .DefaultValue(currentSettings?.ApiKey ?? currentSettings?.ContentfulManagementApiKey ?? string.Empty)
+            .DefaultValue(currentSettings?.ContentfulManagementApiKey ?? string.Empty)
             .Validate(ValidateContentfulApiKey);
 
         var contentfulApiKey = _console.Prompt(contentfulApiKeyPrompt);
 
         string? spaceId = null;
+        string? environmentId = null;
 
         try
         {
@@ -63,13 +60,12 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
             using var httpClient = new HttpClient();
             var contentfulClient = new ContentfulManagementClient(httpClient, contentfulApiKey, string.Empty);
-            var spaces = await contentfulClient.GetSpaces();
 
+            var spaces = await contentfulClient.GetSpaces();
             if (spaces is null || !spaces.Any())
             {
                 throw new CliException("No spaces found.");
             }
-
             var promptSpace = new SelectionPrompt<string>()
                 .Title($"[{Globals.StyleNormal.Foreground}]Select your default space:[/]")
                 .PageSize(10)
@@ -82,6 +78,22 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
             var spaceName = Markup.Remove(_console.Prompt(promptSpace));
 
             spaceId = spaces.First(s => s.Name.Equals(spaceName)).SystemProperties.Id;
+
+            var environments = await contentfulClient.GetEnvironments(spaceId);
+            if (environments is null || !environments.Any())
+            {
+                throw new CliException("No environments found.");
+            }
+            var promptEnvironment = new SelectionPrompt<string>()
+                .Title($"[{Globals.StyleNormal.Foreground}]Select your default environment:[/]")
+                .PageSize(10)
+                .MoreChoicesText($"[{Globals.StyleDim.ToMarkup()}](Move up and down to reveal more environments)[/]")
+                .HighlightStyle(Globals.StyleSubHeading)
+                .AddChoices(environments.Select(e => $"[{Globals.StyleDim.Foreground}]{e.SystemProperties.Id}[/]"));
+
+            promptEnvironment.DisabledStyle = Globals.StyleDim;
+
+            environmentId = Markup.Remove(_console.Prompt(promptEnvironment));
         }
         catch (ContentfulException ex)
         {
@@ -141,8 +153,8 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
 
         await _tokenCache.SaveAsync(Globals.AppName, new AppSettings()
         {
-            ApiKey = contentfulApiKey,
-            DefaultSpace = spaceId,
+            ContentfulDefaultSpace = spaceId,
+            ContentfulDefaultEnvironment = environmentId,
             ContentfulManagementApiKey = contentfulApiKey,
             ContentfulDeliveryApiKey = contentfulDeliveryApiKey,
             ContentfulPreviewApiKey = contentfulPreviewApiKey,
@@ -189,13 +201,6 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
     private ValidationResult ValidateOpenAiDeploymentName(string name)
     {
         if (name.Length < 3) return ValidationResult.Error("Invalid deployment name.");
-
-        return ValidationResult.Success();
-    }
-
-    private ValidationResult ValidateSpaceId(string spaceId)
-    {
-        if (spaceId.Length < _spaceIdMinLength) return ValidationResult.Error("Invalid Contentful space identifier.");
 
         return ValidationResult.Success();
     }

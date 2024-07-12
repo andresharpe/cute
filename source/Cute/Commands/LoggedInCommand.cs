@@ -1,5 +1,6 @@
 ﻿using ClosedXML;
 using Contentful.Core;
+using Contentful.Core.Configuration;
 using Cute.Config;
 using Cute.Constants;
 using Cute.Services;
@@ -42,11 +43,17 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
 
         _isLoggedIn = true;
 
-        _spaceId = _appSettings.DefaultSpace;
+        _spaceId = _appSettings.ContentfulDefaultSpace;
 
-        var apiKey = _appSettings.ApiKey;
-
-        _contentfulClient = new ContentfulManagementClient(_httpClient, apiKey, _spaceId);
+        var contentfulOptions = new ContentfulOptions()
+        {
+            ManagementApiKey = _appSettings.ContentfulManagementApiKey,
+            SpaceId = _appSettings.ContentfulDefaultSpace,
+            DeliveryApiKey = _appSettings.ContentfulDeliveryApiKey,
+            PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
+            Environment = _appSettings.ContentfulDefaultEnvironment
+        };
+        _contentfulClient = new ContentfulManagementClient(_httpClient, contentfulOptions);
     }
 
     public override Task<int> ExecuteAsync(CommandContext context, TSettings settings)

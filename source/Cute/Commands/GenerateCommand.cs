@@ -111,7 +111,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         {
             DeliveryApiKey = _appSettings.ContentfulDeliveryApiKey,
             PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
-            SpaceId = _appSettings.DefaultSpace,
+            SpaceId = _appSettings.ContentfulDefaultSpace,
             ResolveEntriesSelectively = true,
         };
         var cfclient = new ContentfulClient(new HttpClient(), cfoptions);

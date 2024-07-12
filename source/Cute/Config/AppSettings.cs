@@ -2,8 +2,8 @@
 
 public class AppSettings
 {
-    public string ApiKey { get; set; } = default!;
-    public string DefaultSpace { get; set; } = default!;
+    public string ContentfulDefaultSpace { get; set; } = default!;
+    public string ContentfulDefaultEnvironment { get; set; } = default!;
     public string ContentfulManagementApiKey { get; set; } = default!;
     public string ContentfulDeliveryApiKey { get; set; } = default!;
     public string ContentfulPreviewApiKey { get; set; } = default!;

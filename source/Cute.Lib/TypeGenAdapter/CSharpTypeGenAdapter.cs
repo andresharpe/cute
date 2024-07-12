@@ -8,6 +8,11 @@ namespace Cute.Lib.TypeGenAdapter;
 
 public class CSharpTypeGenAdapter : ITypeGenAdapter
 {
+    public Task PreGenerateTypeSource(List<ContentType> contentTypes, string path, string? fileName = null, string? namespc = null)
+    {
+        return Task.CompletedTask;
+    }
+
     public async Task<string> GenerateTypeSource(ContentType contentType, string path, string? fileName = null, string? namespc = null)
     {
         fileName ??= Path.Combine(path, contentType.SystemProperties.Id.CamelToPascalCase() + ".cs");
@@ -45,7 +50,12 @@ public class CSharpTypeGenAdapter : ITypeGenAdapter
         return fileName;
     }
 
-    private string ToDotnetType(string contentfulType)
+    public Task PostGenerateTypeSource()
+    {
+        return Task.CompletedTask;
+    }
+
+    private static string ToDotnetType(string contentfulType)
     {
         return contentfulType switch
         {

@@ -4,4 +4,5 @@ public enum GenTypeLanguage
 {
     TypeScript,
     CSharp,
+    Excel,
 }

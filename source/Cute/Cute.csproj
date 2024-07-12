@@ -14,7 +14,7 @@
 		<PackageOutputPath>./nupkg</PackageOutputPath>
 		<PackageId>cute</PackageId>
 		<Authors>Andre Sharpe</Authors>
-		<Description>Contentful Update Tool and Extractor. Bulk upload and download from excel/csv/tsv/yaml/json/sql.</Description>
+		<Description>Contentful Update Tool and Extractor. Bulk upload and download from excel/csv/tsv/yaml/json/sql. Bulk content generator via AI using prompts in your Contentful space.</Description>
 		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
 		<Copyright>Copyright (c) Andre Sharpe 2024</Copyright>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -23,7 +23,7 @@
 		<RepositoryUrl>https://github.com/andresharpe/cute.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageIcon>cute.png</PackageIcon>
-		<PackageTags>cli;contentful;csv;excel;tsv;yaml;json</PackageTags>
+		<PackageTags>cli;contentful;csv;excel;tsv;yaml;json;openai;chatgpt;ai;javascript</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
 	<ItemGroup>
