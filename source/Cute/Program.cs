@@ -45,8 +45,8 @@ app.Configure(config =>
     config.AddCommand<VersionCommand>("version")
         .WithDescription("Displays the current cut cli version.");
 
-    config.AddCommand<AuthCommand>("auth")
-        .WithDescription("Authenticates to a Contentful account.");
+    config.AddCommand<LoginCommand>("login")
+        .WithDescription("Login to a Contentful account.");
 
     config.AddCommand<InfoCommand>("info")
         .WithDescription("Display information about the default or specified space.");

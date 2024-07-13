@@ -9,7 +9,7 @@ using Spectre.Console.Cli;
 
 namespace Cute.Commands;
 
-public class AuthCommand : AsyncCommand<AuthCommand.Settings>
+public class LoginCommand : AsyncCommand<LoginCommand.Settings>
 {
     private const string _contentfulPatPrefix = "CFPAT-";
     private const int _contentfulPatLength = 49;
@@ -18,7 +18,7 @@ public class AuthCommand : AsyncCommand<AuthCommand.Settings>
     private readonly IConsoleWriter _console;
     private readonly IPersistedTokenCache _tokenCache;
 
-    public AuthCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
+    public LoginCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
     {
         _console = console;
         _tokenCache = tokenCache;

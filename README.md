@@ -51,14 +51,14 @@ cute help. You are ready to go! 🚀
 ```
 cute --help
 ```
-![cute help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/help-screen.png)
+![cute help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/help.png)
 
 ## Logging into Contentful
 ```
-cute auth
+cute login
 ```
 
-![cut auth screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/auth.png)
+![cut auth screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/login.png)
 
 ## Display space summary
 ``` 
