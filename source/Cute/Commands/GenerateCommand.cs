@@ -29,22 +29,46 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
     public class Settings : CommandSettings
     {
         [CommandOption("-c|--prompt-content-type")]
-        [Description("The id of the content type containing prompts. Default is 'prompts'.")]
-        public string PromptContentType { get; set; } = "prompts";
+        [Description("The id of the content type containing prompts. Default is 'metaPrompts'.")]
+        public string PromptContentType { get; set; } = "metaPrompt";
 
-        [CommandOption("-f|--prompt-field")]
-        [Description("The id of the field that contains the prompt key/title/id. Default is 'title'.")]
-        public string PromptField { get; set; } = "title";
+        [CommandOption("-f|--prompt-id-field")]
+        [Description("The id of the field that contains the prompt key/title/id. Default is 'key'.")]
+        public string PromptIdField { get; set; } = "key";
 
         [CommandOption("-i|--prompt-id")]
-        [Description("The title of the Contentful prompt entry to generate content from.")]
+        [Description("The id of the Contentful prompt entry to generate content from.")]
         public string PromptId { get; set; } = default!;
+
+        [CommandOption("-o|--output-content-type")]
+        [Description("The id of the Contentful content type to generate content for.")]
+        public string OutputContentType { get; set; } = "promptOutputContentType";
+
+        [CommandOption("-t|--output-content-field")]
+        [Description("The target field of the Contentful content type to generate content for.")]
+        public string OutputContentField { get; set; } = "promptOutputContentField";
+
+        [CommandOption("-s|--system-message-field")]
+        [Description("The target field of the Contentful content type to generate content for.")]
+        public string SystemMessageField { get; set; } = "systemMessage";
+
+        [CommandOption("-p|--prompt-field")]
+        [Description("The field containg the prompt template for the LLM.")]
+        public string PromptField { get; set; } = "prompt";
+
+        [CommandOption("-e|--temperature-field")]
+        [Description("The field conatining temperature setting for the LLM generator.")]
+        public string TemperatureField { get; set; } = "temperature";
+
+        [CommandOption("-a|--frequency-penalty")]
+        [Description("The field conatining temperature setting for the LLM generator.")]
+        public string FrequencyPenaltyField { get; set; } = "frequencyPenalty";
 
         [CommandOption("-l|--limit")]
         [Description("The total number of entries to generate content for before stopping. Default is five.")]
         public int Limit { get; set; } = 5;
 
-        [CommandOption("-s|--skip")]
+        [CommandOption("-k|--skip")]
         [Description("The total number of entries to skip before starting. Default is zero.")]
         public int Skip { get; set; } = 0;
     }
@@ -62,7 +86,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         var promptQuery = new QueryBuilder<Dictionary<string, object?>>()
              .ContentTypeIs(settings.PromptContentType)
              .Limit(1)
-             .FieldEquals($"fields.{settings.PromptField}", settings.PromptId)
+             .FieldEquals($"fields.{settings.PromptIdField}", settings.PromptId)
              .Build();
 
         var promptEntries = await _contentfulClient.GetEntriesCollection<Entry<JObject>>(promptQuery);
@@ -74,17 +98,23 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var promptEntry = promptEntries.First();
 
-        var promptContentTypeId = promptEntry.Fields["contentTypeId"]?[defaultLocale]?.Value<string>()
+        var promptContentTypeId = promptEntry.Fields[settings.OutputContentType]?[defaultLocale]?.Value<string>()
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentTypeId");
 
-        var promptContentFieldId = promptEntry.Fields["contentFieldId"]?[defaultLocale]?.Value<string>()
+        var promptContentFieldId = promptEntry.Fields[settings.OutputContentField]?[defaultLocale]?.Value<string>()
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentFieldId");
 
-        var promptSystemMessage = promptEntry.Fields["systemMessage"]?[defaultLocale]?.Value<string>()
+        var promptSystemMessage = promptEntry.Fields[settings.SystemMessageField]?[defaultLocale]?.Value<string>()
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid systemMessage");
 
-        var promptMainPrompt = promptEntry.Fields["mainPrompt"]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid mainPrompt");
+        var promptMainPrompt = promptEntry.Fields[settings.PromptField]?[defaultLocale]?.Value<string>()
+            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid prompt");
+
+        var promptTemperature = promptEntry.Fields[settings.TemperatureField]?[defaultLocale]?.Value<float>()
+            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid temperature");
+
+        var promptFrequencyPenalty = promptEntry.Fields[settings.FrequencyPenaltyField]?[defaultLocale]?.Value<float>()
+            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid frequency penalty");
 
         var contentType = await _contentfulClient.GetContentType(promptContentTypeId);
 
@@ -101,9 +131,9 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var chatCompletionOptions = new ChatCompletionOptions()
         {
-            Temperature = (float)0.7,
+            Temperature = promptTemperature,
             MaxTokens = 800,
-            FrequencyPenalty = 0,
+            FrequencyPenalty = promptFrequencyPenalty,
             PresencePenalty = 0,
         };
 
@@ -112,6 +142,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             DeliveryApiKey = _appSettings.ContentfulDeliveryApiKey,
             PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
             SpaceId = _appSettings.ContentfulDefaultSpace,
+            Environment = _appSettings.ContentfulDefaultEnvironment,
             ResolveEntriesSelectively = true,
         };
         var cfclient = new ContentfulClient(new HttpClient(), cfoptions);

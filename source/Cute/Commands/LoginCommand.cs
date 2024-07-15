@@ -6,6 +6,7 @@ using Cute.Lib.Exceptions;
 using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using System.ComponentModel;
 
 namespace Cute.Commands;
 
@@ -26,6 +27,37 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
 
     public class Settings : CommandSettings
     {
+        [CommandOption("-m|--cf-mangagement-api-key")]
+        [Description("The Contentful management API key.")]
+        public string? ContentfulManagmentApiKey { get; set; } = null!;
+
+        [CommandOption("-s|--cf-space")]
+        [Description("The default Contentful space to use.")]
+        public string? ContentfulDefaultSpace { get; set; } = null!;
+
+        [CommandOption("-e|--cf-environment")]
+        [Description("The default Contentful environment to use.")]
+        public string? ContentfulDefaultEnvironment { get; set; } = null!;
+
+        [CommandOption("-d|--cf-delivery-api-key")]
+        [Description("The Contentful delivery API key.")]
+        public string? ContentfulDeliveryApiKey { get; set; } = null!;
+
+        [CommandOption("-p|--cf-preview-api-key")]
+        [Description("The Contentful preview API key.")]
+        public string? ContentfulPreviewApiKey { get; set; } = null!;
+
+        [CommandOption("-a|--openai-endpoint")]
+        [Description("The OpenAI endpoint.")]
+        public string? OpenAiEndpoint { get; set; } = null!;
+
+        [CommandOption("-k|--openai-apiKey")]
+        [Description("The OpenAI Api key.")]
+        public string? OpenAiApiKey { get; set; } = null!;
+
+        [CommandOption("-n|--openai-deployment-name")]
+        [Description("The OpenAI deployment name.")]
+        public string? OpenAiDeploymentName { get; set; } = null!;
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
@@ -49,56 +81,87 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
             .DefaultValue(currentSettings?.ContentfulManagementApiKey ?? string.Empty)
             .Validate(ValidateContentfulApiKey);
 
-        var contentfulApiKey = _console.Prompt(contentfulApiKeyPrompt);
+        var contentfulApiKey = settings.ContentfulManagmentApiKey ?? _console.Prompt(contentfulApiKeyPrompt);
 
         string? spaceId = null;
         string? environmentId = null;
 
-        try
+        if (settings.ContentfulManagmentApiKey == null) _console.WriteBlankLine();
+
+        using var httpClient = new HttpClient();
+        var contentfulClient = new ContentfulManagementClient(httpClient, contentfulApiKey, string.Empty);
+
+        var spaces = await contentfulClient.GetSpaces();
+        if (spaces is null || !spaces.Any())
         {
+            throw new CliException("No spaces found.");
+        }
+        var promptSpace = new SelectionPrompt<string>()
+            .Title($"[{Globals.StyleNormal.Foreground}]Select your default space:[/]")
+            .PageSize(10)
+            .MoreChoicesText($"[{Globals.StyleDim.ToMarkup()}](Move up and down to reveal more spaces)[/]")
+            .HighlightStyle(Globals.StyleSubHeading);
+
+        if (currentSettings?.ContentfulDefaultSpace == null)
+        {
+            promptSpace.AddChoices(spaces
+                .OrderBy(e => e.Name)
+                .Select(e => $"[{Globals.StyleDim.Foreground}]{e.Name}[/]"));
+        }
+        else
+        {
+            var currentSpaceName = spaces.First(s => s.SystemProperties.Id.Equals(currentSettings.ContentfulDefaultSpace)).Name;
+            promptSpace.AddChoice($"[{Globals.StyleDim.Foreground}]{currentSpaceName}[/]");
+            promptSpace.AddChoices(spaces
+                .Where(e => !e.SystemProperties.Id.Equals(currentSettings.ContentfulDefaultSpace))
+                .OrderBy(e => e.Name)
+                .Select(e => $"[{Globals.StyleDim.Foreground}]{e.Name}[/]"));
+        }
+
+        promptSpace.DisabledStyle = Globals.StyleDim;
+
+        var spaceName = settings.ContentfulDefaultSpace ?? Markup.Remove(_console.Prompt(promptSpace));
+
+        spaceId = spaces.First(s => s.Name.Equals(spaceName)).SystemProperties.Id;
+
+        if (settings.ContentfulDefaultSpace == null)
+        {
+            AnsiConsole.Markup($"[{Globals.StyleNormal.Foreground}]Select your default space:[/]");
+            AnsiConsole.Markup($" [{Globals.StyleSubHeading.Foreground}]{spaceName}[/]");
             _console.WriteBlankLine();
-
-            using var httpClient = new HttpClient();
-            var contentfulClient = new ContentfulManagementClient(httpClient, contentfulApiKey, string.Empty);
-
-            var spaces = await contentfulClient.GetSpaces();
-            if (spaces is null || !spaces.Any())
-            {
-                throw new CliException("No spaces found.");
-            }
-            var promptSpace = new SelectionPrompt<string>()
-                .Title($"[{Globals.StyleNormal.Foreground}]Select your default space:[/]")
-                .PageSize(10)
-                .MoreChoicesText($"[{Globals.StyleDim.ToMarkup()}](Move up and down to reveal more spaces)[/]")
-                .HighlightStyle(Globals.StyleSubHeading)
-                .AddChoices(spaces.Select(s => $"[{Globals.StyleDim.Foreground}]{s.Name}[/]"));
-
-            promptSpace.DisabledStyle = Globals.StyleDim;
-
-            var spaceName = Markup.Remove(_console.Prompt(promptSpace));
-
-            spaceId = spaces.First(s => s.Name.Equals(spaceName)).SystemProperties.Id;
-
-            var environments = await contentfulClient.GetEnvironments(spaceId);
-            if (environments is null || !environments.Any())
-            {
-                throw new CliException("No environments found.");
-            }
-            var promptEnvironment = new SelectionPrompt<string>()
-                .Title($"[{Globals.StyleNormal.Foreground}]Select your default environment:[/]")
-                .PageSize(10)
-                .MoreChoicesText($"[{Globals.StyleDim.ToMarkup()}](Move up and down to reveal more environments)[/]")
-                .HighlightStyle(Globals.StyleSubHeading)
-                .AddChoices(environments.Select(e => $"[{Globals.StyleDim.Foreground}]{e.SystemProperties.Id}[/]"));
-
-            promptEnvironment.DisabledStyle = Globals.StyleDim;
-
-            environmentId = Markup.Remove(_console.Prompt(promptEnvironment));
+            _console.WriteBlankLine();
         }
-        catch (ContentfulException ex)
+
+        var environments = await contentfulClient.GetEnvironments(spaceId);
+
+        if (environments is null || !environments.Any())
         {
-            throw new CliException(ex.Message, ex);
+            throw new CliException("No environments found.");
         }
+        var promptEnvironment = new SelectionPrompt<string>()
+            .Title($"[{Globals.StyleNormal.Foreground}]Select your default environment:[/]")
+            .PageSize(10)
+            .MoreChoicesText($"[{Globals.StyleDim.ToMarkup()}](Move up and down to reveal more environments)[/]")
+            .HighlightStyle(Globals.StyleSubHeading);
+
+        if (currentSettings?.ContentfulDefaultEnvironment == null)
+        {
+            promptEnvironment.AddChoices(environments
+                .OrderBy(e => e.SystemProperties.Id)
+                .Select(e => $"[{Globals.StyleDim.Foreground}]{e.SystemProperties.Id}[/]"));
+        }
+        else
+        {
+            promptEnvironment.AddChoice($"[{Globals.StyleDim.Foreground}]{currentSettings.ContentfulDefaultEnvironment}[/]");
+            promptEnvironment.AddChoices(environments
+                .Where(e => !e.SystemProperties.Id.Equals(currentSettings.ContentfulDefaultEnvironment))
+                .OrderBy(e => e.SystemProperties.Id)
+                .Select(e => $"[{Globals.StyleDim.Foreground}]{e.SystemProperties.Id}[/]"));
+        }
+
+        promptEnvironment.DisabledStyle = Globals.StyleDim;
+
+        environmentId = settings.ContentfulDefaultEnvironment ?? Markup.Remove(_console.Prompt(promptEnvironment));
 
         var contentfulDeliveryApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Contentful Delivery API Key:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
@@ -107,9 +170,9 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
             .DefaultValue(currentSettings?.ContentfulDeliveryApiKey ?? string.Empty)
             .Validate(ValidateContentfulDeliveryAndPreviewApiKey);
 
-        var contentfulDeliveryApiKey = _console.Prompt(contentfulDeliveryApiKeyPrompt);
+        var contentfulDeliveryApiKey = settings.ContentfulDeliveryApiKey ?? _console.Prompt(contentfulDeliveryApiKeyPrompt);
 
-        _console.WriteBlankLine();
+        if (settings.ContentfulDeliveryApiKey == null) _console.WriteBlankLine();
 
         var contentfulPreviewApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Contentful Preview API Key:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
@@ -118,9 +181,9 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
             .DefaultValue(currentSettings?.ContentfulPreviewApiKey ?? string.Empty)
             .Validate(ValidateContentfulDeliveryAndPreviewApiKey);
 
-        var contentfulPreviewApiKey = _console.Prompt(contentfulPreviewApiKeyPrompt);
+        var contentfulPreviewApiKey = settings.ContentfulPreviewApiKey ?? _console.Prompt(contentfulPreviewApiKeyPrompt);
 
-        _console.WriteBlankLine();
+        if (settings.ContentfulPreviewApiKey == null) _console.WriteBlankLine();
 
         var openAiApiKeyPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Open AI API Key:[/]")
                 .PromptStyle(Globals.StyleAlertAccent)
@@ -129,9 +192,9 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
                 .DefaultValue(currentSettings?.OpenAiApiKey ?? string.Empty)
                 .Validate(ValidateOpenAiApiKey);
 
-        var openApiKey = _console.Prompt(openAiApiKeyPrompt);
+        var openApiKey = settings.OpenAiApiKey ?? _console.Prompt(openAiApiKeyPrompt);
 
-        _console.WriteBlankLine();
+        if (settings.OpenAiApiKey == null) _console.WriteBlankLine();
 
         var openAiEndpointPrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Open AI Endpoint:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
@@ -139,9 +202,9 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
             .DefaultValue(currentSettings?.OpenAiEndpoint ?? string.Empty)
             .Validate(ValidateOpenAiEndpoint);
 
-        var openApiEndpoint = _console.Prompt(openAiEndpointPrompt);
+        var openApiEndpoint = settings.OpenAiEndpoint ?? _console.Prompt(openAiEndpointPrompt);
 
-        _console.WriteBlankLine();
+        if (settings.OpenAiEndpoint == null) _console.WriteBlankLine();
 
         var openAiDeploymentNamePrompt = new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]Enter your Open AI Deployment Name:[/]")
             .PromptStyle(Globals.StyleAlertAccent)
@@ -149,7 +212,9 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
             .DefaultValue(currentSettings?.OpenAiDeploymentName ?? string.Empty)
             .Validate(ValidateOpenAiDeploymentName);
 
-        var openAiDeploymentName = _console.Prompt(openAiDeploymentNamePrompt);
+        var openAiDeploymentName = settings.OpenAiDeploymentName ?? _console.Prompt(openAiDeploymentNamePrompt);
+
+        if (settings.OpenAiDeploymentName == null) _console.WriteBlankLine();
 
         await _tokenCache.SaveAsync(Globals.AppName, new AppSettings()
         {
