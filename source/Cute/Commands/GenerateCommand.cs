@@ -37,7 +37,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         public string PromptIdField { get; set; } = "key";
 
         [CommandOption("-i|--prompt-id")]
-        [Description("The id of the Contentful prompt entry to generate content from.")]
+        [Description("The id of the Contentful prompt entry to generate prompts from.")]
         public string PromptId { get; set; } = default!;
 
         [CommandOption("-o|--output-content-type")]
@@ -49,19 +49,19 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         public string OutputContentField { get; set; } = "promptOutputContentField";
 
         [CommandOption("-s|--system-message-field")]
-        [Description("The target field of the Contentful content type to generate content for.")]
+        [Description("The field containing the system prompt for the LLM.")]
         public string SystemMessageField { get; set; } = "systemMessage";
 
         [CommandOption("-p|--prompt-field")]
-        [Description("The field containg the prompt template for the LLM.")]
+        [Description("The field containing the prompt template for the LLM.")]
         public string PromptField { get; set; } = "prompt";
 
         [CommandOption("-e|--temperature-field")]
-        [Description("The field conatining temperature setting for the LLM generator.")]
+        [Description("The field containing temperature setting for the LLM.")]
         public string TemperatureField { get; set; } = "temperature";
 
-        [CommandOption("-a|--frequency-penalty")]
-        [Description("The field conatining temperature setting for the LLM generator.")]
+        [CommandOption("-a|--frequency-penalty-field")]
+        [Description("The field containing frequency penalty setting for the LLM.")]
         public string FrequencyPenaltyField { get; set; } = "frequencyPenalty";
 
         [CommandOption("-l|--limit")]
