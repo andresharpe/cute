@@ -1,4 +1,6 @@
-﻿namespace Cute.Config;
+﻿using Cute.Constants;
+
+namespace Cute.Config;
 
 public class AppSettings
 {
@@ -10,5 +12,6 @@ public class AppSettings
     public string OpenAiEndpoint { get; set; } = default!;
     public string OpenAiApiKey { get; set; } = default!;
     public string OpenAiDeploymentName { get; set; } = default!;
+    public string TempFolder { get; set; } = Path.Combine(Path.GetTempPath(), Globals.AppName);
     public Dictionary<string, string> Secrets { get; } = [];
 }

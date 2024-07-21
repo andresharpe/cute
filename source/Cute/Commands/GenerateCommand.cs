@@ -223,7 +223,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 }
             }
 
-            var updatedEntry = await _contentfulClient.CreateOrUpdateEntry<dynamic>(objToUpdate.Fields,
+            _ = await _contentfulClient.CreateOrUpdateEntry<dynamic>(objToUpdate.Fields,
                 id: objToUpdate.SystemProperties.Id,
                 version: objToUpdate.SystemProperties.Version);
 

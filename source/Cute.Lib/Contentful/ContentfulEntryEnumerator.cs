@@ -5,22 +5,23 @@ using Contentful.Core;
 
 namespace Cute.Lib.Contentful;
 
-public static class EntryEnumerator
+public static class ContentfulEntryEnumerator
 {
-    public static async IAsyncEnumerable<(Entry<JObject>, ContentfulCollection<Entry<JObject>>)> Entries(ContentfulManagementClient client, string contentType, string orderByField)
+    public static async IAsyncEnumerable<(Entry<JObject>, ContentfulCollection<Entry<JObject>>)> Entries(ContentfulManagementClient client, string contentType, string orderByField, int includeLevels = 2)
     {
         var skip = 0;
         var page = 100;
 
         while (true)
         {
-            var query = new QueryBuilder<Entry<JObject>>()
+            var queryBuilder = new QueryBuilder<Entry<JObject>>()
                 .ContentTypeIs(contentType)
-                .Include(2)
+                .Include(includeLevels)
                 .Skip(skip)
                 .Limit(page)
-                .OrderBy($"fields.{orderByField}")
-                .Build();
+                .OrderBy($"fields.{orderByField}");
+
+            var query = queryBuilder.Build();
 
             var entries = await client.GetEntriesCollection<Entry<JObject>>(query);
 

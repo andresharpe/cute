@@ -115,7 +115,7 @@ public class UploadCommandRunner
         var steps = -1;
         var currentStep = 1;
 
-        await foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulManagementClient, _contentType, _contentInfo.DisplayField))
+        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulManagementClient, _contentType, _contentInfo.DisplayField))
         {
             _contentfulEntries.Add(entry);
 
@@ -190,14 +190,16 @@ public class UploadCommandRunner
             progressUpdater(currentStep++, steps);
         }
 
-        var result = new UploadCommandRunnerResult(RunnerResult.Success);
-        result.MatchedEntries = matchedEntries;
-        result.UpdatedCloudEntries = updatedCloudEntries;
-        result.UpdatedLocalEntries = updatedLocalEntries;
-        result.NewLocalEntries = newLocalEntries;
-        result.MismatchedValues = mismatchedValues;
-        result.ChangesApplied = changesApplied;
-        result.InputFilename = _localFileName;
+        var result = new UploadCommandRunnerResult(RunnerResult.Success)
+        {
+            MatchedEntries = matchedEntries,
+            UpdatedCloudEntries = updatedCloudEntries,
+            UpdatedLocalEntries = updatedLocalEntries,
+            NewLocalEntries = newLocalEntries,
+            MismatchedValues = mismatchedValues,
+            ChangesApplied = changesApplied,
+            InputFilename = _localFileName
+        };
 
         return result;
     }

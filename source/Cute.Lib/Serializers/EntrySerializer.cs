@@ -1,8 +1,10 @@
-﻿using Contentful.Core.Models;
+﻿using Azure.Core.GeoJson;
+using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Cute.Lib.Extensions;
 using Newtonsoft.Json.Linq;
 using System.Globalization;
+using System.Reflection.Metadata;
 
 namespace Cute.Lib.Serializers;
 
@@ -12,9 +14,9 @@ public class EntrySerializer
 
     private readonly IEnumerable<Locale> _locales;
 
-    private readonly IDictionary<string, EntryFieldSerializer> _fieldSerializers;
+    private readonly Dictionary<string, EntryFieldSerializer> _fieldSerializers;
 
-    private readonly IDictionary<string, EntryFieldSerializer> _fields;
+    private readonly Dictionary<string, EntryFieldSerializer> _fields;
 
     public IEnumerable<string> Locales => _locales.Select(l => l.Code);
 
@@ -27,8 +29,8 @@ public class EntrySerializer
         _contentType = contentType;
         _locales = locales;
 
-        _fieldSerializers = new Dictionary<string, EntryFieldSerializer>();
-        _fields = new Dictionary<string, EntryFieldSerializer>();
+        _fieldSerializers = [];
+        _fields = [];
 
         var allLocaleCodes = Locales.ToArray();
         var defaultLocaleCodes = new string[] { this.DefaultLocale };
@@ -53,7 +55,7 @@ public class EntrySerializer
         }
     }
 
-    private string[] _sysFields = [
+    private readonly string[] _sysFields = [
         "sys.Id",
         "sys.Type",
         "sys.UpdatedAt",
@@ -66,6 +68,26 @@ public class EntrySerializer
         "sys.Space",
         "sys.Environment",
     ];
+
+    public Dictionary<string, object?> CreateNewFlatEntry()
+    {
+        var newId = ContentfulIdGenerator.NewId();
+
+        return new Dictionary<string, object?>()
+        {
+            ["sys.Id"] = newId,
+            ["sys.Type"] = null,
+            ["sys.UpdatedAt"] = null,
+            ["sys.Version"] = 0,
+            ["sys.PublishedVersion"] = null,
+            ["sys.PublishedCounter"] = null,
+            ["sys.PublishedAt"] = null,
+            ["sys.FirstPublishedAt"] = null,
+            ["sys.ContentType"] = _contentType.SystemProperties.Id,
+            ["sys.Space"] = null,
+            ["sys.Environment"] = null,
+        };
+    }
 
     public IDictionary<string, object?> SerializeEntry(Entry<JObject> entry)
     {
@@ -146,7 +168,14 @@ public class EntrySerializer
 
                 foreach (var fieldName in fieldNames)
                 {
-                    values.Add(fieldName, flatEntry[fieldName]);
+                    if (flatEntry.TryGetValue(fieldName, out var value))
+                    {
+                        values.Add(fieldName, value);
+                    }
+                    else
+                    {
+                        values.Add(fieldName, null);
+                    }
                 }
 
                 newObject.Add(new JProperty(localeCode, entryFieldsSerializer.Deserialize(values)));
@@ -156,5 +185,27 @@ public class EntrySerializer
         }
 
         return entry;
+    }
+
+    public bool CompareAndUpdateEntry<T>(IDictionary<string, object?> flatEntry, string fieldName, T newValue)
+    {
+        if (!flatEntry.TryGetValue(fieldName, out var oldValue))
+        {
+            return false;
+        }
+
+        var entryFieldsSerializer = _fieldSerializers[fieldName];
+
+        var deserializedOldValue = entryFieldsSerializer.DeserializeToString(oldValue);
+
+        var deserializedNewValue = entryFieldsSerializer.DeserializeToString(newValue);
+
+        if (deserializedOldValue != deserializedNewValue)
+        {
+            flatEntry[fieldName] = newValue;
+            return true;
+        }
+
+        return false;
     }
 }

@@ -4,13 +4,13 @@ namespace Cute.Services;
 
 internal class ContentfulIdGenerator
 {
-    private static readonly Random _random = new Random();
+    private static readonly Random _random = new();
 
     private const string _chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
     public static string NewId()
     {
-        var result = new StringBuilder("cut-");
+        var result = new StringBuilder("cute-");
 
         for (int i = 0; i < 22; i++)
         {

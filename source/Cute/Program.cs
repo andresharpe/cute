@@ -62,6 +62,9 @@ app.Configure(config =>
 
     config.AddCommand<TypeGenCommand>("typegen")
         .WithDescription("Generate language types from Contentful content types.");
+
+    config.AddCommand<GetDataCommand>("getdata")
+        .WithDescription("Sync Contentful content with WikiData.");
 });
 
 try

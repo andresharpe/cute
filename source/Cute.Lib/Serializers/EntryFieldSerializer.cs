@@ -9,6 +9,7 @@ using System.Dynamic;
 using Newtonsoft.Json.Serialization;
 using DocumentFormat.OpenXml.Bibliography;
 using Cute.Lib.Extensions;
+using Contentful.Core.Extensions;
 
 namespace Cute.Lib.Serializers;
 
@@ -86,21 +87,39 @@ internal class EntryFieldSerializer
 
     public object? Serialize(JObject entry, string fieldName)
     {
+        var prop = entry[_name]?[_localeCode];
+
+        if (prop is null || prop.IsNull())
+        {
+            return null;
+        }
+
         return _contentfulType switch
         {
-            FieldType.Symbol => entry[_name]?[_localeCode]?.Value<string>(),
-            FieldType.Text => entry[_name]?[_localeCode]?.Value<string>(),
-            FieldType.RichText => ToMarkDown(entry[_name]?[_localeCode]),
-            FieldType.Integer => entry[_name]?[_localeCode]?.Value<long>(),
-            FieldType.Number => entry[_name]?[_localeCode]?.Value<double>(),
-            FieldType.Date => entry[_name]?[_localeCode]?.Value<DateTime>(),
-            FieldType.Location => entry[_name]?[_localeCode]?[fieldName[^3..]]?.Value<double>(),
-            FieldType.Boolean => entry[_name]?[_localeCode]?.Value<bool>(),
-            FieldType.Link => entry[_name]?[_localeCode]?["sys"]?["id"]?.Value<string>(),
-            FieldType.Array => ToArrayString(entry[_name]?[_localeCode]),
-            FieldType.Object => entry[_name]?[_localeCode]?.ToString(),
+            FieldType.Symbol => prop.Value<string>(),
+            FieldType.Text => prop.Value<string>(),
+            FieldType.RichText => ToMarkDown(prop),
+            FieldType.Integer => prop.Value<long>(),
+            FieldType.Number => prop.Value<double>(),
+            FieldType.Date => prop.Value<DateTime>(),
+            FieldType.Location => prop[fieldName[^3..]]?.Value<double>(),
+            FieldType.Boolean => prop.Value<bool>(),
+            FieldType.Link => ToLinkString(entry),
+            FieldType.Array => ToArrayString(prop),
+            FieldType.Object => prop.ToString(),
             _ => throw new NotImplementedException(),
         };
+    }
+
+    private string? ToLinkString(JObject entry)
+    {
+        var linkEntry = entry[_name]?[_localeCode];
+
+        if (linkEntry is null) return null;
+
+        if (linkEntry.IsNull()) return null;
+
+        return entry[_name]?[_localeCode]?["sys"]?["id"]?.Value<string>();
     }
 
     public JToken? Deserialize(IDictionary<string, object?> values)
@@ -126,8 +145,36 @@ internal class EntryFieldSerializer
         };
     }
 
+    public string? DeserializeToString(object? value)
+    {
+        if (value == null) return null;
+
+        if (value is string stringValue && string.IsNullOrWhiteSpace(stringValue)) return null;
+
+        return _contentfulType switch
+        {
+            FieldType.Symbol => value.ToString(),
+            FieldType.Text => value.ToString(),
+            FieldType.RichText => ToDocument(value)?.ToString(),
+            FieldType.Integer => Convert.ToInt64(value).ToString(),
+            FieldType.Number => Convert.ToDouble(value).ToString(),
+            FieldType.Date => ObjectExtensions.FromInvariantDateTime(value).ToString("u"),
+            FieldType.Location => Convert.ToDouble(value).ToString(),
+            FieldType.Boolean => Convert.ToBoolean(value).ToString(),
+            FieldType.Link => ToLink(value)?.ToString(),
+            FieldType.Array => ToObjectArray(value)?.ToString(),
+            FieldType.Object => JObject.Parse((string)value).ToString(),
+            _ => throw new NotImplementedException(),
+        }; ;
+    }
+
     private JObject? ToLink(object value)
     {
+        if (value is string linkValue)
+        {
+            if (string.IsNullOrEmpty(linkValue)) return null;
+        }
+
         var obj = new
         {
             sys = new
@@ -160,7 +207,7 @@ internal class EntryFieldSerializer
         if (value is string stringValue)
         {
             var obj = new JArray();
-            var arr = stringValue.Split(_arrayDelimeter);
+            var arr = stringValue.Split(_arrayDelimeter).Select(s => s.Trim()).OrderBy(s => s);
             foreach (var arrayItem in arr)
             {
                 if (_itemType.Type == "Link")
@@ -197,7 +244,7 @@ internal class EntryFieldSerializer
                 {
                     NodeType = "text",
                     Data = new(),
-                    Marks = new(),
+                    Marks = [],
                     Value = (string)value
                 }]
             }]
@@ -220,10 +267,10 @@ internal class EntryFieldSerializer
 
         if (_itemType.Type == "Link")
         {
-            return string.Join(_arrayDelimeter, list.Select(t => t["sys"]?["id"]?.ToString()));
+            return string.Join(_arrayDelimeter, list.Select(t => t["sys"]?["id"]?.ToString()).OrderBy(s => s));
         }
 
-        return string.Join(_arrayDelimeter, list.Select(o => o.ToString()));
+        return string.Join(_arrayDelimeter, list.Select(o => o.ToString()).OrderBy(s => s));
     }
 
     private static string? ToMarkDown(JToken? richText)

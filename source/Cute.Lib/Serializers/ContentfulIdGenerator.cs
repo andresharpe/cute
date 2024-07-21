@@ -10,7 +10,7 @@ internal class ContentfulIdGenerator
 
     public static string NewId()
     {
-        var result = new StringBuilder("cut-");
+        var result = new StringBuilder("cute-");
 
         for (int i = 0; i < 22; i++)
         {

@@ -15,8 +15,6 @@ namespace Cute.Commands;
 
 public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
-    private readonly HtmlRenderer _htmlRenderer = new();
-
     public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
         : base(console, tokenCache)
     { }
@@ -99,7 +97,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 taskExtract.MaxValue = 1;
 
-                await foreach (var (entry, entries) in EntryEnumerator.Entries(_contentfulClient, settings.ContentType, contentInfo.DisplayField))
+                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulClient, settings.ContentType, contentInfo.DisplayField))
                 {
                     if (taskExtract.MaxValue == 1)
                     {

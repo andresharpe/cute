@@ -5,7 +5,7 @@ namespace Cute.Services;
 
 public static class VersionChecker
 {
-    private const string projectReleasePage = "https://github.com/andresharpe/cut/releases/latest";
+    private const string _projectReleasePage = "https://github.com/andresharpe/cut/releases/latest";
 
     public static async Task CheckForLatestVersion()
     {
@@ -13,7 +13,7 @@ public static class VersionChecker
         {
             var installedVersion = GetInstalledCliVersion();
 
-            using var request = new HttpRequestMessage(HttpMethod.Get, projectReleasePage);
+            using var request = new HttpRequestMessage(HttpMethod.Get, _projectReleasePage);
 
             request.Headers.Add("Accept", "text/html");
 
