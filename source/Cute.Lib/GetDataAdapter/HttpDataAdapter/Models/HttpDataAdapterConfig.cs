@@ -1,6 +1,6 @@
 ﻿namespace Cute.Lib.GetDataAdapter;
 
-public class GetDataAdapter
+public class HttpDataAdapterConfig
 {
     public string ContentType { get; set; } = default!;
     public string ContentDisplayField { get; set; } = default!;
@@ -10,19 +10,7 @@ public class GetDataAdapter
     public HttpMethod HttpMethod { get; set; } = HttpMethod.Get;
     public Dictionary<string, string> Headers { get; set; } = default!;
     public Dictionary<string, string> FormUrlEncodedContent { get; set; } = default!;
-    public string[] QueryResultsKey { get; set; } = default!;
+    public string ResultsJsonPath { get; set; } = default!;
 
     public FieldMapping[] Mapping = [];
-}
-
-public class FieldMapping
-{
-    public string FieldName { get; set; } = default!;
-    public string Expression { get; set; } = default!;
-    public bool Overwrite { get; set; } = true;
-}
-
-public enum HttpMethod
-{
-    Post, Get
 }

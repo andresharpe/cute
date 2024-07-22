@@ -1,16 +1,19 @@
 ﻿using Contentful.Core.Errors;
 using Contentful.Core.Models;
 using Cute.Lib.Contentful;
+using Cute.Lib.Exceptions;
 using Cute.Lib.GetDataAdapter;
+using Cute.Lib.Scriban;
 using Cute.Lib.Serializers;
 using Cute.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Scriban;
+using Scriban.Functions;
 using Scriban.Runtime;
+using Scriban.Syntax;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using System.Collections.Concurrent;
 using System.ComponentModel;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -72,17 +75,21 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
         var files = Directory.GetFiles(settings.Path, "*.yaml").OrderBy(f => f).ToArray();
 
-        foreach (var file in files)
-        {
-            var getDataAdapter = yaml.Deserialize<GetDataAdapter>(System.IO.File.ReadAllText(file));
+        var dataAdapter = new HttpDataAdapter(_contentfulClient, _console.WriteNormal);
 
-            var contentType = await _contentfulClient.GetContentType(getDataAdapter.ContentType);
+        foreach (var fileName in files)
+        {
+            var adapter = yaml.Deserialize<HttpDataAdapterConfig>(System.IO.File.ReadAllText(fileName));
+
+            var contentType = await _contentfulClient.GetContentType(adapter.ContentType);
 
             var serializer = new EntrySerializer(contentType, locales.Items);
 
-            var dataResults = await GetDataViaHttp(getDataAdapter, settings.CacheSeconds == 0 ? null : _appSettings.TempFolder, settings.CacheSeconds);
+            ValidateDataAdapter(fileName, adapter, contentType, serializer);
 
-            var ignoreFields = getDataAdapter.Mapping.Where(m => !m.Overwrite).Select(m => m.FieldName).ToHashSet();
+            var dataResults = await dataAdapter.GetData(adapter, settings.CacheSeconds == 0 ? null : _appSettings.TempFolder, settings.CacheSeconds);
+
+            var ignoreFields = adapter.Mapping.Where(m => !m.Overwrite).Select(m => m.FieldName).ToHashSet();
 
             if (dataResults is null) return -1;
 
@@ -90,9 +97,9 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
             _ = await CompareAndUpdateResults(
                 dataResults, serializer,
-                contentTypeId: getDataAdapter.ContentType,
-                contentKeyField: getDataAdapter.ContentKeyField,
-                contentDisplayField: getDataAdapter.ContentDisplayField,
+                contentTypeId: adapter.ContentType,
+                contentKeyField: adapter.ContentKeyField,
+                contentDisplayField: adapter.ContentDisplayField,
                 ignoreFields: ignoreFields
             );
         }
@@ -100,34 +107,17 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
         return 0;
     }
 
-    private readonly ConcurrentDictionary<string, Dictionary<string, Entry<JObject>>> _contentfulEntriesCache = [];
-
-    private string ContentfulLookupList(string values, string contentType, string matchField, string returnField, string defaultValue)
+    private static void ValidateDataAdapter(string fileName, HttpDataAdapterConfig adapter, ContentType contentType, EntrySerializer serializer)
     {
-        if (string.IsNullOrEmpty(values))
+        var fields = serializer.ColumnFieldNames.ToHashSet();
+
+        foreach (var mapping in adapter.Mapping)
         {
-            values = defaultValue;
+            if (!fields.Contains(mapping.FieldName))
+            {
+                throw new CliException($"Field '{mapping.FieldName}' not found in contentType '{contentType.SystemProperties.Id}' (File: '{fileName}')");
+            }
         }
-
-        if (!_contentfulEntriesCache.TryGetValue(contentType, out var contentEntries))
-        {
-            contentEntries = ContentfulEntryEnumerator.Entries(_contentfulClient!, contentType, matchField)
-                .ToBlockingEnumerable()
-                .Where(e => e.Item1.Fields[matchField]?["en"] != null)
-                .ToDictionary(e => e.Item1.Fields[matchField]?["en"]!.Value<string>()!, e => e.Item1, StringComparer.InvariantCultureIgnoreCase);
-
-            _contentfulEntriesCache.TryAdd(contentType, contentEntries);
-        }
-
-        var lookupValues = values.Split(',').Select(s => s.Trim()).Select(s => contentEntries.ContainsKey(s) ? s : defaultValue);
-
-        var resultValues = returnField.Equals("$id", StringComparison.OrdinalIgnoreCase)
-            ? lookupValues.Select(s => contentEntries[s].SystemProperties.Id)
-            : lookupValues.Select(s => contentEntries[s].Fields[returnField]?["en"]!.Value<string>());
-
-        var retval = string.Join(',', resultValues.OrderBy(s => s));
-
-        return retval;
     }
 
     private async Task<Dictionary<string, string>> CompareAndUpdateResults(List<Dictionary<string, string>> newRecords, EntrySerializer contentSerializer,
@@ -231,200 +221,5 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
         {
             _console.WriteAlert($"   --> Not published ({ex.Message})");
         }
-    }
-
-    private async Task<List<Dictionary<string, string>>?> GetDataViaHttp(GetDataAdapter adapter, string? outputPath = null, int cacheSeconds = 0)
-    {
-        var httpClient = new HttpClient()
-        {
-            BaseAddress = new Uri(adapter.EndPoint),
-        };
-
-        if (adapter.Headers is not null)
-        {
-            foreach (var (key, value) in adapter.Headers)
-            {
-                httpClient.DefaultRequestHeaders.Add(key, value);
-            }
-        }
-
-        FormUrlEncodedContent? formContent = null;
-
-        if (adapter.FormUrlEncodedContent is not null)
-        {
-            formContent = new FormUrlEncodedContent(adapter.FormUrlEncodedContent);
-        }
-
-        var returnValue = new List<Dictionary<string, string>>();
-        var cachedResults = new HashSet<string>();
-
-        if (outputPath is not null && cacheSeconds > 0)
-        {
-            var count = 1;
-            while (true)
-            {
-                var filename = System.IO.Path.Combine(outputPath, $"{adapter.ContentType}-{httpClient.BaseAddress.Host.Replace('.', '_')}-{count:D4}.json");
-
-                if (!System.IO.File.Exists(filename)) break;
-
-                if (DateTime.UtcNow.AddSeconds(-cacheSeconds) > System.IO.File.GetLastWriteTimeUtc(filename)) break;
-
-                cachedResults.Add(filename);
-
-                count++;
-            }
-        }
-
-        var requestCount = 1;
-
-        while (true)
-        {
-            HttpResponseMessage? endpointResult = null;
-
-            string? endpointContent = null;
-
-            if (outputPath is not null && cachedResults.Count != 0)
-            {
-                var filename = System.IO.Path.Combine(outputPath, $"{adapter.ContentType}-{httpClient.BaseAddress.Host.Replace('.', '_')}-{requestCount:D4}.json");
-
-                if (!cachedResults.Contains(filename)) break;
-
-                _console.WriteNormal($"...reading from cache {filename}...");
-
-                endpointContent = await System.IO.File.ReadAllTextAsync(filename);
-            }
-            else
-            {
-                if (adapter.HttpMethod == Lib.GetDataAdapter.HttpMethod.Post)
-                {
-                    endpointResult = await httpClient.PostAsync("", formContent);
-                }
-                else if (adapter.HttpMethod == Lib.GetDataAdapter.HttpMethod.Get)
-                {
-                    endpointResult = await httpClient.GetAsync("");
-                }
-
-                if (endpointResult is not null)
-                {
-                    endpointContent = await endpointResult.Content.ReadAsStringAsync();
-                }
-
-                if (outputPath is not null && cacheSeconds > 0)
-                {
-                    Directory.CreateDirectory(outputPath);
-
-                    var filename = System.IO.Path.Combine(outputPath, $"{adapter.ContentType}-{httpClient.BaseAddress.Host.Replace('.', '_')}-{requestCount:D4}.json");
-
-                    _console.WriteNormal($"...writing to cache {filename}...");
-
-                    System.IO.File.WriteAllText(filename, endpointContent, System.Text.Encoding.UTF8);
-                }
-            }
-
-            if (endpointContent is null) return [];
-
-            var results = JsonConvert.DeserializeObject(endpointContent);
-
-            if (results is null) return null;
-
-            JArray rootArray = [];
-
-            if (adapter.QueryResultsKey is null)
-            {
-                if (results is JArray jArr)
-                {
-                    rootArray = jArr;
-                }
-                else
-                {
-                    return [];
-                }
-            }
-            else if (results is JToken obj)
-            {
-                foreach (var key in adapter.QueryResultsKey)
-                {
-                    var node = obj[key];
-                    if (node is JToken jNode)
-                    {
-                        obj = jNode;
-                    }
-                    else
-                    {
-                        return [];
-                    }
-                }
-                if (obj is JArray jArr)
-                {
-                    rootArray = jArr;
-                }
-                else
-                {
-                    return [];
-                }
-            }
-            else
-            {
-                return [];
-            }
-
-            _console.WriteNormal($"...{httpClient.BaseAddress.Host} returned {rootArray.Count} entries...");
-
-            var converter = new Html2Markdown.Converter();
-
-            var scriptObjectGlobal = new ScriptObject();
-
-            scriptObjectGlobal.Import("cf_lookup_list", new Func<string, string, string, string, string, string>(ContentfulLookupList));
-
-            scriptObjectGlobal.Import("cf_html_to_markdown", new Func<string, string>(input => input is null ? string.Empty : converter.Convert(input)));
-
-            var templates = adapter.Mapping.ToDictionary(m => m.FieldName, m => Template.Parse(m.Expression));
-
-            var templateContext = new TemplateContext();
-
-            templateContext.PushGlobal(scriptObjectGlobal);
-
-            var batchValue = rootArray.Cast<JObject>()
-                .Select(o =>
-                {
-                    var scriptObjectInstance = new ScriptObject();
-                    scriptObjectInstance.Import(new { row = o });
-                    templateContext.PushGlobal(scriptObjectInstance);
-                    var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(templateContext));
-                    templateContext.PopGlobal();
-                    return newRecord;
-                })
-                .ToList();
-
-            returnValue.AddRange(batchValue);
-
-            if (adapter.ContinuationTokenHeader is null) break;
-
-            if (cachedResults.Count > 0)
-            {
-                requestCount++;
-                continue;
-            }
-
-            if (endpointResult is null) break;
-
-            if (!endpointResult.Headers.Contains(adapter.ContinuationTokenHeader))
-            {
-                break;
-            }
-
-            if (httpClient.DefaultRequestHeaders.Contains(adapter.ContinuationTokenHeader))
-            {
-                httpClient.DefaultRequestHeaders.Remove(adapter.ContinuationTokenHeader);
-            }
-
-            var token = endpointResult.Headers.GetValues(adapter.ContinuationTokenHeader).First();
-
-            httpClient.DefaultRequestHeaders.Add(adapter.ContinuationTokenHeader, token);
-
-            requestCount++;
-        }
-
-        return [.. returnValue.OrderBy(e => e[adapter.ContentKeyField])];
     }
 }

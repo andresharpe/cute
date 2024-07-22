@@ -2,7 +2,7 @@
 
 namespace Cute.Lib.Extensions;
 
-internal static class StringExtensions
+internal static partial class StringExtensions
 {
     public static string CamelToPascalCase(this string value)
     {
@@ -13,12 +13,12 @@ internal static class StringExtensions
     {
         string str = phrase.RemoveAccent().ToLower();
         // invalid chars
-        str = Regex.Replace(str, @"[^a-z0-9\s-]", "");
+        str = InvalidChars().Replace(str, "");
         // convert multiple spaces into one space
-        str = Regex.Replace(str, @"\s+", " ").Trim();
+        str = MultiWhiteSpace().Replace(str, " ").Trim();
         // cut and trim
         str = str.Substring(0, str.Length <= 45 ? str.Length : 45).Trim();
-        str = Regex.Replace(str, @"\s", "-"); // hyphens
+        str = WhiteSpace().Replace(str, "-"); // hyphens
         return str;
     }
 
@@ -27,4 +27,13 @@ internal static class StringExtensions
         byte[] bytes = System.Text.Encoding.GetEncoding("Cyrillic").GetBytes(txt);
         return System.Text.Encoding.ASCII.GetString(bytes);
     }
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex MultiWhiteSpace();
+
+    [GeneratedRegex(@"[^a-z0-9\s-]")]
+    private static partial Regex InvalidChars();
+
+    [GeneratedRegex(@"\s")]
+    private static partial Regex WhiteSpace();
 }
