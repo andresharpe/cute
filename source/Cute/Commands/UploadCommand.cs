@@ -65,7 +65,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulClient == null || settings.Format == null) return result;
+        if (result != 0 || _contentfulManagementClient == null || settings.Format == null) return result;
 
         await ProgressBars.Instance().StartAsync(async ctx =>
         {
@@ -75,7 +75,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
             var taskMatchEntries = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.CoupleWithHeart} Matching[/]");
 
             var runner = new UploadCommandRunner.Builder()
-                .WithContentfulManagementClient(_contentfulClient)
+                .WithContentfulManagementClient(_contentfulManagementClient)
                 .WithFilePath(settings.Path)
                 .WithFileFormat(settings.Format.Value)
                 .ForContentType(settings.ContentType)

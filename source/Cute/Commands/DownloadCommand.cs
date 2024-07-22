@@ -73,7 +73,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulClient == null) return result;
+        if (result != 0 || _contentfulManagementClient == null) return result;
 
         await ProgressBars.Instance()
             .StartAsync(async ctx =>
@@ -83,10 +83,10 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 using var outputAdapter = OutputAdapterFactory.Create(settings.Format!.Value, settings.ContentType, settings.Path);
 
-                var contentInfo = await _contentfulClient.GetContentType(settings.ContentType);
+                var contentInfo = await _contentfulManagementClient.GetContentType(settings.ContentType);
                 taskPrepare.Increment(40);
 
-                var locales = await _contentfulClient.GetLocalesCollection();
+                var locales = await _contentfulManagementClient.GetLocalesCollection();
                 taskPrepare.Increment(40);
 
                 var serializer = new EntrySerializer(contentInfo, locales.Items);
@@ -97,7 +97,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 taskExtract.MaxValue = 1;
 
-                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulClient, settings.ContentType, contentInfo.DisplayField))
+                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulManagementClient, settings.ContentType, contentInfo.DisplayField))
                 {
                     if (taskExtract.MaxValue == 1)
                     {

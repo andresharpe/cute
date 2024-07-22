@@ -19,7 +19,7 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
 
     protected readonly IPersistedTokenCache _tokenCache;
 
-    protected readonly ContentfulManagementClient? _contentfulClient;
+    protected readonly ContentfulManagementClient? _contentfulManagementClient;
 
     protected readonly string _spaceId = string.Empty;
 
@@ -53,7 +53,7 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
             PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
             Environment = _appSettings.ContentfulDefaultEnvironment
         };
-        _contentfulClient = new ContentfulManagementClient(_httpClient, contentfulOptions);
+        _contentfulManagementClient = new ContentfulManagementClient(_httpClient, contentfulOptions);
     }
 
     public override Task<int> ExecuteAsync(CommandContext context, TSettings settings)

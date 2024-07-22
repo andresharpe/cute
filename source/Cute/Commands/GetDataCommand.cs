@@ -3,15 +3,9 @@ using Contentful.Core.Models;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.GetDataAdapter;
-using Cute.Lib.Scriban;
 using Cute.Lib.Serializers;
 using Cute.Services;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Scriban;
-using Scriban.Functions;
-using Scriban.Runtime;
-using Scriban.Syntax;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
@@ -19,6 +13,8 @@ using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
 namespace Cute.Commands;
+
+// getdata --path ..\..\tests\Cute.Tests\getDataTests\ --cache-seconds 3600
 
 public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 {
@@ -63,11 +59,11 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulClient == null || _appSettings == null) return result;
+        if (result != 0 || _contentfulManagementClient == null || _appSettings == null) return result;
 
         // Locales
 
-        var locales = await _contentfulClient.GetLocalesCollection();
+        var locales = await _contentfulManagementClient.GetLocalesCollection();
 
         var yaml = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -75,13 +71,13 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
         var files = Directory.GetFiles(settings.Path, "*.yaml").OrderBy(f => f).ToArray();
 
-        var dataAdapter = new HttpDataAdapter(_contentfulClient, _console.WriteNormal);
+        var dataAdapter = new HttpDataAdapter(_contentfulManagementClient, _console.WriteNormal);
 
         foreach (var fileName in files)
         {
             var adapter = yaml.Deserialize<HttpDataAdapterConfig>(System.IO.File.ReadAllText(fileName));
 
-            var contentType = await _contentfulClient.GetContentType(adapter.ContentType);
+            var contentType = await _contentfulManagementClient.GetContentType(adapter.ContentType);
 
             var serializer = new EntrySerializer(contentType, locales.Items);
 
@@ -123,11 +119,11 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
     private async Task<Dictionary<string, string>> CompareAndUpdateResults(List<Dictionary<string, string>> newRecords, EntrySerializer contentSerializer,
          string contentTypeId, string contentKeyField, string contentDisplayField, HashSet<string> ignoreFields)
     {
-        if (_contentfulClient is null) return [];
+        if (_contentfulManagementClient is null) return [];
 
         var entriesProcessed = new Dictionary<string, string>();
 
-        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulClient, contentTypeId, contentKeyField))
+        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulManagementClient, contentTypeId, contentKeyField))
         {
             var cfEntry = contentSerializer.SerializeEntry(entry);
 
@@ -207,7 +203,7 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
     private async Task UpdateAndPublishEntry(Entry<JObject> newEntry, string contentType)
     {
-        _ = await _contentfulClient!.CreateOrUpdateEntry<JObject>(
+        _ = await _contentfulManagementClient!.CreateOrUpdateEntry<JObject>(
                 newEntry.Fields,
                 id: newEntry.SystemProperties.Id,
                 version: newEntry.SystemProperties.Version,
@@ -215,7 +211,7 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
         try
         {
-            await _contentfulClient.PublishEntry(newEntry.SystemProperties.Id, newEntry.SystemProperties.Version!.Value + 1);
+            await _contentfulManagementClient.PublishEntry(newEntry.SystemProperties.Id, newEntry.SystemProperties.Version!.Value + 1);
         }
         catch (ContentfulException ex)
         {

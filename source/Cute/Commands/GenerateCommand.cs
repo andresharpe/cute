@@ -3,8 +3,10 @@ using Azure.AI.OpenAI;
 using Contentful.Core;
 using Contentful.Core.Configuration;
 using Contentful.Core.Models;
+using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
 using Cute.Constants;
+using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
@@ -18,6 +20,8 @@ using System.Text;
 using Text = Spectre.Console.Text;
 
 namespace Cute.Commands;
+
+// generate --prompt-key ContentGeo.BusinessRationale
 
 public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
@@ -64,6 +68,14 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         [Description("The field containing frequency penalty setting for the LLM.")]
         public string FrequencyPenaltyField { get; set; } = "frequencyPenalty";
 
+        [CommandOption("-g|--generator-language-field")]
+        [Description("The field containing language target for generated content.")]
+        public string GeneratorLanguageField { get; set; } = "generatorTargetLanguage";
+
+        [CommandOption("-r|--translator-language-field")]
+        [Description("The field containing language targets for translated content.")]
+        public string TranslatorLanguagesField { get; set; } = "translatorTargetLanguages";
+
         [CommandOption("-l|--limit")]
         [Description("The total number of entries to generate content for before stopping. Default is five.")]
         public int Limit { get; set; } = 5;
@@ -77,11 +89,15 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulClient == null || _appSettings == null) return result;
+        if (result != 0 || _contentfulManagementClient == null || _appSettings == null) return result;
 
-        var defaultLocale = (await _contentfulClient.GetLocalesCollection())
+        var locales = await _contentfulManagementClient.GetLocalesCollection();
+
+        var defaultLocale = locales
             .First(l => l.Default)
             .Code;
+
+        var allLocaleCodes = locales.Select(locales => locales.Code).ToHashSet();
 
         var promptQuery = new QueryBuilder<Dictionary<string, object?>>()
              .ContentTypeIs(settings.PromptContentType)
@@ -89,7 +105,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
              .FieldEquals($"fields.{settings.PromptIdField}", settings.PromptId)
              .Build();
 
-        var promptEntries = await _contentfulClient.GetEntriesCollection<Entry<JObject>>(promptQuery);
+        var promptEntries = await _contentfulManagementClient.GetEntriesCollection<Entry<JObject>>(promptQuery);
 
         if (!promptEntries.Any())
         {
@@ -116,12 +132,43 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         var promptFrequencyPenalty = promptEntry.Fields[settings.FrequencyPenaltyField]?[defaultLocale]?.Value<float>()
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid frequency penalty");
 
-        var contentType = await _contentfulClient.GetContentType(promptContentTypeId);
+        var generatorLanguage = promptEntry.Fields[settings.GeneratorLanguageField]?[defaultLocale]?.ToObject<Reference>()
+            ?? throw new CliException($"Prompt '{settings.GeneratorLanguageField}' does not contain a valid language reference");
 
-        if (contentType.Fields.FirstOrDefault(f => f.Id.Equals(promptContentFieldId)) == null)
+        var translatorLanguages = promptEntry.Fields[settings.TranslatorLanguagesField]?[defaultLocale]?.ToObject<Reference[]>()
+            ?? [];
+
+        var contentType = await _contentfulManagementClient.GetContentType(promptContentTypeId);
+
+        var contentTargetField = (contentType.Fields.FirstOrDefault(f => f.Id.Equals(promptContentFieldId)))
+            ?? throw new CliException($"'{promptContentFieldId}' does not exist in content type '{contentType.SystemProperties.Id}'");
+
+        // Generator language settings
+
+        var generatorLanguageEntry = (JObject)(await _contentfulManagementClient.GetEntry(generatorLanguage.Sys.Id)).Fields;
+        var generatorLanguageCode = generatorLanguageEntry["iso2code"]?[defaultLocale]?.ToString() ?? defaultLocale;
+        var generatorLanguageName = generatorLanguageEntry["name"]?[defaultLocale]?.ToString();
+        if (!allLocaleCodes.Contains(generatorLanguageCode) || generatorLanguageName is null)
         {
-            throw new CliException($"{promptContentFieldId} does not exist in content type {contentType.SystemProperties.Id}");
+            throw new CliException($"Generator locale '{generatorLanguageCode}' does not exist in your Contentful space.");
         }
+
+        // Translator language settings
+
+        Dictionary<string, string> translatedLanguageCodeAndName = [];
+        foreach (var language in translatorLanguages)
+        {
+            var translatorLanguageEntry = (JObject)(await _contentfulManagementClient.GetEntry(language.Sys.Id)).Fields;
+            var translatorLanguageCode = translatorLanguageEntry["iso2code"]?[defaultLocale]?.ToString() ?? defaultLocale;
+            var translatorLanguageName = translatorLanguageEntry["name"]?[defaultLocale]?.ToString();
+            if (!allLocaleCodes.Contains(translatorLanguageCode) || translatorLanguageName is null)
+            {
+                throw new CliException($"Translator locale '{translatorLanguageCode}' does not exist in your Contentful space.");
+            }
+            translatedLanguageCodeAndName.Add(translatorLanguageCode, translatorLanguageName);
+        }
+
+        // Start Generator
 
         AzureOpenAIClient client = new(
           new Uri(_appSettings.OpenAiEndpoint),
@@ -145,9 +192,9 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             Environment = _appSettings.ContentfulDefaultEnvironment,
             ResolveEntriesSelectively = true,
         };
-        var cfclient = new ContentfulClient(new HttpClient(), cfoptions);
+        var contentfulClient = new ContentfulClient(new HttpClient(), cfoptions);
 
-        var entries = Entries(cfclient, contentType.SystemProperties.Id, contentType.DisplayField);
+        var entries = ContentfulDeliveryEntries(contentfulClient, contentType.SystemProperties.Id, contentType.DisplayField, generatorLanguageCode);
 
         var skipped = 0;
         var limit = 0;
@@ -167,14 +214,173 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 continue;
             }
 
+            await GenerateContent(
+                promptContentFieldId,
+                promptSystemMessage,
+                promptMainPrompt,
+                contentType,
+                generatorLanguageCode,
+                chatClient,
+                chatCompletionOptions,
+                entry);
+
+            if (++limit >= settings.Limit)
+            {
+                break;
+            }
+        }
+
+        if (!contentTargetField.Localized)
+        {
+            return 0;
+        }
+
+        var fullEntries = ContentfulEntryEnumerator.Entries(_contentfulManagementClient, contentType.SystemProperties.Id, contentType.DisplayField);
+
+        skipped = 0;
+        limit = 0;
+
+        await foreach (var (fullEntry, _) in fullEntries)
+        {
+            if (fullEntry.SystemProperties.PublishedAt is null)
+            {
+                continue;
+            }
+
+            var fieldValue = fullEntry.Fields[promptContentFieldId]?[generatorLanguageCode]?.Value<string>();
+
+            if (string.IsNullOrEmpty(fieldValue))
+            {
+                continue;
+            }
+
+            if (skipped < settings.Skip)
+            {
+                skipped++;
+                continue;
+            }
+
+            await TranslateContent(
+                promptContentFieldId,
+                contentType,
+                generatorLanguageCode,
+                translatedLanguageCodeAndName,
+                chatClient,
+                chatCompletionOptions,
+                fullEntry,
+                fieldValue);
+
+            if (++limit >= settings.Limit)
+            {
+                break;
+            }
+        }
+
+        return 0;
+    }
+
+    private async Task GenerateContent(string promptContentFieldId, string promptSystemMessage,
+        string promptMainPrompt, ContentType contentType, string generatorLanguageCode,
+        ChatClient chatClient, ChatCompletionOptions chatCompletionOptions, ExpandoObject entry)
+    {
+        _console.WriteBlankLine();
+
+        _console.WriteHeading(GetPropertyValue(entry, contentType.DisplayField)?.ToString() ?? string.Empty);
+
+        _console.WriteBlankLine();
+
+        var prompt = ReplaceFields(promptMainPrompt, entry);
+
+        _console.WriteDim(prompt);
+
+        _console.WriteBlankLine();
+        _console.WriteBlankLine();
+
+        List<ChatMessage> messages = [
+            new SystemChatMessage(promptSystemMessage),
+            new UserChatMessage(prompt),
+        ];
+
+        _console.WriteBlankLine();
+
+        var sb = new StringBuilder();
+
+        await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, chatCompletionOptions))
+        {
+            if (part == null || part.ToString() == null) continue;
+
+            foreach (var token in part.ContentUpdate)
+            {
+                sb.Append(token.Text);
+                AnsiConsole.Write(new Text(token.Text, Globals.StyleNormal));
+                await Task.Delay(20);
+            }
+        }
+
+        var id = GetPropertyValue(entry, "$id")?.ToString();
+
+        var objToUpdate = await _contentfulManagementClient!.GetEntry(id);
+
+        var fieldDict = (JObject)objToUpdate.Fields;
+
+        if (fieldDict[promptContentFieldId] == null)
+        {
+            fieldDict[promptContentFieldId] = new JObject(new JProperty(generatorLanguageCode, sb.ToString()));
+        }
+        else if (fieldDict[promptContentFieldId] is JObject existingValues)
+        {
+            if (existingValues[generatorLanguageCode] == null)
+            {
+                existingValues.Add(new JProperty(generatorLanguageCode, sb.ToString()));
+            }
+            else
+            {
+                existingValues[generatorLanguageCode] = sb.ToString();
+            }
+        }
+
+        _ = await _contentfulManagementClient.CreateOrUpdateEntry<dynamic>(objToUpdate.Fields,
+            id: objToUpdate.SystemProperties.Id,
+            version: objToUpdate.SystemProperties.Version);
+
+        _ = await _contentfulManagementClient.PublishEntry(objToUpdate.SystemProperties.Id,
+            objToUpdate.SystemProperties.Version!.Value + 1);
+
+        _console.WriteBlankLine();
+        _console.WriteBlankLine();
+        _console.WriteRuler();
+    }
+
+    private async Task TranslateContent(string promptContentFieldId, ContentType contentType,
+        string generatorLanguageCode, Dictionary<string, string> translatorLanguageCodeAndName,
+        ChatClient chatClient, ChatCompletionOptions chatCompletionOptions, Entry<JObject> fullEntry, string quotedText)
+    {
+        var promptSystemMessage = "You are a professional translator who pays attention to grammar and punctuation.";
+
+        var promptTemplate = $$$""""
+            Translate the quoted text into {{ languageName }}.
+            Don't change the tone of the quoted text.
+            Only output the translated text and nothing else.
+            Omit the quotes around the quoted text in your output.
+            """{{{quotedText}}}"""
+            """";
+
+        var updated = false;
+
+        foreach (var (languageCode, languageName) in translatorLanguageCodeAndName)
+        {
+            if (!string.IsNullOrEmpty(fullEntry.Fields[promptContentFieldId]?[languageCode]?.Value<string>()))
+            {
+                continue;
+            }
+
+            var prompt = promptTemplate.Replace("{{ languageName }}", languageName);
+
             _console.WriteBlankLine();
 
-            _console.WriteHeading(GetPropertyValue(entry, contentType.DisplayField)?.ToString() ?? string.Empty);
+            _console.WriteHeading(fullEntry.Fields[contentType.DisplayField]?[generatorLanguageCode]?.Value<string>() ?? string.Empty);
 
             _console.WriteBlankLine();
-
-            var prompt = ReplaceFields(promptMainPrompt, entry);
-
             _console.WriteDim(prompt);
 
             _console.WriteBlankLine();
@@ -201,46 +407,40 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 }
             }
 
-            var id = GetPropertyValue(entry, "$id")?.ToString();
-
-            var objToUpdate = await _contentfulClient.GetEntry(id);
-
-            var fieldDict = (JObject)objToUpdate.Fields;
+            var fieldDict = fullEntry.Fields;
 
             if (fieldDict[promptContentFieldId] == null)
             {
-                fieldDict[promptContentFieldId] = new JObject(new JProperty(defaultLocale, sb.ToString()));
+                fieldDict[promptContentFieldId] = new JObject(new JProperty(languageCode, sb.ToString()));
             }
             else if (fieldDict[promptContentFieldId] is JObject existingValues)
             {
-                if (existingValues[defaultLocale] == null)
+                if (existingValues[languageCode] == null)
                 {
-                    existingValues.Add(new JProperty(defaultLocale, sb.ToString()));
+                    existingValues.Add(new JProperty(languageCode, sb.ToString()));
                 }
                 else
                 {
-                    existingValues[defaultLocale] = sb.ToString();
+                    existingValues[languageCode] = sb.ToString();
                 }
             }
-
-            _ = await _contentfulClient.CreateOrUpdateEntry<dynamic>(objToUpdate.Fields,
-                id: objToUpdate.SystemProperties.Id,
-                version: objToUpdate.SystemProperties.Version);
-
-            _ = await _contentfulClient.PublishEntry(objToUpdate.SystemProperties.Id,
-                objToUpdate.SystemProperties.Version!.Value + 1);
 
             _console.WriteBlankLine();
             _console.WriteBlankLine();
             _console.WriteRuler();
 
-            if (++limit >= settings.Limit)
-            {
-                break;
-            }
+            updated = true;
         }
 
-        return 0;
+        if (updated)
+        {
+            _ = await _contentfulManagementClient!.CreateOrUpdateEntry<dynamic>(fullEntry.Fields,
+                    id: fullEntry.SystemProperties.Id,
+                    version: fullEntry.SystemProperties.Version);
+
+            _ = await _contentfulManagementClient.PublishEntry(fullEntry.SystemProperties.Id,
+                    fullEntry.SystemProperties.Version!.Value + 1);
+        }
     }
 
     private static object? GetPropertyValue(ExpandoObject obj, params string[] path)
@@ -272,7 +472,8 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         return result;
     }
 
-    private static async IAsyncEnumerable<(ExpandoObject, ContentfulCollection<ExpandoObject>)> Entries(ContentfulClient client, string contentType, string orderByField)
+    private static async IAsyncEnumerable<(ExpandoObject, ContentfulCollection<ExpandoObject>)>
+        ContentfulDeliveryEntries(ContentfulClient client, string contentType, string orderByField, string locale)
     {
         var skip = 0;
         var page = 100;
@@ -281,6 +482,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         {
             var query = new QueryBuilder<ExpandoObject>()
                 .ContentTypeIs(contentType)
+                .LocaleIs(locale)
                 .Include(2)
                 .Skip(skip)
                 .Limit(page)

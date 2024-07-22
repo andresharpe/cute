@@ -19,7 +19,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulClient == null) return result;
+        if (result != 0 || _contentfulManagementClient == null) return result;
 
         var spaceTable = new Table()
             .RoundedBorder()
@@ -50,9 +50,9 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
             .Spinner(Spinner.Known.Aesthetic)
             .StartAsync("Getting info...", async ctx =>
             {
-                var space = await _contentfulClient.GetSpace(_spaceId);
+                var space = await _contentfulManagementClient.GetSpace(_spaceId);
 
-                var contentTypes = (await _contentfulClient.GetContentTypes(spaceId: _spaceId))
+                var contentTypes = (await _contentfulManagementClient.GetContentTypes(spaceId: _spaceId))
                     .OrderBy(t => t.Name);
 
                 foreach (var contentType in contentTypes)
@@ -65,7 +65,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                     );
                 }
 
-                var locales = (await _contentfulClient.GetLocalesCollection(spaceId: _spaceId))
+                var locales = (await _contentfulManagementClient.GetLocalesCollection(spaceId: _spaceId))
                     .OrderBy(t => t.Name);
 
                 foreach (var locale in locales)

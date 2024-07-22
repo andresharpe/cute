@@ -17,7 +17,7 @@ internal static partial class StringExtensions
         // convert multiple spaces into one space
         str = MultiWhiteSpace().Replace(str, " ").Trim();
         // cut and trim
-        str = str.Substring(0, str.Length <= 45 ? str.Length : 45).Trim();
+        str = str[..(str.Length <= 45 ? str.Length : 45)].Trim();
         str = WhiteSpace().Replace(str, "-"); // hyphens
         return str;
     }
