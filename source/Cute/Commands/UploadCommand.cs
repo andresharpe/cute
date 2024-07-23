@@ -65,7 +65,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulManagementClient == null || settings.Format == null) return result;
+        if (settings.Format == null) return result;
 
         await ProgressBars.Instance().StartAsync(async ctx =>
         {

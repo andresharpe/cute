@@ -35,4 +35,31 @@ public static class ContentfulEntryEnumerator
             skip += page;
         }
     }
+
+    public static async IAsyncEnumerable<(JObject, ContentfulCollection<JObject>)> DeliveryEntries(ContentfulClient client, string contentType, string orderByField, int includeLevels = 2)
+    {
+        var skip = 0;
+        var page = 100;
+
+        while (true)
+        {
+            var queryBuilder = new QueryBuilder<JObject>()
+                .ContentTypeIs(contentType)
+                .Include(includeLevels)
+                .Skip(skip)
+                .Limit(page)
+                .OrderBy($"fields.{orderByField}");
+
+            var entries = await client.GetEntries(queryBuilder);
+
+            if (!entries.Any()) break;
+
+            foreach (var entry in entries)
+            {
+                yield return (entry, entries);
+            }
+
+            skip += page;
+        }
+    }
 }

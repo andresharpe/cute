@@ -59,8 +59,6 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulManagementClient == null || _appSettings == null) return result;
-
         // Locales
 
         var locales = await _contentfulManagementClient.GetLocalesCollection();

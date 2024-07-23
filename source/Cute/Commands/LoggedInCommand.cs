@@ -3,6 +3,7 @@ using Contentful.Core;
 using Contentful.Core.Configuration;
 using Cute.Config;
 using Cute.Constants;
+using Cute.Lib.Exceptions;
 using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -13,35 +14,25 @@ namespace Cute.Commands;
 
 public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSettings : CommandSettings
 {
-    private readonly bool _isLoggedIn;
-
     protected readonly IConsoleWriter _console;
 
     protected readonly IPersistedTokenCache _tokenCache;
 
-    protected readonly ContentfulManagementClient? _contentfulManagementClient;
+    protected readonly ContentfulManagementClient _contentfulManagementClient;
+
+    protected readonly ContentfulClient _contentfulClient;
 
     protected readonly string _spaceId = string.Empty;
 
-    private readonly HttpClient _httpClient;
-
-    protected readonly AppSettings? _appSettings;
+    protected readonly AppSettings _appSettings;
 
     public LoggedInCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
     {
         _console = console;
         _tokenCache = tokenCache;
-        _httpClient = new HttpClient();
 
-        _appSettings = _tokenCache.LoadAsync(Globals.AppName).Result;
-
-        if (_appSettings == null)
-        {
-            _isLoggedIn = false;
-            return;
-        }
-
-        _isLoggedIn = true;
+        _appSettings = _tokenCache.LoadAsync(Globals.AppName).Result
+            ?? throw new CliException($"Use '{Globals.AppName} login' to connect to contentful first.");
 
         _spaceId = _appSettings.ContentfulDefaultSpace;
 
@@ -51,21 +42,17 @@ public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSetting
             SpaceId = _appSettings.ContentfulDefaultSpace,
             DeliveryApiKey = _appSettings.ContentfulDeliveryApiKey,
             PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
-            Environment = _appSettings.ContentfulDefaultEnvironment
+            Environment = _appSettings.ContentfulDefaultEnvironment,
+            ResolveEntriesSelectively = true,
         };
-        _contentfulManagementClient = new ContentfulManagementClient(_httpClient, contentfulOptions);
+
+        _contentfulClient = new ContentfulClient(new HttpClient(), contentfulOptions);
+
+        _contentfulManagementClient = new ContentfulManagementClient(new HttpClient(), contentfulOptions);
     }
 
     public override Task<int> ExecuteAsync(CommandContext context, TSettings settings)
     {
-        if (!_isLoggedIn)
-        {
-            _console.WriteAlert("You are not authenticated to Contentful. To authenticate type:");
-            _console.WriteBlankLine();
-            _console.WriteAlertAccent("cut auth");
-            return Task.FromResult(-1);
-        }
-
         DisplaySettings(context, settings);
 
         return Task.FromResult(0);

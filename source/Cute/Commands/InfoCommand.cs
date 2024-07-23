@@ -19,8 +19,6 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        if (result != 0 || _contentfulManagementClient == null) return result;
-
         var spaceTable = new Table()
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);

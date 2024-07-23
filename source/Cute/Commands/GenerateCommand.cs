@@ -1,7 +1,6 @@
 ﻿using Azure;
 using Azure.AI.OpenAI;
 using Contentful.Core;
-using Contentful.Core.Configuration;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
@@ -21,7 +20,8 @@ using Text = Spectre.Console.Text;
 
 namespace Cute.Commands;
 
-// generate --prompt-key ContentGeo.BusinessRationale
+// generate --prompt-id DataGeo.BusinessRationale
+// generate --prompt-id ContentGeo.BusinessRationale
 
 public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
@@ -44,8 +44,8 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         [Description("The id of the Contentful prompt entry to generate prompts from.")]
         public string PromptId { get; set; } = default!;
 
-        [CommandOption("-o|--output-content-type")]
-        [Description("The id of the Contentful content type to generate content for.")]
+        [CommandOption("-o|--output-content-type-field")]
+        [Description("The field containing the id of the Contentful content type to generate content for.")]
         public string OutputContentType { get; set; } = "promptOutputContentType";
 
         [CommandOption("-t|--output-content-field")]
@@ -85,11 +85,19 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         public int Skip { get; set; } = 0;
     }
 
+    public override ValidationResult Validate(CommandContext context, Settings settings)
+    {
+        if (string.IsNullOrEmpty(settings.PromptId))
+        {
+            return ValidationResult.Error($"No prompt identifier (--prompt-id) specified.");
+        }
+
+        return base.Validate(context, settings);
+    }
+
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
         var result = await base.ExecuteAsync(context, settings);
-
-        if (result != 0 || _contentfulManagementClient == null || _appSettings == null) return result;
 
         var locales = await _contentfulManagementClient.GetLocalesCollection();
 
@@ -176,28 +184,18 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var chatClient = client.GetChatClient(_appSettings.OpenAiDeploymentName);
 
-        var chatCompletionOptions = new ChatCompletionOptions()
+        var entries = ContentfulDeliveryEntries(_contentfulClient, contentType.SystemProperties.Id, contentType.DisplayField, generatorLanguageCode);
+
+        var skipped = 0;
+        var limit = 0;
+
+        var generatorCompletionOptions = new ChatCompletionOptions()
         {
             Temperature = promptTemperature,
             MaxTokens = 800,
             FrequencyPenalty = promptFrequencyPenalty,
             PresencePenalty = 0,
         };
-
-        var cfoptions = new ContentfulOptions()
-        {
-            DeliveryApiKey = _appSettings.ContentfulDeliveryApiKey,
-            PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
-            SpaceId = _appSettings.ContentfulDefaultSpace,
-            Environment = _appSettings.ContentfulDefaultEnvironment,
-            ResolveEntriesSelectively = true,
-        };
-        var contentfulClient = new ContentfulClient(new HttpClient(), cfoptions);
-
-        var entries = ContentfulDeliveryEntries(contentfulClient, contentType.SystemProperties.Id, contentType.DisplayField, generatorLanguageCode);
-
-        var skipped = 0;
-        var limit = 0;
 
         await foreach (var (entry, _) in entries)
         {
@@ -221,7 +219,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 contentType,
                 generatorLanguageCode,
                 chatClient,
-                chatCompletionOptions,
+                generatorCompletionOptions,
                 entry);
 
             if (++limit >= settings.Limit)
@@ -239,6 +237,14 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         skipped = 0;
         limit = 0;
+
+        var translatorCompletionOptions = new ChatCompletionOptions()
+        {
+            Temperature = 0.0f,
+            MaxTokens = 800,
+            FrequencyPenalty = promptFrequencyPenalty,
+            PresencePenalty = 0,
+        };
 
         await foreach (var (fullEntry, _) in fullEntries)
         {
@@ -266,7 +272,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 generatorLanguageCode,
                 translatedLanguageCodeAndName,
                 chatClient,
-                chatCompletionOptions,
+                translatorCompletionOptions,
                 fullEntry,
                 fieldValue);
 
@@ -281,7 +287,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
     private async Task GenerateContent(string promptContentFieldId, string promptSystemMessage,
         string promptMainPrompt, ContentType contentType, string generatorLanguageCode,
-        ChatClient chatClient, ChatCompletionOptions chatCompletionOptions, ExpandoObject entry)
+        ChatClient chatClient, ChatCompletionOptions generatorCompletionOptions, ExpandoObject entry)
     {
         _console.WriteBlankLine();
 
@@ -305,7 +311,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var sb = new StringBuilder();
 
-        await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, chatCompletionOptions))
+        await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, generatorCompletionOptions))
         {
             if (part == null || part.ToString() == null) continue;
 
@@ -353,7 +359,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
     private async Task TranslateContent(string promptContentFieldId, ContentType contentType,
         string generatorLanguageCode, Dictionary<string, string> translatorLanguageCodeAndName,
-        ChatClient chatClient, ChatCompletionOptions chatCompletionOptions, Entry<JObject> fullEntry, string quotedText)
+        ChatClient chatClient, ChatCompletionOptions translatorCompletionOptions, Entry<JObject> fullEntry, string quotedText)
     {
         var promptSystemMessage = "You are a professional translator who pays attention to grammar and punctuation.";
 
@@ -395,7 +401,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
             var sb = new StringBuilder();
 
-            await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, chatCompletionOptions))
+            await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, translatorCompletionOptions))
             {
                 if (part == null || part.ToString() == null) continue;
 

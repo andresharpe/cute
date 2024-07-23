@@ -60,6 +60,9 @@ app.Configure(config =>
     config.AddCommand<GenerateCommand>("generate")
         .WithDescription("Use generative AI to help build drafts of your content.");
 
+    config.AddCommand<JoinCommand>("join")
+        .WithDescription("Join and generate content entries from multiple content types.");
+
     config.AddCommand<TypeGenCommand>("typegen")
         .WithDescription("Generate language types from Contentful content types.");
 

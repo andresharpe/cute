@@ -81,7 +81,7 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
             .DefaultValue(currentSettings?.ContentfulManagementApiKey ?? string.Empty)
             .Validate(ValidateContentfulApiKey);
 
-        var contentfulApiKey = settings.ContentfulManagmentApiKey ?? _console.Prompt(contentfulApiKeyPrompt);
+        var contentfulManagementApiKey = settings.ContentfulManagmentApiKey ?? _console.Prompt(contentfulApiKeyPrompt);
 
         string? spaceId = null;
         string? environmentId = null;
@@ -89,9 +89,9 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
         if (settings.ContentfulManagmentApiKey == null) _console.WriteBlankLine();
 
         using var httpClient = new HttpClient();
-        var contentfulClient = new ContentfulManagementClient(httpClient, contentfulApiKey, string.Empty);
+        var contentfulManagementClient = new ContentfulManagementClient(httpClient, contentfulManagementApiKey, string.Empty);
 
-        var spaces = await contentfulClient.GetSpaces();
+        var spaces = await contentfulManagementClient.GetSpaces();
         if (spaces is null || !spaces.Any())
         {
             throw new CliException("No spaces found.");
@@ -132,7 +132,7 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
             _console.WriteBlankLine();
         }
 
-        var environments = await contentfulClient.GetEnvironments(spaceId);
+        var environments = await contentfulManagementClient.GetEnvironments(spaceId);
 
         if (environments is null || !environments.Any())
         {
@@ -220,7 +220,7 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
         {
             ContentfulDefaultSpace = spaceId,
             ContentfulDefaultEnvironment = environmentId,
-            ContentfulManagementApiKey = contentfulApiKey,
+            ContentfulManagementApiKey = contentfulManagementApiKey,
             ContentfulDeliveryApiKey = contentfulDeliveryApiKey,
             ContentfulPreviewApiKey = contentfulPreviewApiKey,
             OpenAiApiKey = openApiKey,
