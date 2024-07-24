@@ -1,15 +1,14 @@
 ﻿using Contentful.Core.Configuration;
 using Contentful.Core.Errors;
-using Contentful.Core.Models;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
-using Cute.Lib.Enums;
-using Html2Markdown;
-using System.Dynamic;
-using Newtonsoft.Json.Serialization;
-using DocumentFormat.OpenXml.Bibliography;
-using Cute.Lib.Extensions;
 using Contentful.Core.Extensions;
+using Contentful.Core.Models;
+using Cute.Lib.Enums;
+using Cute.Lib.Extensions;
+using Html2Markdown;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
+using System.Dynamic;
 
 namespace Cute.Lib.Serializers;
 

@@ -1,10 +1,7 @@
-﻿using Azure.Core.GeoJson;
-using Contentful.Core.Models;
+﻿using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Cute.Lib.Extensions;
 using Newtonsoft.Json.Linq;
-using System.Globalization;
-using System.Reflection.Metadata;
 
 namespace Cute.Lib.Serializers;
 

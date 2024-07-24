@@ -32,6 +32,8 @@ services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
 var registrar = new TypeRegistrar(services);
 var app = new CommandApp(registrar);
 
+services.AddSingleton<ICommandApp>(app);
+
 app.Configure(config =>
 {
     config.SetApplicationName(Globals.AppName);
@@ -68,6 +70,9 @@ app.Configure(config =>
 
     config.AddCommand<GetDataCommand>("getdata")
         .WithDescription("Sync Contentful content with WikiData.");
+
+    config.AddCommand<WebserverCommand>("webserver")
+        .WithDescription("Launch web server and listen to http requests and webhook calls.");
 });
 
 try

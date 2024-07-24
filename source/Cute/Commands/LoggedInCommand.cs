@@ -12,7 +12,7 @@ using Text = Spectre.Console.Text;
 
 namespace Cute.Commands;
 
-public class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSettings : CommandSettings
+public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where TSettings : CommandSettings
 {
     protected readonly IConsoleWriter _console;
 
