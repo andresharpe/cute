@@ -1,6 +1,5 @@
 ﻿using Azure;
 using Azure.AI.OpenAI;
-using Contentful.Core;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
@@ -60,7 +59,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         [Description("The field containing the prompt template for the LLM.")]
         public string PromptField { get; set; } = "prompt";
 
-        [CommandOption("-e|--temperature-field")]
+        [CommandOption("-m|--temperature-field")]
         [Description("The field containing temperature setting for the LLM.")]
         public string TemperatureField { get; set; } = "temperature";
 
@@ -72,9 +71,17 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         [Description("The field containing language target for generated content.")]
         public string GeneratorLanguageField { get; set; } = "generatorTargetLanguage";
 
-        [CommandOption("-r|--translator-language-field")]
+        [CommandOption("-n|--translator-language-field")]
         [Description("The field containing language targets for translated content.")]
         public string TranslatorLanguagesField { get; set; } = "translatorTargetLanguages";
+
+        [CommandOption("-e|--entry-id")]
+        [Description("The field containing language targets for translated content.")]
+        public string? EntryId { get; set; } = null;
+
+        [CommandOption("-r|--related-entry-id")]
+        [Description("The field containing language targets for translated content.")]
+        public string? RelatedEntryId { get; set; } = null;
 
         [CommandOption("-l|--limit")]
         [Description("The total number of entries to generate content for before stopping. Default is five.")]
@@ -83,6 +90,10 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         [CommandOption("-k|--skip")]
         [Description("The total number of entries to skip before starting. Default is zero.")]
         public int Skip { get; set; } = 0;
+
+        [CommandOption("-d|--delay")]
+        [Description("The delay in milliseconds between retrieving generated tokens.")]
+        public int Delay { get; set; } = 20;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -184,7 +195,31 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var chatClient = client.GetChatClient(_appSettings.OpenAiDeploymentName);
 
-        var entries = ContentfulDeliveryEntries(_contentfulClient, contentType.SystemProperties.Id, contentType.DisplayField, generatorLanguageCode);
+        Action<QueryBuilder<ExpandoObject>>? queryConfigEntry =
+            string.IsNullOrEmpty(settings.EntryId)
+            ? null
+            : b => b.LocaleIs(generatorLanguageCode).FieldEquals("sys.id", settings.EntryId);
+
+        Action<QueryBuilder<ExpandoObject>>? queryConfigRelatedEntry = null;
+
+        if (!string.IsNullOrEmpty(settings.RelatedEntryId))
+        {
+            var relatedEntry = await _contentfulManagementClient.GetEntry(settings.RelatedEntryId);
+
+            var relatedContentType = relatedEntry.SystemProperties.ContentType.SystemProperties.Id;
+
+            var relatedField = contentType.Fields
+                .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(relatedContentType)))
+                .FirstOrDefault()
+                ?? throw new CliException($"Related entry of content type '{relatedContentType}' does not relate to '{contentType.SystemProperties.Id}'");
+
+            queryConfigRelatedEntry = b => b.FieldEquals($"fields.{relatedField.Id}.sys.id", settings.RelatedEntryId);
+        }
+
+        var entries = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, contentType.SystemProperties.Id, contentType.DisplayField,
+            queryConfigurator: queryConfigEntry ?? queryConfigRelatedEntry);
+
+        var allEntries = entries.ToBlockingEnumerable().ToList();
 
         var skipped = 0;
         var limit = 0;
@@ -220,7 +255,8 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 generatorLanguageCode,
                 chatClient,
                 generatorCompletionOptions,
-                entry);
+                entry,
+                settings.Delay);
 
             if (++limit >= settings.Limit)
             {
@@ -233,7 +269,29 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             return 0;
         }
 
-        var fullEntries = ContentfulEntryEnumerator.Entries(_contentfulManagementClient, contentType.SystemProperties.Id, contentType.DisplayField);
+        Action<QueryBuilder<Entry<JObject>>>? queryConfigFullEntry =
+            string.IsNullOrEmpty(settings.EntryId)
+            ? null
+            : b => b.LocaleIs(generatorLanguageCode).FieldEquals("sys.id", settings.EntryId);
+
+        Action<QueryBuilder<Entry<JObject>>>? queryConfigRelatedFullEntry = null;
+
+        if (!string.IsNullOrEmpty(settings.RelatedEntryId))
+        {
+            var relatedEntry = await _contentfulManagementClient.GetEntry(settings.RelatedEntryId);
+
+            var relatedContentType = relatedEntry.SystemProperties.ContentType.SystemProperties.Id;
+
+            var relatedField = contentType.Fields
+                .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(relatedContentType)))
+                .FirstOrDefault()
+                ?? throw new CliException($"Related entry of content type '{relatedContentType}' does not relate to '{contentType.SystemProperties.Id}'");
+
+            queryConfigRelatedFullEntry = b => b.FieldEquals($"fields.{relatedField.Id}.sys.id", settings.RelatedEntryId);
+        }
+
+        var fullEntries = ContentfulEntryEnumerator.Entries(_contentfulManagementClient, contentType.SystemProperties.Id, contentType.DisplayField,
+            queryConfigurator: queryConfigFullEntry ?? queryConfigRelatedFullEntry);
 
         skipped = 0;
         limit = 0;
@@ -274,7 +332,8 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 chatClient,
                 translatorCompletionOptions,
                 fullEntry,
-                fieldValue);
+                fieldValue,
+                settings.Delay);
 
             if (++limit >= settings.Limit)
             {
@@ -287,7 +346,8 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
     private async Task GenerateContent(string promptContentFieldId, string promptSystemMessage,
         string promptMainPrompt, ContentType contentType, string generatorLanguageCode,
-        ChatClient chatClient, ChatCompletionOptions generatorCompletionOptions, ExpandoObject entry)
+        ChatClient chatClient, ChatCompletionOptions generatorCompletionOptions, ExpandoObject entry,
+        int delay)
     {
         _console.WriteBlankLine();
 
@@ -319,7 +379,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             {
                 sb.Append(token.Text);
                 AnsiConsole.Write(new Text(token.Text, Globals.StyleNormal));
-                await Task.Delay(20);
+                await Task.Delay(delay);
             }
         }
 
@@ -359,7 +419,8 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
     private async Task TranslateContent(string promptContentFieldId, ContentType contentType,
         string generatorLanguageCode, Dictionary<string, string> translatorLanguageCodeAndName,
-        ChatClient chatClient, ChatCompletionOptions translatorCompletionOptions, Entry<JObject> fullEntry, string quotedText)
+        ChatClient chatClient, ChatCompletionOptions translatorCompletionOptions, Entry<JObject> fullEntry, string quotedText,
+        int delay)
     {
         var promptSystemMessage = "You are a professional translator who pays attention to grammar and punctuation.";
 
@@ -409,7 +470,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 {
                     sb.Append(token.Text);
                     AnsiConsole.Write(new Text(token.Text, Globals.StyleNormal));
-                    await Task.Delay(20);
+                    await Task.Delay(delay);
                 }
             }
 
@@ -476,35 +537,5 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         var result = template.Render(new { entry }, member => member.Name);
 
         return result;
-    }
-
-    private static async IAsyncEnumerable<(ExpandoObject, ContentfulCollection<ExpandoObject>)>
-        ContentfulDeliveryEntries(ContentfulClient client, string contentType, string orderByField, string locale)
-    {
-        var skip = 0;
-        var page = 100;
-
-        while (true)
-        {
-            var query = new QueryBuilder<ExpandoObject>()
-                .ContentTypeIs(contentType)
-                .LocaleIs(locale)
-                .Include(2)
-                .Skip(skip)
-                .Limit(page)
-                .OrderBy($"fields.{orderByField}")
-                .Build();
-
-            var entries = await client.GetEntries<ExpandoObject>(queryString: query);
-
-            if (!entries.Any()) break;
-
-            foreach (var entry in entries)
-            {
-                yield return (entry, entries);
-            }
-
-            skip += page;
-        }
     }
 }

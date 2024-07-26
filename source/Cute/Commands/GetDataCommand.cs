@@ -1,20 +1,25 @@
 ﻿using Contentful.Core.Errors;
 using Contentful.Core.Models;
+using Contentful.Core.Search;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.GetDataAdapter;
 using Cute.Lib.Serializers;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
+using Nox.Cron;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using Hangfire;
+using Cute.Constants;
+using System.Data.Common;
 
 namespace Cute.Commands;
 
-// getdata --path ..\..\tests\Cute.Tests\getDataTests\ --cache-seconds 3600
+// getdata
 
 public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 {
@@ -24,34 +29,33 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
     public class Settings : CommandSettings
     {
-        [CommandOption("-p|--path")]
-        [Description("The local path to the YAML file(s) containg the get data definitions")]
-        public string Path { get; set; } = @".\";
+        [CommandOption("-c|--getdata-content-type")]
+        [Description("The id of the content type containing data sync definitions. Default is 'metaGetData'.")]
+        public string GetDataContentType { get; set; } = "metaGetData";
 
-        [CommandOption("-s|--cache-seconds")]
-        [Description("The local path to the YAML file(s) containg the get data definitions")]
-        public int CacheSeconds { get; set; } = 0;
+        [CommandOption("-f|--getdata-id-field")]
+        [Description("The id of the field that contains the data sync key/title/id. Default is 'key'.")]
+        public string GetDataIdField { get; set; } = "key";
+
+        [CommandOption("-r|--getdata-frequency-field")]
+        [Description("The id of the field that contains the data sync frequency as a phrase. Default is 'frequency'.")]
+        public string GetDataFrequencyField { get; set; } = "frequency";
+
+        [CommandOption("-i|--getdata-id")]
+        [Description("The id of the Contentful data sync entry to generate prompts from.")]
+        public string? GetDataId { get; set; } = default!;
+
+        [CommandOption("-y|--getdata-yaml-field")]
+        [Description("The field containing the yaml template for the the data sync.")]
+        public string GetDataYamlField { get; set; } = "yaml";
+
+        [CommandOption("--as-server")]
+        [Description("The field containing the yaml template for the the data sync.")]
+        public bool AsServer { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        if (!Path.Exists(settings.Path))
-        {
-            return ValidationResult.Error($"Path not found '{settings.Path}'");
-        }
-
-        var files = Directory.GetFiles(settings.Path, "*.yaml");
-
-        if (files.Length == 0)
-        {
-            return ValidationResult.Error($"No yaml definition files found in '{settings.Path}'");
-        }
-
-        if (settings.CacheSeconds < 0)
-        {
-            return ValidationResult.Error($"Invalid seconds setting for caches '{settings.CacheSeconds}'");
-        }
-
         return base.Validate(context, settings);
     }
 
@@ -63,25 +67,55 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
         var locales = await _contentfulManagementClient.GetLocalesCollection();
 
-        var yaml = new DeserializerBuilder()
+        var defaultLocale = locales
+            .First(l => l.Default)
+            .Code;
+
+        // Get data entries
+
+        var yamlDeserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
-        var files = Directory.GetFiles(settings.Path, "*.yaml").OrderBy(f => f).ToArray();
+        var getDataQuery = new QueryBuilder<Entry<JObject>>()
+             .ContentTypeIs(settings.GetDataContentType)
+             .OrderBy("fields.order");
+
+        if (settings.GetDataId != null)
+        {
+            getDataQuery.FieldEquals($"fields.{settings.GetDataIdField}", settings.GetDataId);
+        }
+
+        var getDataEntries = await _contentfulManagementClient.GetEntriesCollection(getDataQuery);
+
+        if (!getDataEntries.Any())
+        {
+            throw new CliException($"No data sync entries found.");
+        }
 
         var dataAdapter = new HttpDataAdapter(_contentfulManagementClient, _console.WriteNormal);
 
-        foreach (var fileName in files)
+        foreach (var getDataEntry in getDataEntries)
         {
-            var adapter = yaml.Deserialize<HttpDataAdapterConfig>(System.IO.File.ReadAllText(fileName));
+            var getDataId = getDataEntry.Fields[settings.GetDataIdField]?[defaultLocale]?.Value<string>();
+
+            if (getDataId is null) continue;
+
+            var yaml = getDataEntry.Fields[settings.GetDataYamlField]?[defaultLocale]?.Value<string>();
+
+            var frequency = getDataEntry.Fields[settings.GetDataFrequencyField]?[defaultLocale]?.Value<string>();
+
+            var cronSchedule = frequency?.ToCronExpression().ToString();
+
+            var adapter = yamlDeserializer.Deserialize<HttpDataAdapterConfig>(yaml!);
 
             var contentType = await _contentfulManagementClient.GetContentType(adapter.ContentType);
 
             var serializer = new EntrySerializer(contentType, locales.Items);
 
-            ValidateDataAdapter(fileName, adapter, contentType, serializer);
+            ValidateDataAdapter(getDataId!, adapter, contentType, serializer);
 
-            var dataResults = await dataAdapter.GetData(adapter, settings.CacheSeconds == 0 ? null : _appSettings.TempFolder, settings.CacheSeconds);
+            var dataResults = await dataAdapter.GetData(adapter);
 
             var ignoreFields = adapter.Mapping.Where(m => !m.Overwrite).Select(m => m.FieldName).ToHashSet();
 

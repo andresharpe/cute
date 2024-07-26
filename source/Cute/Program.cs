@@ -4,7 +4,6 @@ using Cute.Constants;
 using Cute.Lib.Exceptions;
 using Cute.Services;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Console.Cli.Help;

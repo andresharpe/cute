@@ -6,32 +6,56 @@ using Scriban.Runtime;
 using Scriban.Syntax;
 using Scriban;
 using Contentful.Core;
+using dotenv.net;
+using System.Collections;
 
 namespace Cute.Lib.GetDataAdapter;
 
 public class HttpDataAdapter
 {
+    private static readonly Dictionary<string, string?> _env;
+
+    static HttpDataAdapter()
+    {
+        _env = Environment.GetEnvironmentVariables()
+            .Cast<DictionaryEntry>()
+            .ToDictionary(e => (string)e.Key, e => e.Value?.ToString());
+
+        foreach (var (key, value) in DotEnv.Fluent().Read())
+        {
+            _env[key] = value;
+        }
+    }
+
     private readonly ContentfulManagementClient _contentfulManagementClient;
     private readonly Action<string> _displayAction;
 
     public HttpDataAdapter(ContentfulManagementClient contentfulManagementClient, Action<string> displayAction)
     {
         _contentfulManagementClient = contentfulManagementClient;
+
         _displayAction = displayAction;
     }
 
-    public async Task<List<Dictionary<string, string>>?> GetData(HttpDataAdapterConfig adapter, string? outputPath = null, int cacheSeconds = 0)
+    public async Task<List<Dictionary<string, string>>?> GetData(HttpDataAdapterConfig adapter)
     {
+        if (!Uri.IsWellFormedUriString(adapter.EndPoint, UriKind.Absolute))
+        {
+            throw new CliException($"Invalid uri '{adapter.EndPoint}'");
+        }
+
+        var uriDict = CompileValues(new Dictionary<string, string> { ["uri"] = adapter.EndPoint });
+
         var httpClient = new HttpClient()
         {
-            BaseAddress = new Uri(adapter.EndPoint),
+            BaseAddress = new Uri(uriDict["uri"]),
         };
-
-        string cacheFileName(int resultCount) => $"{adapter.ContentType}-{httpClient?.BaseAddress?.Host.Replace('.', '_')}-{resultCount:D4}.json";
 
         if (adapter.Headers is not null)
         {
-            foreach (var (key, value) in adapter.Headers)
+            var compiledHeaders = CompileValues(adapter.Headers);
+
+            foreach (var (key, value) in compiledHeaders)
             {
                 httpClient.DefaultRequestHeaders.Add(key, value);
             }
@@ -45,24 +69,8 @@ public class HttpDataAdapter
         }
 
         var returnValue = new List<Dictionary<string, string>>();
+
         var cachedResults = new HashSet<string>();
-
-        if (outputPath is not null && cacheSeconds > 0)
-        {
-            var count = 1;
-            while (true)
-            {
-                var filename = Path.Combine(outputPath, cacheFileName(count));
-
-                if (!File.Exists(filename)) break;
-
-                if (DateTime.UtcNow.AddSeconds(-cacheSeconds) > System.IO.File.GetLastWriteTimeUtc(filename)) break;
-
-                cachedResults.Add(filename);
-
-                count++;
-            }
-        }
 
         var requestCount = 1;
 
@@ -74,42 +82,18 @@ public class HttpDataAdapter
 
             string? endpointContent = null;
 
-            if (outputPath is not null && cachedResults.Count != 0)
+            if (adapter.HttpMethod == HttpMethod.Post)
             {
-                var filename = System.IO.Path.Combine(outputPath, cacheFileName(requestCount));
-
-                if (!cachedResults.Contains(filename)) break;
-
-                _displayAction($"...reading from cache {filename}...");
-
-                endpointContent = await System.IO.File.ReadAllTextAsync(filename);
+                endpointResult = await httpClient.PostAsync("", formContent);
             }
-            else
+            else if (adapter.HttpMethod == HttpMethod.Get)
             {
-                if (adapter.HttpMethod == Lib.GetDataAdapter.HttpMethod.Post)
-                {
-                    endpointResult = await httpClient.PostAsync("", formContent);
-                }
-                else if (adapter.HttpMethod == Lib.GetDataAdapter.HttpMethod.Get)
-                {
-                    endpointResult = await httpClient.GetAsync("");
-                }
+                endpointResult = await httpClient.GetAsync("");
+            }
 
-                if (endpointResult is not null)
-                {
-                    endpointContent = await endpointResult.Content.ReadAsStringAsync();
-                }
-
-                if (outputPath is not null && cacheSeconds > 0)
-                {
-                    Directory.CreateDirectory(outputPath);
-
-                    var filename = Path.Combine(outputPath, cacheFileName(requestCount));
-
-                    _displayAction($"...writing to cache {filename}...");
-
-                    System.IO.File.WriteAllText(filename, endpointContent, System.Text.Encoding.UTF8);
-                }
+            if (endpointResult is not null)
+            {
+                endpointContent = await endpointResult.Content.ReadAsStringAsync();
             }
 
             if (endpointContent is null) return [];
@@ -169,6 +153,50 @@ public class HttpDataAdapter
         }
 
         return [.. returnValue.OrderBy(e => e[adapter.ContentKeyField])];
+    }
+
+    private static Dictionary<string, string> CompileValues(Dictionary<string, string> headers)
+    {
+        var templates = headers.ToDictionary(m => m.Key, m => Template.Parse(m.Value));
+
+        var errors = new List<string>();
+
+        foreach (var (header, template) in templates)
+        {
+            if (template.HasErrors)
+            {
+                errors.Add($"Error(s) in mapping for header '{header}'.{template.Messages.Select(m => $"\n...{m.Message}")} ");
+            }
+        }
+
+        if (errors.Count != 0) throw new CliException(string.Join('\n', errors));
+
+        try
+        {
+            var scriptObjectGlobal = new ScriptObject();
+
+            scriptObjectGlobal.SetValue("cute", new CuteFunctions(), true);
+
+            var templateContext = new TemplateContext();
+
+            templateContext.PushGlobal(scriptObjectGlobal);
+
+            var scriptObjectInstance = new ScriptObject();
+
+            scriptObjectInstance.Import(new { config = new { env = _env } });
+
+            templateContext.PushGlobal(scriptObjectInstance);
+
+            var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(templateContext));
+
+            templateContext.PopGlobal();
+
+            return newRecord;
+        }
+        catch (ScriptRuntimeException e)
+        {
+            throw new CliException(e.Message, e);
+        }
     }
 
     private static Dictionary<string, Template> CompileMappingTemplates(HttpDataAdapterConfig adapter)

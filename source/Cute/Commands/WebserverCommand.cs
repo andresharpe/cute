@@ -1,8 +1,6 @@
-﻿using Contentful.Core.Models;
-using Cute.Constants;
+﻿using Cute.Constants;
 using Cute.Services;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -139,7 +137,7 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
 
         var body = await reader.ReadToEndAsync();
 
-        var webhookCommandCollection = JsonConvert.DeserializeObject<WebhookCommandCollection>(body, _jsonSettings);
+        var webhookCommandCollection = JsonConvert.DeserializeObject<WebhookCommandRequest>(body, _jsonSettings);
 
         if (webhookCommandCollection is null)
         {
@@ -148,7 +146,7 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
             return;
         }
 
-        var request = new WebhookRequest { Headers = headers, CommandCollection = webhookCommandCollection };
+        var request = new WebhookRequest { Headers = headers, CommandRequests = webhookCommandCollection };
 
         _requests.Enqueue(Task.Run(async () => await ExecuteCommand(request)));
 
@@ -160,14 +158,25 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
 
     private async Task ExecuteCommand(WebhookRequest request)
     {
-        foreach (var command in request.CommandCollection.Commands)
+        _console.WriteAlertAccent("Task started...");
+
+        try
         {
-            var args = command.Parameters.SelectMany(p => new string[] { p.Key, p.Value }).ToList();
+            foreach (var command in request.CommandRequests.Commands)
+            {
+                var args = command.Parameters.SelectMany(p => new string[] { p.Key, p.Value }).ToList();
 
-            args.Insert(0, command.Command.ToString());
+                args.Insert(0, command.Command.ToString());
 
-            await _commandApp.RunAsync(args.ToArray());
+                await _commandApp.RunAsync(args.ToArray());
+            }
         }
+        catch (Exception ex)
+        {
+            _console.WriteAlert($"Task error: {ex.Message}");
+        }
+
+        _console.WriteAlertAccent("Task completed.");
 
         return;
     }
@@ -175,26 +184,26 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
     private readonly struct WebhookRequest
     {
         public readonly IReadOnlyDictionary<string, string> Headers { get; init; }
-        public readonly WebhookCommandCollection CommandCollection { get; init; }
+        public readonly WebhookCommandRequest CommandRequests { get; init; }
     }
 
-    public class WebhookCommandCollection
+    private class WebhookCommandRequest
     {
         public string SpaceId { get; set; } = default!;
         public string EnvironmentId { get; set; } = default!;
         public string ContentTypeId { get; set; } = default!;
-        public string EntityId { get; set; } = default!;
+        public string EntryId { get; set; } = default!;
         public string Version { get; set; } = default!;
         public WebhookCommand[] Commands { get; set; } = default!;
     }
 
-    public class WebhookCommand
+    private class WebhookCommand
     {
         public ValidCommand Command { get; set; } = default!;
         public Dictionary<string, string> Parameters { get; set; } = default!;
     }
 
-    public enum ValidCommand
+    private enum ValidCommand
     {
         join,
         generate,

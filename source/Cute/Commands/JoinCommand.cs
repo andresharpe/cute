@@ -56,6 +56,10 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
         [Description("The field containing the keys of the second Contentful content type to join content from.")]
         public string SourceKeys2 { get; set; } = "sourceKeys2";
 
+        [CommandOption("-e|--entry-id")]
+        [Description("The field containing language targets for translated content.")]
+        public string? EntryId { get; set; } = null;
+
         [CommandOption("-l|--limit")]
         [Description("The total number of entries to generate content for before stopping. Default is 100.")]
         public int Limit { get; set; } = 100;
@@ -140,15 +144,25 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 
         _console.WriteNormal("Loading entries...");
 
-        var targetData = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, joinTargetContentTypeId, targetContentType.DisplayField)
+        Action<QueryBuilder<JObject>>? queryConfigTarget =
+            string.IsNullOrEmpty(settings.EntryId)
+            ? null
+            : b => b.FieldEquals($"fields.{targetField2.Id}.sys.id", settings.EntryId);
+
+        Action<QueryBuilder<JObject>>? queryConfigSource2 =
+            string.IsNullOrEmpty(settings.EntryId)
+            ? null
+            : b => b.FieldEquals("sys.id", settings.EntryId);
+
+        var targetData = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, joinTargetContentTypeId, targetContentType.DisplayField, queryConfigurator: queryConfigTarget)
             .ToBlockingEnumerable()
             .ToDictionary(e => e.Item1["key"]!, e => new { Key = e.Item1["key"], Title = e.Item1["title"], Name = e.Item1["name"] });
 
-        var source1Data = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, joinSource1ContentTypeId, source1ContentType.DisplayField)
+        var source1Data = ContentfulEntryEnumerator.DeliveryEntries<JObject>(_contentfulClient, joinSource1ContentTypeId, source1ContentType.DisplayField)
             .ToBlockingEnumerable()
             .Where(e => source1AllKeys || source1Keys.Contains(e.Item1["key"]?.Value<string>()));
 
-        var source2Data = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, joinSource2ContentTypeId, source2ContentType.DisplayField)
+        var source2Data = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, joinSource2ContentTypeId, source2ContentType.DisplayField, queryConfigurator: queryConfigSource2)
             .ToBlockingEnumerable()
             .Where(e => source2AllKeys || source2Keys.Contains(e.Item1["key"]?.Value<string>()));
 

@@ -4,7 +4,7 @@ namespace Cute.Lib.Serializers;
 
 internal class ContentfulIdGenerator
 {
-    private static readonly Random _random = new Random();
+    private static readonly Random _random = new();
 
     private const string _chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
