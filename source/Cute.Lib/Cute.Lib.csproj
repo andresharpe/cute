@@ -13,7 +13,6 @@
     <PackageReference Include="contentful.csharp" Version="7.6.1" />
     <PackageReference Include="CsvHelper" Version="33.0.1" />
     <PackageReference Include="dotenv.net" Version="3.2.0" />
-    <PackageReference Include="Hangfire" Version="1.8.14" />
     <PackageReference Include="Html2Markdown" Version="6.2.1.4" />
     <PackageReference Include="Nox.Cron" Version="8.0.1" />
     <PackageReference Include="scriban" Version="5.10.0" />
