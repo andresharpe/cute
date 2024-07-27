@@ -3,32 +3,95 @@ using Cute.Commands;
 using Cute.Constants;
 using Cute.Lib.Exceptions;
 using Cute.Services;
+using dotenv.net;
 using Microsoft.AspNetCore.DataProtection;
+using Serilog;
+using Serilog.Events;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Console.Cli.Help;
 using System.ClientModel;
+using System.Collections;
 using System.Runtime.InteropServices;
 using System.Text;
 using Yaml2Cf.Interceptors;
 
+// App flow vars
+
 var exitValue = 0;
 
 var isGettingVersion = (args.Length > 0 && args[0].Equals("version", StringComparison.OrdinalIgnoreCase));
+
+var isWebServer = (args.Length > 0 && args[0].Equals("webserver", StringComparison.OrdinalIgnoreCase));
+
+// Read environment and .env (dotenv) file
+
+var env = Environment.GetEnvironmentVariables()
+    .Cast<DictionaryEntry>()
+    .ToDictionary(e => (string)e.Key, e => e.Value?.ToString());
+
+foreach (var (key, value) in DotEnv.Fluent().Read())
+{
+    env[key] = value;
+}
+
+// Configure logging
+
+var loggerConfig = new LoggerConfiguration()
+    .Enrich.FromLogContext();
+
+if (
+    env.TryGetValue("Cute__OpenTelemetryEndpoint", out var otEndpoint)
+    && otEndpoint is not null
+    && env.TryGetValue("Cute__OpenTelemetryApiKey", out var otApiKey)
+    && otApiKey is not null
+)
+{
+    loggerConfig.WriteTo.OpenTelemetry(x =>
+    {
+        x.Endpoint = otEndpoint;
+        x.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.HttpProtobuf;
+        x.Headers = new Dictionary<string, string> { ["X-Seq-ApiKey"] = otApiKey };
+        x.ResourceAttributes = new Dictionary<string, object> { ["service.name"] = Globals.AppName };
+        x.RestrictedToMinimumLevel = LogEventLevel.Information;
+    });
+}
+
+if (isWebServer)
+{
+    loggerConfig.WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}",
+        restrictedToMinimumLevel: LogEventLevel.Information
+    );
+}
+
+Log.Logger = loggerConfig.CreateLogger();
+
+// Display banner
 
 if (!isGettingVersion)
 {
     WriteBanner();
 }
 
+// Surpress pretty console for webserver
+
+if (isWebServer)
+{
+    ConsoleWriter.EnableConsole = false;
+}
+
 // Add services
+
 var services = new ServiceCollection();
 services.AddSingleton<IConsoleWriter, ConsoleWriter>();
 services.AddSingleton(DataProtectionProvider.Create(Globals.AppName));
 services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
+services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 
 // Build cli app with DI
 var registrar = new TypeRegistrar(services);
+
 var app = new CommandApp(registrar);
 
 services.AddSingleton<ICommandApp>(app);
@@ -81,16 +144,20 @@ try
 catch (Exception ex)
 {
     WriteException(ex);
+
     exitValue = -1;
 }
 finally
 {
     await VersionChecker.CheckForLatestVersion();
+
+    Log.Logger.Information("Exiting {app} (version {version})", Globals.AppLongName, Globals.AppVersion);
 }
 
 if (!isGettingVersion)
 {
-    AnsiConsole.WriteLine();
+    var cw = new ConsoleWriter(AnsiConsole.Console);
+    cw.WriteLine();
 }
 
 return exitValue;
@@ -107,13 +174,17 @@ static void WriteBanner()
     cw.WriteBlankLine();
     cw.WriteAlert(Globals.AppLongName);
     cw.WriteDim(Globals.AppMoreInfo);
-    cw.WriteDim($"version {VersionChecker.GetInstalledCliVersion()}");
+    cw.WriteDim($"version {Globals.AppVersion}");
     cw.WriteRuler();
     cw.WriteBlankLine();
+
+    Log.Logger.Information("Starting {app} (version {version})", Globals.AppLongName, Globals.AppVersion);
 }
 
 static void WriteException(Exception ex)
 {
+    IConsoleWriter console = new ConsoleWriter(AnsiConsole.Console);
+
     if (ex is ICliException
         || ex is CommandParseException
         || ex is ContentfulException
@@ -122,10 +193,10 @@ static void WriteException(Exception ex)
         || ex is IOException
         || ex is ClientResultException)
 
-        AnsiConsole.Console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);
+        console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);
     else // something bigger and unhandled.
     {
-        AnsiConsole.WriteException(ex, new ExceptionSettings
+        console.WriteException(ex, new ExceptionSettings
         {
             Format = ExceptionFormats.ShortenEverything | ExceptionFormats.ShowLinks,
             Style = new ExceptionStyle

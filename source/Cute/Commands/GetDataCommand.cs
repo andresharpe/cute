@@ -13,9 +13,6 @@ using Spectre.Console.Cli;
 using System.ComponentModel;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using Hangfire;
-using Cute.Constants;
-using System.Data.Common;
 
 namespace Cute.Commands;
 
@@ -23,9 +20,13 @@ namespace Cute.Commands;
 
 public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 {
-    public GetDataCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
-        : base(console, tokenCache)
-    { }
+    private readonly ILogger<GetDataCommand> _logger;
+
+    public GetDataCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<GetDataCommand> logger)
+        : base(console, tokenCache, logger)
+    {
+        _logger = logger;
+    }
 
     public class Settings : CommandSettings
     {
@@ -64,6 +65,7 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
         var result = await base.ExecuteAsync(context, settings);
 
         // Locales
+        _logger.LogInformation("Starting command {command}", "getdata");
 
         var locales = await _contentfulManagementClient.GetLocalesCollection();
 

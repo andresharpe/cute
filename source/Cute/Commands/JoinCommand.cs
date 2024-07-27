@@ -17,9 +17,12 @@ namespace Cute.Commands;
 
 public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 {
-    public JoinCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
-        : base(console, tokenCache)
+    private readonly ILogger<JoinCommand> _logger;
+
+    public JoinCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<JoinCommand> logger)
+        : base(console, tokenCache, logger)
     {
+        _logger = logger;
     }
 
     public class Settings : CommandSettings

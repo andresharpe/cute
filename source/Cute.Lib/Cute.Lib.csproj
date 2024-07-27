@@ -16,6 +16,10 @@
     <PackageReference Include="Html2Markdown" Version="6.2.1.4" />
     <PackageReference Include="Nox.Cron" Version="8.0.1" />
     <PackageReference Include="scriban" Version="5.10.0" />
+    <PackageReference Include="Serilog" Version="4.0.1" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="3.0.0" />
     <PackageReference Include="YamlDotNet" Version="16.0.0" />
   </ItemGroup>
 

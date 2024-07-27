@@ -1,9 +1,12 @@
 ﻿using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace Cute.Services;
 
 public interface IConsoleWriter
 {
+    ILogger? Logger { get; set; }
+
     void WriteAlert(string text);
 
     void WriteAlertAccent(string text);
@@ -11,6 +14,10 @@ public interface IConsoleWriter
     void WriteDim(string text);
 
     void WriteBlankLine();
+
+    void Write(Renderable renderable);
+
+    void WriteLine();
 
     void WriteHeading(string text);
 
@@ -21,4 +28,8 @@ public interface IConsoleWriter
     void WriteRuler();
 
     T Prompt<T>(IPrompt<T> prompt);
+
+    void WriteLine(string v, Style styleAlert);
+
+    void WriteException(Exception ex, ExceptionSettings settings);
 }

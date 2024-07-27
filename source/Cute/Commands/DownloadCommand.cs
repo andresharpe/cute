@@ -15,9 +15,13 @@ namespace Cute.Commands;
 
 public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
-    public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
-        : base(console, tokenCache)
-    { }
+    private readonly ILogger<DownloadCommand> _logger;
+
+    public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<DownloadCommand> logger)
+        : base(console, tokenCache, logger)
+    {
+        _logger = logger;
+    }
 
     public class Settings : CommandSettings
     {

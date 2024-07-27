@@ -11,9 +11,12 @@ namespace Cute.Commands;
 
 public class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
 {
-    public TypeGenCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
-     : base(console, tokenCache)
+    private readonly ILogger<TypeGenCommand> _logger;
+
+    public TypeGenCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<TypeGenCommand> logger)
+     : base(console, tokenCache, logger)
     {
+        _logger = logger;
     }
 
     public class Settings : CommandSettings

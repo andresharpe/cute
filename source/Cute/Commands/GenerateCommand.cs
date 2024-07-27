@@ -24,9 +24,12 @@ namespace Cute.Commands;
 
 public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
-    public GenerateCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
-        : base(console, tokenCache)
+    private readonly ILogger<GenerateCommand> _logger;
+
+    public GenerateCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<GenerateCommand> logger)
+        : base(console, tokenCache, logger)
     {
+        _logger = logger;
     }
 
     public class Settings : CommandSettings
@@ -357,6 +360,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var prompt = ReplaceFields(promptMainPrompt, entry);
 
+        _console.WriteRuler();
         _console.WriteDim(prompt);
 
         _console.WriteBlankLine();
@@ -378,9 +382,20 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             foreach (var token in part.ContentUpdate)
             {
                 sb.Append(token.Text);
-                AnsiConsole.Write(new Text(token.Text, Globals.StyleNormal));
-                await Task.Delay(delay);
+                if (delay > 0)
+                {
+                    _console.Write(new Text(token.Text, Globals.StyleNormal));
+                    await Task.Delay(delay);
+                }
             }
+        }
+
+        var promptOutput = sb.ToString();
+
+        if (delay == 0)
+        {
+            AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
+            _console.WriteNormal(promptOutput);
         }
 
         var id = GetPropertyValue(entry, "$id")?.ToString();
@@ -391,17 +406,17 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         if (fieldDict[promptContentFieldId] == null)
         {
-            fieldDict[promptContentFieldId] = new JObject(new JProperty(generatorLanguageCode, sb.ToString()));
+            fieldDict[promptContentFieldId] = new JObject(new JProperty(generatorLanguageCode, promptOutput));
         }
         else if (fieldDict[promptContentFieldId] is JObject existingValues)
         {
             if (existingValues[generatorLanguageCode] == null)
             {
-                existingValues.Add(new JProperty(generatorLanguageCode, sb.ToString()));
+                existingValues.Add(new JProperty(generatorLanguageCode, promptOutput));
             }
             else
             {
-                existingValues[generatorLanguageCode] = sb.ToString();
+                existingValues[generatorLanguageCode] = promptOutput;
             }
         }
 
@@ -447,7 +462,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
             _console.WriteHeading(fullEntry.Fields[contentType.DisplayField]?[generatorLanguageCode]?.Value<string>() ?? string.Empty);
 
-            _console.WriteBlankLine();
+            AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
             _console.WriteDim(prompt);
 
             _console.WriteBlankLine();
@@ -469,26 +484,37 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 foreach (var token in part.ContentUpdate)
                 {
                     sb.Append(token.Text);
-                    AnsiConsole.Write(new Text(token.Text, Globals.StyleNormal));
-                    await Task.Delay(delay);
+                    if (delay > 0)
+                    {
+                        _console.Write(new Text(token.Text, Globals.StyleNormal));
+                        await Task.Delay(delay);
+                    }
                 }
+            }
+
+            var promptOutput = sb.ToString();
+
+            if (delay == 0)
+            {
+                AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
+                _console.WriteNormal(promptOutput);
             }
 
             var fieldDict = fullEntry.Fields;
 
             if (fieldDict[promptContentFieldId] == null)
             {
-                fieldDict[promptContentFieldId] = new JObject(new JProperty(languageCode, sb.ToString()));
+                fieldDict[promptContentFieldId] = new JObject(new JProperty(languageCode, promptOutput));
             }
             else if (fieldDict[promptContentFieldId] is JObject existingValues)
             {
                 if (existingValues[languageCode] == null)
                 {
-                    existingValues.Add(new JProperty(languageCode, sb.ToString()));
+                    existingValues.Add(new JProperty(languageCode, promptOutput));
                 }
                 else
                 {
-                    existingValues[languageCode] = sb.ToString();
+                    existingValues[languageCode] = promptOutput;
                 }
             }
 

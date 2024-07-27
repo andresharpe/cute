@@ -12,9 +12,13 @@ namespace Cute.Commands;
 
 public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
 {
-    public UploadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
-        : base(console, tokenCache)
-    { }
+    private readonly ILogger<UploadCommand> _logger;
+
+    public UploadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<UploadCommand> logger)
+        : base(console, tokenCache, logger)
+    {
+        _logger = logger;
+    }
 
     public class Settings : CommandSettings
     {

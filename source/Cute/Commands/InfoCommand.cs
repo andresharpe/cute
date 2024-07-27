@@ -2,14 +2,19 @@
 using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using Cute.Lib.Extensions;
 
 namespace Cute.Commands;
 
 public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 {
-    public InfoCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
-        : base(console, tokenCache)
-    { }
+    private readonly ILogger<InfoCommand> _logger;
+
+    public InfoCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<InfoCommand> logger)
+        : base(console, tokenCache, logger)
+    {
+        _logger = logger;
+    }
 
     public class Settings : CommandSettings
     {
@@ -56,7 +61,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                 foreach (var contentType in contentTypes)
                 {
                     typesTable.AddRow(
-                        new Markup(contentType.Name, Globals.StyleNormal),
+                        new Markup(contentType.Name.RemoveEmojis().Trim().Snip(27), Globals.StyleNormal),
                         new Markup(contentType.SystemProperties.Id, Globals.StyleAlertAccent),
                         new Markup(contentType.Fields.Count.ToString(), Globals.StyleNormal).RightJustified(),
                         new Markup(contentType.DisplayField, Globals.StyleNormal)

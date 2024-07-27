@@ -1,4 +1,5 @@
-﻿using Spectre.Console;
+﻿using Cute.Services;
+using Spectre.Console;
 
 namespace Cute.Constants;
 
@@ -6,8 +7,9 @@ internal static class Globals
 {
     public const string AppName = "cute";
     public const string AppLongName = "Contentful Update Tool & Extractor";
-    public const string AppDescription = "Bulk upload and download of Contentful content (excel/csv/tsv/yaml/json/sql).";
+    public const string AppDescription = "Upload and download Contentful content to Excel/Csv/Tsv/Yaml/Json/REST. Content generator and translator (LLM).";
     public const string AppMoreInfo = "https://github.com/andresharpe/cute";
+    public static readonly string AppVersion = VersionChecker.GetInstalledCliVersion();
 
     public static readonly Style StyleHeading = new(Color.White, null, Decoration.Bold);
     public static readonly Style StyleSubHeading = new(Color.MistyRose3, null, Decoration.Bold);
