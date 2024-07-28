@@ -65,7 +65,7 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
 
         webapp.MapHealthChecks("/healthz");
 
-        webapp.Run();
+        await webapp.RunAsync();
 
         return 0;
     }
@@ -146,7 +146,7 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
                 }
                 await context.Response.WriteAsync($"</td>");
 
-                await context.Response.WriteAsync($"<tr>");
+                await context.Response.WriteAsync($"</tr>");
             }
 
             await context.Response.WriteAsync($"</table>");

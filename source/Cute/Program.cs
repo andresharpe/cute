@@ -18,9 +18,9 @@ using Yaml2Cf.Interceptors;
 
 var exitValue = 0;
 
-var isGettingVersion = (args.Length > 0 && args[0].Equals("version", StringComparison.OrdinalIgnoreCase));
+var isGettingVersion = args.Contains("version");
 
-var isWebServer = (args.Length > 0 && args[0].Equals("webserver", StringComparison.OrdinalIgnoreCase));
+var isWebServer = args.Contains("webserver") || args.Contains("--as-server");
 
 // Get config from protected settings file and environment
 
