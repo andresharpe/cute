@@ -67,7 +67,7 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
         // Locales
         _logger.LogInformation("Starting command {command}", "getdata");
 
-        var locales = await _contentfulManagementClient.GetLocalesCollection();
+        var locales = await ContentfulManagementClient.GetLocalesCollection();
 
         var defaultLocale = locales
             .First(l => l.Default)
@@ -88,14 +88,14 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
             getDataQuery.FieldEquals($"fields.{settings.GetDataIdField}", settings.GetDataId);
         }
 
-        var getDataEntries = await _contentfulManagementClient.GetEntriesCollection(getDataQuery);
+        var getDataEntries = await ContentfulManagementClient.GetEntriesCollection(getDataQuery);
 
         if (!getDataEntries.Any())
         {
             throw new CliException($"No data sync entries found.");
         }
 
-        var dataAdapter = new HttpDataAdapter(_contentfulManagementClient, _console.WriteNormal);
+        var dataAdapter = new HttpDataAdapter(ContentfulManagementClient, _console.WriteNormal);
 
         foreach (var getDataEntry in getDataEntries)
         {
@@ -111,7 +111,7 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
             var adapter = yamlDeserializer.Deserialize<HttpDataAdapterConfig>(yaml!);
 
-            var contentType = await _contentfulManagementClient.GetContentType(adapter.ContentType);
+            var contentType = await ContentfulManagementClient.GetContentType(adapter.ContentType);
 
             var serializer = new EntrySerializer(contentType, locales.Items);
 
@@ -153,11 +153,11 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
     private async Task<Dictionary<string, string>> CompareAndUpdateResults(List<Dictionary<string, string>> newRecords, EntrySerializer contentSerializer,
          string contentTypeId, string contentKeyField, string contentDisplayField, HashSet<string> ignoreFields)
     {
-        if (_contentfulManagementClient is null) return [];
+        if (ContentfulManagementClient is null) return [];
 
         var entriesProcessed = new Dictionary<string, string>();
 
-        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulManagementClient, contentTypeId, contentKeyField))
+        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(ContentfulManagementClient, contentTypeId, contentKeyField))
         {
             var cfEntry = contentSerializer.SerializeEntry(entry);
 
@@ -237,7 +237,7 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
     private async Task UpdateAndPublishEntry(Entry<JObject> newEntry, string contentType)
     {
-        _ = await _contentfulManagementClient!.CreateOrUpdateEntry<JObject>(
+        _ = await ContentfulManagementClient!.CreateOrUpdateEntry<JObject>(
                 newEntry.Fields,
                 id: newEntry.SystemProperties.Id,
                 version: newEntry.SystemProperties.Version,
@@ -245,7 +245,7 @@ public class GetDataCommand : LoggedInCommand<GetDataCommand.Settings>
 
         try
         {
-            await _contentfulManagementClient.PublishEntry(newEntry.SystemProperties.Id, newEntry.SystemProperties.Version!.Value + 1);
+            await ContentfulManagementClient.PublishEntry(newEntry.SystemProperties.Id, newEntry.SystemProperties.Version!.Value + 1);
         }
         catch (ContentfulException ex)
         {

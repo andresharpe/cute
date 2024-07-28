@@ -80,6 +80,7 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
               <head>
                 <meta charset="utf-8">
                 <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute.png">
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
                 <title>{Globals.AppLongName}</title>
                 <link rel="stylesheet" href="https://cdn.simplecss.org/simple-v1.css">
                 <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js"></script>
@@ -90,7 +91,7 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
 
         var health = await healthCheckService.CheckHealthAsync();
 
-        var dot = health.Status switch
+        var statusDot = health.Status switch
         {
             HealthStatus.Unhealthy => "\U0001f534",
             HealthStatus.Degraded => "\U0001f7e1",
@@ -104,14 +105,14 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
 
         await context.Response.WriteAsync($"<h3>{Globals.AppLongName}</h3>");
 
-        await context.Response.WriteAsync($"{dot} {health.Status}");
+        await context.Response.WriteAsync($"{statusDot} {health.Status}");
 
         await context.Response.WriteAsync($"<p>{Globals.AppDescription}</p>");
 
         await context.Response.WriteAsync($"""
-            Logged into Contentful space <pre>{_spaceId}</pre>
-            as user <pre>{_user?.Email} (id: {_user?.SystemProperties.Id})</pre>
-            and environment <pre>{_environmentId}</pre>
+            Logged into Contentful space <pre>{ContentfulSpace.Name} ({ContentfulSpaceId})</pre>
+            as user <pre>{ContentfulUser.Email} (id: {ContentfulUser.SystemProperties.Id})</pre>
+            using environment <pre>{ContentfulEnvironmentId}</pre>
             """);
 
         await context.Response.WriteAsync($"<h4>App Version</h4>");
@@ -171,7 +172,7 @@ public class WebserverCommand : LoggedInCommand<WebserverCommand.Settings>
         await context.Response.WriteAsync($"""<pre class="prettyprint">{_payLoadFormatExample}</pre>""");
 
         var htmlEnd = $"""
-                <footer><a href="{Globals.AppMoreInfo}">Visit us on GitHub</a></footer>
+                <footer><a href="{Globals.AppMoreInfo}"><i style="font-size:20px" class="fa">&#xf09b;</i>&nbsp;&nbsp;Source code on GitHub</a></footer>
               </body>
             </html>
             """;

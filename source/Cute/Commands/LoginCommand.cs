@@ -18,11 +18,13 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
 
     private readonly IConsoleWriter _console;
     private readonly IPersistedTokenCache _tokenCache;
+    private readonly AppSettings _appSettings;
 
-    public LoginCommand(IConsoleWriter console, IPersistedTokenCache tokenCache)
+    public LoginCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, AppSettings appSettings)
     {
         _console = console;
         _tokenCache = tokenCache;
+        _appSettings = appSettings;
     }
 
     public class Settings : CommandSettings
@@ -62,7 +64,7 @@ public class LoginCommand : AsyncCommand<LoginCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        var currentSettings = await _tokenCache.LoadAsync(Globals.AppName);
+        var currentSettings = _appSettings;
 
         _console.WriteNormal("You can create personal access tokens using the Contentful web app. To create a personal access token:");
         _console.WriteBlankLine();

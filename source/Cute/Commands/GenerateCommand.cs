@@ -113,7 +113,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        var locales = await _contentfulManagementClient.GetLocalesCollection();
+        var locales = await ContentfulManagementClient.GetLocalesCollection();
 
         var defaultLocale = locales
             .First(l => l.Default)
@@ -127,7 +127,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
              .FieldEquals($"fields.{settings.PromptIdField}", settings.PromptId)
              .Build();
 
-        var promptEntries = await _contentfulManagementClient.GetEntriesCollection<Entry<JObject>>(promptQuery);
+        var promptEntries = await ContentfulManagementClient.GetEntriesCollection<Entry<JObject>>(promptQuery);
 
         if (!promptEntries.Any())
         {
@@ -160,14 +160,14 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         var translatorLanguages = promptEntry.Fields[settings.TranslatorLanguagesField]?[defaultLocale]?.ToObject<Reference[]>()
             ?? [];
 
-        var contentType = await _contentfulManagementClient.GetContentType(promptContentTypeId);
+        var contentType = await ContentfulManagementClient.GetContentType(promptContentTypeId);
 
         var contentTargetField = (contentType.Fields.FirstOrDefault(f => f.Id.Equals(promptContentFieldId)))
             ?? throw new CliException($"'{promptContentFieldId}' does not exist in content type '{contentType.SystemProperties.Id}'");
 
         // Generator language settings
 
-        var generatorLanguageEntry = (JObject)(await _contentfulManagementClient.GetEntry(generatorLanguage.Sys.Id)).Fields;
+        var generatorLanguageEntry = (JObject)(await ContentfulManagementClient.GetEntry(generatorLanguage.Sys.Id)).Fields;
         var generatorLanguageCode = generatorLanguageEntry["iso2code"]?[defaultLocale]?.ToString() ?? defaultLocale;
         var generatorLanguageName = generatorLanguageEntry["name"]?[defaultLocale]?.ToString();
         if (!allLocaleCodes.Contains(generatorLanguageCode) || generatorLanguageName is null)
@@ -180,7 +180,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         Dictionary<string, string> translatedLanguageCodeAndName = [];
         foreach (var language in translatorLanguages)
         {
-            var translatorLanguageEntry = (JObject)(await _contentfulManagementClient.GetEntry(language.Sys.Id)).Fields;
+            var translatorLanguageEntry = (JObject)(await ContentfulManagementClient.GetEntry(language.Sys.Id)).Fields;
             var translatorLanguageCode = translatorLanguageEntry["iso2code"]?[defaultLocale]?.ToString() ?? defaultLocale;
             var translatorLanguageName = translatorLanguageEntry["name"]?[defaultLocale]?.ToString();
             if (!allLocaleCodes.Contains(translatorLanguageCode) || translatorLanguageName is null)
@@ -207,7 +207,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         if (!string.IsNullOrEmpty(settings.RelatedEntryId))
         {
-            var relatedEntry = await _contentfulManagementClient.GetEntry(settings.RelatedEntryId);
+            var relatedEntry = await ContentfulManagementClient.GetEntry(settings.RelatedEntryId);
 
             var relatedContentType = relatedEntry.SystemProperties.ContentType.SystemProperties.Id;
 
@@ -219,7 +219,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             queryConfigRelatedEntry = b => b.FieldEquals($"fields.{relatedField.Id}.sys.id", settings.RelatedEntryId);
         }
 
-        var entries = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, contentType.SystemProperties.Id, contentType.DisplayField,
+        var entries = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, contentType.SystemProperties.Id, contentType.DisplayField,
             queryConfigurator: queryConfigEntry ?? queryConfigRelatedEntry);
 
         var allEntries = entries.ToBlockingEnumerable().ToList();
@@ -281,7 +281,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         if (!string.IsNullOrEmpty(settings.RelatedEntryId))
         {
-            var relatedEntry = await _contentfulManagementClient.GetEntry(settings.RelatedEntryId);
+            var relatedEntry = await ContentfulManagementClient.GetEntry(settings.RelatedEntryId);
 
             var relatedContentType = relatedEntry.SystemProperties.ContentType.SystemProperties.Id;
 
@@ -293,7 +293,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             queryConfigRelatedFullEntry = b => b.FieldEquals($"fields.{relatedField.Id}.sys.id", settings.RelatedEntryId);
         }
 
-        var fullEntries = ContentfulEntryEnumerator.Entries(_contentfulManagementClient, contentType.SystemProperties.Id, contentType.DisplayField,
+        var fullEntries = ContentfulEntryEnumerator.Entries(ContentfulManagementClient, contentType.SystemProperties.Id, contentType.DisplayField,
             queryConfigurator: queryConfigFullEntry ?? queryConfigRelatedFullEntry);
 
         skipped = 0;
@@ -400,7 +400,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var id = GetPropertyValue(entry, "$id")?.ToString();
 
-        var objToUpdate = await _contentfulManagementClient!.GetEntry(id);
+        var objToUpdate = await ContentfulManagementClient!.GetEntry(id);
 
         var fieldDict = (JObject)objToUpdate.Fields;
 
@@ -420,11 +420,11 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             }
         }
 
-        _ = await _contentfulManagementClient.CreateOrUpdateEntry<dynamic>(objToUpdate.Fields,
+        _ = await ContentfulManagementClient.CreateOrUpdateEntry<dynamic>(objToUpdate.Fields,
             id: objToUpdate.SystemProperties.Id,
             version: objToUpdate.SystemProperties.Version);
 
-        _ = await _contentfulManagementClient.PublishEntry(objToUpdate.SystemProperties.Id,
+        _ = await ContentfulManagementClient.PublishEntry(objToUpdate.SystemProperties.Id,
             objToUpdate.SystemProperties.Version!.Value + 1);
 
         _console.WriteBlankLine();
@@ -527,11 +527,11 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         if (updated)
         {
-            _ = await _contentfulManagementClient!.CreateOrUpdateEntry<dynamic>(fullEntry.Fields,
+            _ = await ContentfulManagementClient!.CreateOrUpdateEntry<dynamic>(fullEntry.Fields,
                     id: fullEntry.SystemProperties.Id,
                     version: fullEntry.SystemProperties.Version);
 
-            _ = await _contentfulManagementClient.PublishEntry(fullEntry.SystemProperties.Id,
+            _ = await ContentfulManagementClient.PublishEntry(fullEntry.SystemProperties.Id,
                     fullEntry.SystemProperties.Version!.Value + 1);
         }
     }

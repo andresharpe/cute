@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using Cute.Constants;
+using System.Text;
 
 namespace Cute.Services;
 
@@ -10,7 +11,7 @@ internal class ContentfulIdGenerator
 
     public static string NewId()
     {
-        var result = new StringBuilder("cute-");
+        var result = new StringBuilder($"{Globals.AppName}-");
 
         for (int i = 0; i < 22; i++)
         {

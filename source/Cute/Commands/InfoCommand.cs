@@ -8,12 +8,9 @@ namespace Cute.Commands;
 
 public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 {
-    private readonly ILogger<InfoCommand> _logger;
-
     public InfoCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<InfoCommand> logger)
         : base(console, tokenCache, logger)
     {
-        _logger = logger;
     }
 
     public class Settings : CommandSettings
@@ -53,9 +50,9 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
             .Spinner(Spinner.Known.Aesthetic)
             .StartAsync("Getting info...", async ctx =>
             {
-                var space = await _contentfulManagementClient.GetSpace(_spaceId);
+                var space = await ContentfulManagementClient.GetSpace(ContentfulSpaceId);
 
-                var contentTypes = (await _contentfulManagementClient.GetContentTypes(spaceId: _spaceId))
+                var contentTypes = (await ContentfulManagementClient.GetContentTypes(spaceId: ContentfulSpaceId))
                     .OrderBy(t => t.Name);
 
                 foreach (var contentType in contentTypes)
@@ -68,7 +65,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                     );
                 }
 
-                var locales = (await _contentfulManagementClient.GetLocalesCollection(spaceId: _spaceId))
+                var locales = (await ContentfulManagementClient.GetLocalesCollection(spaceId: ContentfulSpaceId))
                     .OrderBy(t => t.Name);
 
                 foreach (var locale in locales)
@@ -81,7 +78,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 
                 spaceTable.AddRow(
                     new Markup(space.Name, Globals.StyleAlert),
-                    new Markup(_spaceId, Globals.StyleNormal),
+                    new Markup(ContentfulSpaceId, Globals.StyleNormal),
                     typesTable,
                     localesTable
                 );

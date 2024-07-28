@@ -1,6 +1,7 @@
 ﻿using ClosedXML;
 using Contentful.Core;
 using Contentful.Core.Configuration;
+using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Cute.Config;
 using Cute.Constants;
@@ -21,15 +22,25 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
     private readonly ILogger _logger;
 
-    protected readonly ContentfulManagementClient _contentfulManagementClient;
+    private readonly ContentfulManagementClient _contentfulManagementClient;
+    protected ContentfulManagementClient ContentfulManagementClient => _contentfulManagementClient;
 
-    protected readonly ContentfulClient _contentfulClient;
+    private readonly ContentfulClient _contentfulClient;
+    protected ContentfulClient ContentfulClient => _contentfulClient;
 
-    protected readonly string _spaceId = string.Empty;
+    private readonly ContentfulOptions _contentfulOptions;
 
-    protected readonly string _environmentId = string.Empty;
+    protected string ContentfulSpaceId => _contentfulOptions.SpaceId;
 
-    protected User? _user;
+    protected string ContentfulEnvironmentId => _contentfulOptions.Environment;
+
+    private User _contentfulUser;
+
+    protected User ContentfulUser => _contentfulUser;
+
+    private Space _contentfulSpace;
+
+    protected Space ContentfulSpace => _contentfulSpace;
 
     protected readonly AppSettings _appSettings;
 
@@ -56,11 +67,7 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
             throw new CliException($"Invalid delivery api key. Use '{Globals.AppName} login' to connect to contentful first.");
         }
 
-        _spaceId = _appSettings.ContentfulDefaultSpace;
-
-        _environmentId = _appSettings.ContentfulDefaultEnvironment;
-
-        var contentfulOptions = new ContentfulOptions()
+        _contentfulOptions = new ContentfulOptions()
         {
             ManagementApiKey = _appSettings.ContentfulManagementApiKey,
             SpaceId = _appSettings.ContentfulDefaultSpace,
@@ -70,19 +77,23 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
             ResolveEntriesSelectively = true,
         };
 
-        _contentfulClient = new ContentfulClient(new HttpClient(), contentfulOptions);
+        _contentfulClient = new ContentfulClient(new HttpClient(), _contentfulOptions);
 
-        if (_contentfulClient is null)
+        if (ContentfulClient is null)
         {
             throw new CliException("Could not log into the Contentful Delivery API.");
         }
 
-        _contentfulManagementClient = new ContentfulManagementClient(new HttpClient(), contentfulOptions);
+        _contentfulManagementClient = new ContentfulManagementClient(new HttpClient(), _contentfulOptions);
 
         if (_contentfulManagementClient is null)
         {
             throw new CliException("Could not log into the Contentful Management API.");
         }
+
+        _contentfulSpace = new Space();
+
+        _contentfulUser = new User();
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
@@ -100,11 +111,15 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
         var table = new Table().NoBorder();
 
-        _user = await _contentfulManagementClient.GetCurrentUser();
+        _contentfulUser = await _contentfulManagementClient.GetCurrentUser();
 
-        _logger.LogInformation("Logging into Contentful space {space} environment {environment}", _spaceId, _environmentId);
+        _contentfulSpace = await _contentfulManagementClient.GetSpace(ContentfulSpaceId);
 
-        _logger.LogInformation("Logged in as user {name} with id {id}", _user.Email, _user.SystemProperties.Id);
+        _logger.LogInformation("Logging into Contentful space {name} (id: {space})", _contentfulSpace.Name, ContentfulSpaceId);
+
+        _logger.LogInformation("Using environment {environment}", ContentfulEnvironmentId);
+
+        _logger.LogInformation("Logged in as user {name} (id: {id})", _contentfulUser.Email, _contentfulUser.SystemProperties.Id);
 
         _logger.LogInformation("Starting command {command}", context.Name);
 
@@ -114,14 +129,15 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
         foreach (var prop in properties)
         {
-            var attr = prop.GetAttributes<CommandOptionAttribute>().FirstOrDefault();
+            var attr = prop.GetAttributes<CommandOptionAttribute>()
+                .FirstOrDefault()?
+                .LongNames.ToArray();
 
-            if (attr != null)
+            if (attr != null && attr.Length > 0)
             {
-                var longName = attr.LongNames.FirstOrDefault();
-                if (longName != null)
+                var option = attr[0];
+                if (option != null)
                 {
-                    var option = longName;
                     var value = prop.GetValue(settings);
                     _logger.LogInformation("Command option: {option} = {value}", option, value);
                     table.AddRow(

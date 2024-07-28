@@ -13,20 +13,6 @@ namespace Cute.Lib.GetDataAdapter;
 
 public class HttpDataAdapter
 {
-    private static readonly Dictionary<string, string?> _env;
-
-    static HttpDataAdapter()
-    {
-        _env = Environment.GetEnvironmentVariables()
-            .Cast<DictionaryEntry>()
-            .ToDictionary(e => (string)e.Key, e => e.Value?.ToString());
-
-        foreach (var (key, value) in DotEnv.Fluent().Read())
-        {
-            _env[key] = value;
-        }
-    }
-
     private readonly ContentfulManagementClient _contentfulManagementClient;
     private readonly Action<string> _displayAction;
 
@@ -183,7 +169,7 @@ public class HttpDataAdapter
 
             var scriptObjectInstance = new ScriptObject();
 
-            scriptObjectInstance.Import(new { config = new { env = _env } });
+            scriptObjectInstance.Import(new { config = new { env = Config.EnvironmentVars.GetAll() } });
 
             templateContext.PushGlobal(scriptObjectInstance);
 

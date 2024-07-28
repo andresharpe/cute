@@ -82,7 +82,7 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        var locales = await _contentfulManagementClient.GetLocalesCollection();
+        var locales = await ContentfulManagementClient.GetLocalesCollection();
 
         var defaultLocale = locales
             .First(l => l.Default)
@@ -94,7 +94,7 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
              .FieldEquals($"fields.{settings.JoinIdField}", settings.JoinId)
              .Build();
 
-        var joinEntries = await _contentfulManagementClient.GetEntriesCollection<Entry<JObject>>(joinQuery);
+        var joinEntries = await ContentfulManagementClient.GetEntriesCollection<Entry<JObject>>(joinQuery);
 
         if (!joinEntries.Any())
         {
@@ -120,9 +120,9 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 
         // Load contentId's
 
-        var source1ContentType = await _contentfulManagementClient.GetContentType(joinSource1ContentTypeId);
-        var source2ContentType = await _contentfulManagementClient.GetContentType(joinSource2ContentTypeId);
-        var targetContentType = await _contentfulManagementClient.GetContentType(joinTargetContentTypeId);
+        var source1ContentType = await ContentfulManagementClient.GetContentType(joinSource1ContentTypeId);
+        var source2ContentType = await ContentfulManagementClient.GetContentType(joinSource2ContentTypeId);
+        var targetContentType = await ContentfulManagementClient.GetContentType(joinTargetContentTypeId);
 
         var targetField1 = targetContentType.Fields
             .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(joinSource1ContentTypeId)))
@@ -157,15 +157,15 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
             ? null
             : b => b.FieldEquals("sys.id", settings.EntryId);
 
-        var targetData = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, joinTargetContentTypeId, targetContentType.DisplayField, queryConfigurator: queryConfigTarget)
+        var targetData = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinTargetContentTypeId, targetContentType.DisplayField, queryConfigurator: queryConfigTarget)
             .ToBlockingEnumerable()
             .ToDictionary(e => e.Item1["key"]!, e => new { Key = e.Item1["key"], Title = e.Item1["title"], Name = e.Item1["name"] });
 
-        var source1Data = ContentfulEntryEnumerator.DeliveryEntries<JObject>(_contentfulClient, joinSource1ContentTypeId, source1ContentType.DisplayField)
+        var source1Data = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, joinSource1ContentTypeId, source1ContentType.DisplayField)
             .ToBlockingEnumerable()
             .Where(e => source1AllKeys || source1Keys.Contains(e.Item1["key"]?.Value<string>()));
 
-        var source2Data = ContentfulEntryEnumerator.DeliveryEntries(_contentfulClient, joinSource2ContentTypeId, source2ContentType.DisplayField, queryConfigurator: queryConfigSource2)
+        var source2Data = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinSource2ContentTypeId, source2ContentType.DisplayField, queryConfigurator: queryConfigSource2)
             .ToBlockingEnumerable()
             .Where(e => source2AllKeys || source2Keys.Contains(e.Item1["key"]?.Value<string>()));
 
@@ -208,7 +208,7 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 
     private async Task UpdateAndPublishEntry(Entry<JObject> newEntry, string contentType)
     {
-        _ = await _contentfulManagementClient!.CreateOrUpdateEntry<JObject>(
+        _ = await ContentfulManagementClient!.CreateOrUpdateEntry<JObject>(
                 newEntry.Fields,
                 id: newEntry.SystemProperties.Id,
                 version: newEntry.SystemProperties.Version,
@@ -216,7 +216,7 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 
         try
         {
-            await _contentfulManagementClient.PublishEntry(newEntry.SystemProperties.Id, newEntry.SystemProperties.Version!.Value + 1);
+            await ContentfulManagementClient.PublishEntry(newEntry.SystemProperties.Id, newEntry.SystemProperties.Version!.Value + 1);
         }
         catch (ContentfulException ex)
         {

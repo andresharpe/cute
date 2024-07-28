@@ -15,12 +15,9 @@ namespace Cute.Commands;
 
 public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
-    private readonly ILogger<DownloadCommand> _logger;
-
     public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<DownloadCommand> logger)
         : base(console, tokenCache, logger)
     {
-        _logger = logger;
     }
 
     public class Settings : CommandSettings
@@ -85,10 +82,10 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 using var outputAdapter = OutputAdapterFactory.Create(settings.Format!.Value, settings.ContentType, settings.Path);
 
-                var contentInfo = await _contentfulManagementClient.GetContentType(settings.ContentType);
+                var contentInfo = await ContentfulManagementClient.GetContentType(settings.ContentType);
                 taskPrepare.Increment(40);
 
-                var locales = await _contentfulManagementClient.GetLocalesCollection();
+                var locales = await ContentfulManagementClient.GetLocalesCollection();
                 taskPrepare.Increment(40);
 
                 var serializer = new EntrySerializer(contentInfo, locales.Items);
@@ -99,7 +96,7 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 taskExtract.MaxValue = 1;
 
-                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulManagementClient, settings.ContentType, contentInfo.DisplayField))
+                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(ContentfulManagementClient, settings.ContentType, contentInfo.DisplayField))
                 {
                     if (taskExtract.MaxValue == 1)
                     {

@@ -30,17 +30,33 @@ public class PersistedTokenCache : IPersistedTokenCache
     {
         var protector = _provider.CreateProtector(ProtectorPurpose);
         var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), $".{tokenName}");
-        if (!File.Exists(path)) return null;
+        if (!File.Exists(path)) return TryLoadFromEnvironment();
         var content = await File.ReadAllTextAsync(path);
         try
         {
             var json = protector.Unprotect(content);
-            var settings = JsonConvert.DeserializeObject<AppSettings>(json);
-            return settings;
+            return JsonConvert.DeserializeObject<AppSettings>(json);
         }
         catch
         {
             throw new CliException($"The secure store may be corrupt. ({path})");
         }
+    }
+
+    private static AppSettings? TryLoadFromEnvironment()
+    {
+        var settings = new AppSettings().SetFromEnvironment();
+
+        if (string.IsNullOrEmpty(settings.ContentfulManagementApiKey))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(settings.ContentfulDeliveryApiKey))
+        {
+            return null;
+        }
+
+        return settings;
     }
 }

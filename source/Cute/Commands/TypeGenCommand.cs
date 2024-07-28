@@ -67,8 +67,8 @@ public class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
         var result = await base.ExecuteAsync(context, settings);
 
         List<ContentType> contentTypes = settings.ContentType == "*"
-            ? (await _contentfulManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
-            : [await _contentfulManagementClient.GetContentType(settings.ContentType)];
+            ? (await ContentfulManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
+            : [await ContentfulManagementClient.GetContentType(settings.ContentType)];
 
         ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language);
 

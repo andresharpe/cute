@@ -79,7 +79,7 @@ public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
             var taskMatchEntries = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.CoupleWithHeart} Matching[/]");
 
             var runner = new UploadCommandRunner.Builder()
-                .WithContentfulManagementClient(_contentfulManagementClient)
+                .WithContentfulManagementClient(ContentfulManagementClient)
                 .WithFilePath(settings.Path)
                 .WithFileFormat(settings.Format.Value)
                 .ForContentType(settings.ContentType)

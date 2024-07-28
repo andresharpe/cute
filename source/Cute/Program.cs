@@ -3,7 +3,6 @@ using Cute.Commands;
 using Cute.Constants;
 using Cute.Lib.Exceptions;
 using Cute.Services;
-using dotenv.net;
 using Microsoft.AspNetCore.DataProtection;
 using Serilog;
 using Serilog.Events;
@@ -11,7 +10,6 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Console.Cli.Help;
 using System.ClientModel;
-using System.Collections;
 using System.Runtime.InteropServices;
 using System.Text;
 using Yaml2Cf.Interceptors;
@@ -24,34 +22,24 @@ var isGettingVersion = (args.Length > 0 && args[0].Equals("version", StringCompa
 
 var isWebServer = (args.Length > 0 && args[0].Equals("webserver", StringComparison.OrdinalIgnoreCase));
 
-// Read environment and .env (dotenv) file
+// Get config from protected settings file and environment
 
-var env = Environment.GetEnvironmentVariables()
-    .Cast<DictionaryEntry>()
-    .ToDictionary(e => (string)e.Key, e => e.Value?.ToString());
+var dataProtectionProvider = DataProtectionProvider.Create(Globals.AppName);
 
-foreach (var (key, value) in DotEnv.Fluent().Read())
-{
-    env[key] = value;
-}
+var appSettings = await new PersistedTokenCache(dataProtectionProvider).LoadAsync(Globals.AppName);
 
 // Configure logging
 
 var loggerConfig = new LoggerConfiguration()
     .Enrich.FromLogContext();
 
-if (
-    env.TryGetValue("Cute__OpenTelemetryEndpoint", out var otEndpoint)
-    && otEndpoint is not null
-    && env.TryGetValue("Cute__OpenTelemetryApiKey", out var otApiKey)
-    && otApiKey is not null
-)
+if (appSettings?.OpenTelemetryEndpoint is not null && appSettings?.OpenTelemetryApiKey is not null)
 {
     loggerConfig.WriteTo.OpenTelemetry(x =>
     {
-        x.Endpoint = otEndpoint;
+        x.Endpoint = appSettings.OpenTelemetryEndpoint;
         x.Protocol = Serilog.Sinks.OpenTelemetry.OtlpProtocol.HttpProtobuf;
-        x.Headers = new Dictionary<string, string> { ["X-Seq-ApiKey"] = otApiKey };
+        x.Headers = new Dictionary<string, string> { ["X-Seq-ApiKey"] = appSettings.OpenTelemetryApiKey };
         x.ResourceAttributes = new Dictionary<string, object> { ["service.name"] = Globals.AppName };
         x.RestrictedToMinimumLevel = LogEventLevel.Information;
     });
@@ -85,8 +73,9 @@ if (isWebServer)
 
 var services = new ServiceCollection();
 services.AddSingleton<IConsoleWriter, ConsoleWriter>();
-services.AddSingleton(DataProtectionProvider.Create(Globals.AppName));
 services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
+services.AddSingleton(dataProtectionProvider);
+services.AddSingleton(appSettings ?? new());
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 
 // Build cli app with DI
