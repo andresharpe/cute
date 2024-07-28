@@ -7,6 +7,7 @@ using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Exceptions;
 using Cute.Services;
+using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Table = Spectre.Console.Table;
@@ -34,13 +35,24 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
     protected string ContentfulEnvironmentId => _contentfulOptions.Environment;
 
-    private User _contentfulUser;
+    private User _contentfulUser = new();
 
     protected User ContentfulUser => _contentfulUser;
 
-    private Space _contentfulSpace;
+    private Space _contentfulSpace = new();
 
     protected Space ContentfulSpace => _contentfulSpace;
+
+    private List<Locale> _contentfulLocales = [];
+
+    protected IEnumerable<Locale> Locales => _contentfulLocales;
+
+    private Locale _defaultLocale = new();
+
+    private string _defaultLocaleCode = "en";
+
+    protected Locale DefaultLocale => _defaultLocale;
+    protected string DefaultLocaleCode => _defaultLocaleCode;
 
     protected readonly AppSettings _appSettings;
 
@@ -90,10 +102,6 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
         {
             throw new CliException("Could not log into the Contentful Management API.");
         }
-
-        _contentfulSpace = new Space();
-
-        _contentfulUser = new User();
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
@@ -114,6 +122,12 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
         _contentfulUser = await _contentfulManagementClient.GetCurrentUser();
 
         _contentfulSpace = await _contentfulManagementClient.GetSpace(ContentfulSpaceId);
+
+        _contentfulLocales = [.. (await _contentfulManagementClient.GetLocalesCollection())];
+
+        _defaultLocale = _contentfulLocales.First(l => l.Default);
+
+        _defaultLocaleCode = _defaultLocale.Code;
 
         _logger.LogInformation("Logging into Contentful space {name} (id: {space})", _contentfulSpace.Name, ContentfulSpaceId);
 
@@ -158,5 +172,27 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
         _console.Write(table);
 
         _console.WriteBlankLine();
+    }
+
+    public string? GetString(Entry<JObject> entry, string key, string? localeCode = null)
+    {
+        localeCode ??= _defaultLocaleCode;
+        return entry.Fields[key]?[localeCode]?.Value<string>();
+    }
+
+    public float? GetFloat(Entry<JObject> entry, string key, string? localeCode = null)
+    {
+        localeCode ??= _defaultLocaleCode;
+        return entry.Fields[key]?[localeCode]?.Value<float>();
+    }
+
+    public U? GetObject<U>(Entry<JObject> entry, string key, string? localeCode = null)
+    {
+        localeCode ??= _defaultLocaleCode;
+        var token = entry.Fields[key]?[localeCode];
+
+        if (token == null) return default;
+
+        return token.ToObject<U>();
     }
 }

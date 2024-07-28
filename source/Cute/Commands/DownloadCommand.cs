@@ -83,12 +83,9 @@ public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
                 using var outputAdapter = OutputAdapterFactory.Create(settings.Format!.Value, settings.ContentType, settings.Path);
 
                 var contentInfo = await ContentfulManagementClient.GetContentType(settings.ContentType);
-                taskPrepare.Increment(40);
+                taskPrepare.Increment(80);
 
-                var locales = await ContentfulManagementClient.GetLocalesCollection();
-                taskPrepare.Increment(40);
-
-                var serializer = new EntrySerializer(contentInfo, locales.Items);
+                var serializer = new EntrySerializer(contentInfo, Locales);
 
                 outputAdapter.AddHeadings(serializer.ColumnFieldNames);
                 taskPrepare.Increment(20);

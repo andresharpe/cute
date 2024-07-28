@@ -1,10 +1,13 @@
 ﻿using Cute.Constants;
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Cute.Services;
 
-public class ConsoleWriter : IConsoleWriter
+public partial class ConsoleWriter : IConsoleWriter
 {
     public static bool EnableConsole { get; set; } = true;
 
@@ -26,6 +29,25 @@ public class ConsoleWriter : IConsoleWriter
     {
         Console?.WriteLine(text, Globals.StyleHeading);
         Logger?.LogInformation(message: text);
+    }
+
+    public void WriteHeading(string textTemplate, params object?[] args)
+    {
+        Console?.WriteLine(Format(textTemplate, args), Globals.StyleHeading);
+        Logger?.LogInformation(message: textTemplate, args: args);
+    }
+
+    private static string Format(string textTemplate, params object?[] args)
+    {
+        var matches = ParameterMatch().Matches(textTemplate);
+        var sb = new StringBuilder(textTemplate);
+        var i = 0;
+        foreach (Match m in matches)
+        {
+            if (i > args.Length - 1) break;
+            sb.Replace(m.Value, args[i++]?.ToString());
+        }
+        return sb.ToString();
     }
 
     public void WriteSubHeading(string text)
@@ -73,6 +95,12 @@ public class ConsoleWriter : IConsoleWriter
         Logger?.LogInformation(message: text);
     }
 
+    public void WriteNormal(string textTemplate, params object?[] args)
+    {
+        Console?.WriteLine(Format(textTemplate, args), Globals.StyleNormal);
+        Logger?.LogInformation(message: textTemplate, args: args);
+    }
+
     public void WriteLine()
     {
         Console?.WriteLine();
@@ -94,4 +122,7 @@ public class ConsoleWriter : IConsoleWriter
         Console?.WriteException(ex, settings);
         Logger?.LogError(ex, "An error occured.");
     }
+
+    [GeneratedRegex(@"\{(?<parameter>\w+)\}")]
+    private static partial Regex ParameterMatch();
 }

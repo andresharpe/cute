@@ -21,9 +21,13 @@ public interface IConsoleWriter
 
     void WriteHeading(string text);
 
+    void WriteHeading(string textTemplate, params object?[] values);
+
     void WriteSubHeading(string text);
 
     void WriteNormal(string text);
+
+    void WriteNormal(string textTemplate, params object?[] values);
 
     void WriteRuler();
 

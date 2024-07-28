@@ -20,7 +20,7 @@ var exitValue = 0;
 
 var isGettingVersion = args.Contains("version");
 
-var isWebServer = args.Contains("webserver") || args.Contains("--as-server");
+var isWebServer = (args.Contains("webserver") || args.Contains("--as-server")) && !args.Contains("--console");
 
 // Get config from protected settings file and environment
 

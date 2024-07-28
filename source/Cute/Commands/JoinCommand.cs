@@ -17,12 +17,9 @@ namespace Cute.Commands;
 
 public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 {
-    private readonly ILogger<JoinCommand> _logger;
-
     public JoinCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<JoinCommand> logger)
         : base(console, tokenCache, logger)
     {
-        _logger = logger;
     }
 
     public class Settings : CommandSettings
@@ -192,7 +189,7 @@ public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 
                 var newEntry = targetSerializer.DeserializeEntry(newFlatEntry);
 
-                _console.WriteNormal($"Creating {joinTargetContentTypeId} '{joinKey}' - '{joinTitle}'");
+                _console.WriteNormal("Creating {joinTargetContentTypeId} '{joinKey}' - '{joinTitle}'", joinTargetContentTypeId, joinKey, joinTitle);
 
                 await UpdateAndPublishEntry(newEntry, joinTargetContentTypeId);
 

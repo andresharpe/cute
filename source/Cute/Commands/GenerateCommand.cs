@@ -113,13 +113,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
-        var locales = await ContentfulManagementClient.GetLocalesCollection();
-
-        var defaultLocale = locales
-            .First(l => l.Default)
-            .Code;
-
-        var allLocaleCodes = locales.Select(locales => locales.Code).ToHashSet();
+        var allLocaleCodes = Locales.Select(locales => locales.Code).ToHashSet();
 
         var promptQuery = new QueryBuilder<Dictionary<string, object?>>()
              .ContentTypeIs(settings.PromptContentType)
@@ -136,29 +130,28 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var promptEntry = promptEntries.First();
 
-        var promptContentTypeId = promptEntry.Fields[settings.OutputContentType]?[defaultLocale]?.Value<string>()
+        var promptContentTypeId = GetString(promptEntry, settings.OutputContentType)
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentTypeId");
 
-        var promptContentFieldId = promptEntry.Fields[settings.OutputContentField]?[defaultLocale]?.Value<string>()
+        var promptContentFieldId = GetString(promptEntry, settings.OutputContentField)
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentFieldId");
 
-        var promptSystemMessage = promptEntry.Fields[settings.SystemMessageField]?[defaultLocale]?.Value<string>()
+        var promptSystemMessage = GetString(promptEntry, settings.SystemMessageField)
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid systemMessage");
 
-        var promptMainPrompt = promptEntry.Fields[settings.PromptField]?[defaultLocale]?.Value<string>()
+        var promptMainPrompt = GetString(promptEntry, settings.PromptField)
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid prompt");
 
-        var promptTemperature = promptEntry.Fields[settings.TemperatureField]?[defaultLocale]?.Value<float>()
+        var promptTemperature = GetFloat(promptEntry, settings.TemperatureField)
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid temperature");
 
-        var promptFrequencyPenalty = promptEntry.Fields[settings.FrequencyPenaltyField]?[defaultLocale]?.Value<float>()
+        var promptFrequencyPenalty = GetFloat(promptEntry, settings.FrequencyPenaltyField)
             ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid frequency penalty");
 
-        var generatorLanguage = promptEntry.Fields[settings.GeneratorLanguageField]?[defaultLocale]?.ToObject<Reference>()
+        var generatorLanguage = GetObject<Reference>(promptEntry, settings.GeneratorLanguageField)
             ?? throw new CliException($"Prompt '{settings.GeneratorLanguageField}' does not contain a valid language reference");
 
-        var translatorLanguages = promptEntry.Fields[settings.TranslatorLanguagesField]?[defaultLocale]?.ToObject<Reference[]>()
-            ?? [];
+        var translatorLanguages = GetObject<Reference[]>(promptEntry, settings.TranslatorLanguagesField) ?? [];
 
         var contentType = await ContentfulManagementClient.GetContentType(promptContentTypeId);
 
@@ -168,8 +161,9 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         // Generator language settings
 
         var generatorLanguageEntry = (JObject)(await ContentfulManagementClient.GetEntry(generatorLanguage.Sys.Id)).Fields;
-        var generatorLanguageCode = generatorLanguageEntry["iso2code"]?[defaultLocale]?.ToString() ?? defaultLocale;
-        var generatorLanguageName = generatorLanguageEntry["name"]?[defaultLocale]?.ToString();
+        var glEntry = new Entry<JObject> { Fields = generatorLanguageEntry };
+        var generatorLanguageCode = GetString(glEntry, "iso2code") ?? DefaultLocaleCode;
+        var generatorLanguageName = GetString(glEntry, "name");
         if (!allLocaleCodes.Contains(generatorLanguageCode) || generatorLanguageName is null)
         {
             throw new CliException($"Generator locale '{generatorLanguageCode}' does not exist in your Contentful space.");
@@ -181,8 +175,9 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         foreach (var language in translatorLanguages)
         {
             var translatorLanguageEntry = (JObject)(await ContentfulManagementClient.GetEntry(language.Sys.Id)).Fields;
-            var translatorLanguageCode = translatorLanguageEntry["iso2code"]?[defaultLocale]?.ToString() ?? defaultLocale;
-            var translatorLanguageName = translatorLanguageEntry["name"]?[defaultLocale]?.ToString();
+            var tlEntry = new Entry<JObject> { Fields = translatorLanguageEntry };
+            var translatorLanguageCode = GetString(tlEntry, "iso2code") ?? DefaultLocaleCode;
+            var translatorLanguageName = GetString(tlEntry, "name");
             if (!allLocaleCodes.Contains(translatorLanguageCode) || translatorLanguageName is null)
             {
                 throw new CliException($"Translator locale '{translatorLanguageCode}' does not exist in your Contentful space.");
@@ -221,8 +216,6 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var entries = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, contentType.SystemProperties.Id, contentType.DisplayField,
             queryConfigurator: queryConfigEntry ?? queryConfigRelatedEntry);
-
-        var allEntries = entries.ToBlockingEnumerable().ToList();
 
         var skipped = 0;
         var limit = 0;
@@ -354,7 +347,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
     {
         _console.WriteBlankLine();
 
-        _console.WriteHeading(GetPropertyValue(entry, contentType.DisplayField)?.ToString() ?? string.Empty);
+        _console.WriteHeading("{displayField}", GetPropertyValue(entry, contentType.DisplayField)?.ToString());
 
         _console.WriteBlankLine();
 
@@ -451,7 +444,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         foreach (var (languageCode, languageName) in translatorLanguageCodeAndName)
         {
-            if (!string.IsNullOrEmpty(fullEntry.Fields[promptContentFieldId]?[languageCode]?.Value<string>()))
+            if (!string.IsNullOrEmpty(GetString(fullEntry, promptContentFieldId, languageCode)))
             {
                 continue;
             }
@@ -460,7 +453,7 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
             _console.WriteBlankLine();
 
-            _console.WriteHeading(fullEntry.Fields[contentType.DisplayField]?[generatorLanguageCode]?.Value<string>() ?? string.Empty);
+            _console.WriteHeading("{displayField} > {language}", GetString(fullEntry, contentType.DisplayField), languageName);
 
             AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
             _console.WriteDim(prompt);
