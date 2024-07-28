@@ -1,7 +1,6 @@
 ﻿using Cute.Constants;
 using Spectre.Console;
 using Spectre.Console.Rendering;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -33,11 +32,12 @@ public partial class ConsoleWriter : IConsoleWriter
 
     public void WriteHeading(string textTemplate, params object?[] args)
     {
-        Console?.WriteLine(Format(textTemplate, args), Globals.StyleHeading);
+        Console?.MarkupLine($"Thus is a [underline {Globals.StyleAlertAccent.Foreground}]test[/]");
+        Console?.WriteLine(Format(textTemplate, Globals.StyleHeading, args));
         Logger?.LogInformation(message: textTemplate, args: args);
     }
 
-    private static string Format(string textTemplate, params object?[] args)
+    private static string Format(string textTemplate, Style style, params object?[] args)
     {
         var matches = ParameterMatch().Matches(textTemplate);
         var sb = new StringBuilder(textTemplate);
@@ -45,8 +45,10 @@ public partial class ConsoleWriter : IConsoleWriter
         foreach (Match m in matches)
         {
             if (i > args.Length - 1) break;
-            sb.Replace(m.Value, args[i++]?.ToString());
+            sb.Replace(m.Value, $"[{Globals.StyleHeading.Foreground}]{args[i++]?.ToString()}[/]");
         }
+        sb.Insert(0, $"[{style.Foreground}]");
+        sb.Append("[/]");
         return sb.ToString();
     }
 
@@ -97,7 +99,7 @@ public partial class ConsoleWriter : IConsoleWriter
 
     public void WriteNormal(string textTemplate, params object?[] args)
     {
-        Console?.WriteLine(Format(textTemplate, args), Globals.StyleNormal);
+        Console?.MarkupLine(Format(textTemplate, Globals.StyleNormal, args));
         Logger?.LogInformation(message: textTemplate, args: args);
     }
 

@@ -20,7 +20,7 @@ var exitValue = 0;
 
 var isGettingVersion = args.Contains("version");
 
-var isWebServer = (args.Contains("webserver") || args.Contains("--as-server")) && !args.Contains("--console");
+var isServer = args.Contains("--as-server") && !args.Contains("--console-output");
 
 // Get config from protected settings file and environment
 
@@ -45,7 +45,7 @@ if (appSettings?.OpenTelemetryEndpoint is not null && appSettings?.OpenTelemetry
     });
 }
 
-if (isWebServer)
+if (isServer)
 {
     loggerConfig.WriteTo.Console(
         outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}",
@@ -64,7 +64,7 @@ if (!isGettingVersion)
 
 // Surpress pretty console for webserver
 
-if (isWebServer)
+if (isServer)
 {
     ConsoleWriter.EnableConsole = false;
 }

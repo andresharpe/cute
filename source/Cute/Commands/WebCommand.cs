@@ -55,7 +55,7 @@ public abstract class WebCommand<TSettings> : LoggedInCommand<TSettings> where T
 
         webApp.MapHealthChecks("/healthz");
 
-        _console.WriteNormal("Waiting for Contentful webhook trigger...");
+        _console.WriteNormal("Ready...");
 
         try
         {

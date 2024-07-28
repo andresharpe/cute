@@ -1,6 +1,7 @@
 ﻿using Contentful.Core.Errors;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
+using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.GetDataAdapter;
@@ -102,7 +103,7 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
         foreach (var getDataEntry in _cronTasks.Values)
         {
-            await ProcessGetDataEntry(getDataEntry, settings);
+            await ProcessGetDataEntry(getDataEntry);
         }
 
         return 0;
@@ -240,7 +241,7 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
     private async Task ProcessGetDataEntryAndDisplaySchedule(Entry<JObject> entry, Settings settings)
     {
-        await ProcessGetDataEntry(entry, settings);
+        await ProcessGetDataEntry(entry);
 
         DisplaySchedule();
     }
@@ -261,26 +262,28 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             var cronSchedule = frequency?.ToCronExpression().ToString();
 
-            _logger.LogInformation("Get data '{getDataId}' scheduled to run on schedule '{frequency} ({cronSchedule})'",
+            _console.WriteNormal("Get data '{getDataId}' scheduled to run on schedule '{frequency} ({cronSchedule})'",
                 getDataId, frequency, cronSchedule);
         }
     }
 
-    private async Task ProcessGetDataEntry(Entry<JObject> getDataEntry, Settings settings)
+    private async Task ProcessGetDataEntry(Entry<JObject> getDataEntry)
     {
+        if (_settings is null) return;
+
         var yamlDeserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
         var dataAdapter = new HttpDataAdapter(ContentfulManagementClient, _console.WriteNormal);
 
-        var getDataId = GetString(getDataEntry, settings.GetDataIdField);
+        var getDataId = GetString(getDataEntry, _settings.GetDataIdField);
 
         if (getDataId is null) return;
 
-        _logger.LogInformation("Started '{getDataId}'", getDataId);
+        _console.WriteNormal("Started '{getDataId}'", getDataId);
 
-        var yaml = GetString(getDataEntry, settings.GetDataYamlField);
+        var yaml = GetString(getDataEntry, _settings.GetDataYamlField);
 
         if (yaml is null) return;
 
@@ -298,7 +301,7 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
         if (dataResults is null) return;
 
-        _console.WriteNormal($"{dataResults.Count} new {contentType.SystemProperties.Id} entries...");
+        _console.WriteNormal("{Count} new {Id} entries...", dataResults.Count, contentType.SystemProperties.Id);
 
         _ = await CompareAndUpdateResults(
             dataResults, serializer,
@@ -308,7 +311,7 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
             ignoreFields: ignoreFields
         );
 
-        _logger.LogInformation("Completed '{getDataId}'", getDataId);
+        _console.WriteNormal("Completed '{getDataId}'", getDataId);
     }
 
     private static void ValidateDataAdapter(string fileName, HttpDataAdapterConfig adapter, ContentType contentType, EntrySerializer serializer)
@@ -347,7 +350,9 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             if (newRecord is null) continue;
 
-            _console.WriteNormal($"Contentful {contentTypeId} '{key}' matched with new entry '{newRecord[contentDisplayField]}'");
+            var entryName = newRecord[contentDisplayField];
+
+            _console.WriteNormal("Contentful {contentTypeId} '{key}' matched with new entry '{entryName}'", contentTypeId, key, entryName);
 
             var isChanged = false;
             Dictionary<string, (string?, string?)> changedFields = [];
