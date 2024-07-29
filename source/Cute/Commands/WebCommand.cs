@@ -1,5 +1,7 @@
 ﻿using ClosedXML;
+using Cute.Config;
 using Cute.Constants;
+using Cute.Lib.Contentful;
 using Cute.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -15,9 +17,9 @@ public abstract class WebCommand<TSettings> : LoggedInCommand<TSettings> where T
 
     private CommandContext? _commandContext;
 
-    public WebCommand(IConsoleWriter console, IPersistedTokenCache tokenCache,
-        Microsoft.Extensions.Logging.ILogger logger)
-            : base(console, tokenCache, logger)
+    public WebCommand(IConsoleWriter console, Microsoft.Extensions.Logging.ILogger logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
     }

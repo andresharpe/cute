@@ -36,4 +36,8 @@ public interface IConsoleWriter
     void WriteLine(string v, Style styleAlert);
 
     void WriteException(Exception ex, ExceptionSettings settings);
+
+    void WriteNormalWithHighlights(FormattableString text, Style highlightStyle);
+
+    void WriteHeadingWithHighlights(FormattableString text, Style highlightStyle);
 }

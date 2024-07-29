@@ -1,4 +1,5 @@
 ﻿using Contentful.Core.Models;
+using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Enums;
@@ -13,10 +14,11 @@ using System.ComponentModel;
 
 namespace Cute.Commands;
 
-public class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
+public sealed class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 {
-    public DownloadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<DownloadCommand> logger)
-        : base(console, tokenCache, logger)
+    public DownloadCommand(IConsoleWriter console, ILogger<DownloadCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        : base(console, logger, contentfulConnection, appSettings)
     {
     }
 

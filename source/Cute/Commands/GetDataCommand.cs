@@ -1,6 +1,7 @@
 ﻿using Contentful.Core.Errors;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
+using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
@@ -20,7 +21,7 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace Cute.Commands;
 
-public class GetDataCommand : WebCommand<GetDataCommand.Settings>
+public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 {
     private readonly ILogger<GetDataCommand> _logger;
 
@@ -32,9 +33,9 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
     private Settings? _settings;
 
-    public GetDataCommand(IConsoleWriter console, IPersistedTokenCache tokenCache,
-        ILogger<GetDataCommand> logger, ILogger<Scheduler> cronLogger)
-        : base(console, tokenCache, logger)
+    public GetDataCommand(IConsoleWriter console, ILogger<GetDataCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings, ILogger<Scheduler> cronLogger)
+        : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
         _cronLogger = cronLogger;
@@ -105,6 +106,9 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
         {
             await ProcessGetDataEntry(getDataEntry);
         }
+
+        _console.WriteBlankLine();
+        _console.WriteHeading("Completed 'getdata'.");
 
         return 0;
     }
@@ -275,13 +279,15 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
-        var dataAdapter = new HttpDataAdapter(ContentfulManagementClient, _console.WriteNormal);
+        var dataAdapter = new HttpDataAdapter(ContentfulManagementClient, _console.WriteDim);
 
         var getDataId = GetString(getDataEntry, _settings.GetDataIdField);
 
         if (getDataId is null) return;
 
-        _console.WriteNormal("Started '{getDataId}'", getDataId);
+        AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
+
+        _console.WriteNormal("Started getting data '{getDataId}'", getDataId);
 
         var yaml = GetString(getDataEntry, _settings.GetDataYamlField);
 
@@ -311,7 +317,8 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
             ignoreFields: ignoreFields
         );
 
-        _console.WriteNormal("Completed '{getDataId}'", getDataId);
+        _console.WriteNormal("Completed getting data for '{getDataId}'", getDataId);
+        _console.WriteBlankLine();
     }
 
     private static void ValidateDataAdapter(string fileName, HttpDataAdapterConfig adapter, ContentType contentType, EntrySerializer serializer)
@@ -380,10 +387,12 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             if (isChanged)
             {
-                _console.WriteNormal($"Contentful {contentTypeId} '{key}' was updated by new entry '{newRecord[contentDisplayField]}'");
+                var newEntryName = newRecord[contentDisplayField];
+
+                _console.WriteNormal("Contentful {contentTypeId} '{key}' matched with new entry '{newEntryName}'", contentTypeId, key, newEntryName);
                 foreach (var (fieldname, value) in changedFields)
                 {
-                    _console.WriteNormal($"...field '{fieldname}' changed from '{value.Item1}' to '{value.Item2}'");
+                    _console.WriteNormal("...field '{fieldname}' changed from '{value.Item1}' to '{value.Item2}'", fieldname, value.Item1, value.Item2);
                 }
                 await UpdateAndPublishEntry(contentSerializer.DeserializeEntry(cfEntry), contentTypeId);
             }
@@ -404,7 +413,8 @@ public class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             var newEntry = contentSerializer.DeserializeEntry(newContentfulRecord);
 
-            _console.WriteNormal($"Creating {contentTypeId} '{newRecord[contentKeyField]}' - '{newRecord[contentDisplayField]}'");
+            _console.WriteNormal("Creating {contentTypeId} '{newRecord[contentKeyField]}' - '{newRecord[contentDisplayField]}'",
+                contentTypeId, newRecord[contentKeyField], newRecord[contentDisplayField]);
 
             await UpdateAndPublishEntry(newEntry, contentTypeId);
 

@@ -1,11 +1,13 @@
-﻿using Cute.Constants;
+﻿using Contentful.Core.Configuration;
+using Cute.Constants;
 using Cute.Lib.Config;
+using Cute.Lib.Contentful;
 using Cute.Lib.Extensions;
 using System.Runtime.Serialization;
 
 namespace Cute.Config;
 
-public class AppSettings
+public class AppSettings : IContentfulOptionsProvider
 {
     public string ContentfulDefaultSpace { get; set; } = default!;
     public string ContentfulDefaultEnvironment { get; set; } = default!;
@@ -41,5 +43,18 @@ public class AppSettings
             }
         }
         return this;
+    }
+
+    public ContentfulOptions GetContentfulOptions()
+    {
+        return new ContentfulOptions()
+        {
+            ManagementApiKey = ContentfulManagementApiKey,
+            SpaceId = ContentfulDefaultSpace,
+            DeliveryApiKey = ContentfulDeliveryApiKey,
+            PreviewApiKey = ContentfulPreviewApiKey,
+            Environment = ContentfulDefaultEnvironment,
+            ResolveEntriesSelectively = true,
+        };
     }
 }

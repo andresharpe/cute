@@ -3,13 +3,16 @@ using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Cute.Lib.Extensions;
+using Cute.Config;
+using Cute.Lib.Contentful;
 
 namespace Cute.Commands;
 
-public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
+public sealed class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 {
-    public InfoCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<InfoCommand> logger)
-        : base(console, tokenCache, logger)
+    public InfoCommand(IConsoleWriter console, ILogger<InfoCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        : base(console, logger, contentfulConnection, appSettings)
     {
     }
 
@@ -21,14 +24,19 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
     {
         _ = await base.ExecuteAsync(context, settings);
 
-        var spaceTable = new Table()
+        var topTable = new Table()
             .RoundedBorder()
             .BorderColor(Globals.StyleDim.Foreground);
 
-        spaceTable.AddColumn(new TableColumn(new Text("Space", Globals.StyleSubHeading)));
-        spaceTable.AddColumn(new TableColumn(new Text("Id", Globals.StyleSubHeading)));
-        spaceTable.AddColumn(new TableColumn(new Text("Content Types", Globals.StyleSubHeading)));
-        spaceTable.AddColumn(new TableColumn(new Text("Locales", Globals.StyleSubHeading)));
+        topTable.AddColumn(new TableColumn(new Text("Space", Globals.StyleSubHeading)));
+        topTable.AddColumn(new TableColumn(new Text("Id", Globals.StyleSubHeading)));
+
+        var mainTable = new Table()
+            .RoundedBorder()
+            .BorderColor(Globals.StyleDim.Foreground);
+
+        mainTable.AddColumn(new TableColumn(new Text("Content Types", Globals.StyleSubHeading)));
+        mainTable.AddColumn(new TableColumn(new Text("Locales", Globals.StyleSubHeading)));
 
         var typesTable = new Table()
             .RoundedBorder()
@@ -50,7 +58,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
             .Spinner(Spinner.Known.Aesthetic)
             .StartAsync("Getting info...", async ctx =>
             {
-                var space = await ContentfulManagementClient.GetSpace(ContentfulSpaceId);
+                var space = this.ContentfulSpace;
 
                 var contentTypes = (await ContentfulManagementClient.GetContentTypes(spaceId: ContentfulSpaceId))
                     .OrderBy(t => t.Name);
@@ -76,15 +84,19 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                     );
                 }
 
-                spaceTable.AddRow(
+                topTable.AddRow(
                     new Markup(space.Name, Globals.StyleAlert),
-                    new Markup(ContentfulSpaceId, Globals.StyleNormal),
+                    new Markup(ContentfulSpaceId, Globals.StyleNormal)
+                );
+
+                mainTable.AddRow(
                     typesTable,
                     localesTable
                 );
             });
 
-        AnsiConsole.Write(spaceTable);
+        AnsiConsole.Write(topTable);
+        AnsiConsole.Write(mainTable);
 
         return 0;
     }

@@ -2,6 +2,7 @@
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
+using Cute.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Serializers;
@@ -15,10 +16,11 @@ namespace Cute.Commands;
 
 // generate --join-key ContentGeo.BusinessRationale
 
-public class JoinCommand : LoggedInCommand<JoinCommand.Settings>
+public sealed class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 {
-    public JoinCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<JoinCommand> logger)
-        : base(console, tokenCache, logger)
+    public JoinCommand(IConsoleWriter console, ILogger<JoinCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        : base(console, logger, contentfulConnection, appSettings)
     {
     }
 

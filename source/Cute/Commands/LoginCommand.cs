@@ -10,7 +10,7 @@ using System.ComponentModel;
 
 namespace Cute.Commands;
 
-public class LoginCommand : AsyncCommand<LoginCommand.Settings>
+public sealed class LoginCommand : AsyncCommand<LoginCommand.Settings>
 {
     private const string _contentfulPatPrefix = "CFPAT-";
     private const int _contentfulPatLength = 49;

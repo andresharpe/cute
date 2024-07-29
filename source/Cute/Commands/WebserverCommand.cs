@@ -1,14 +1,15 @@
-﻿using Cute.Services;
+﻿using Cute.Config;
+using Cute.Lib.Contentful;
+using Cute.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using System;
 using System.ComponentModel;
 
 namespace Cute.Commands;
 
-public class WebserverCommand : WebCommand<WebserverCommand.Settings>
+public sealed class WebserverCommand : WebCommand<WebserverCommand.Settings>
 {
     private static readonly JsonSerializerSettings _jsonSettings = new() { ContractResolver = new CamelCasePropertyNamesContractResolver() };
 
@@ -16,9 +17,9 @@ public class WebserverCommand : WebCommand<WebserverCommand.Settings>
 
     private readonly ILogger<WebserverCommand> _logger;
 
-    public WebserverCommand(IConsoleWriter console, IPersistedTokenCache tokenCache,
-        ICommandApp commandApp, ILogger<WebserverCommand> logger)
-            : base(console, tokenCache, logger)
+    public WebserverCommand(IConsoleWriter console, ILogger<WebserverCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings, ICommandApp commandApp)
+        : base(console, logger, contentfulConnection, appSettings)
     {
         _commandApp = commandApp;
 

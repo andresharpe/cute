@@ -3,7 +3,7 @@ using Spectre.Console.Cli;
 
 namespace Cute.Commands;
 
-public class VersionCommand : AsyncCommand<VersionCommand.Settings>
+public sealed class VersionCommand : AsyncCommand<VersionCommand.Settings>
 {
     private readonly IConsoleWriter _console;
 

@@ -5,6 +5,7 @@ using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Cute.Config;
 using Cute.Constants;
+using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
@@ -19,89 +20,45 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 {
     protected readonly IConsoleWriter _console;
 
-    protected readonly IPersistedTokenCache _tokenCache;
-
     private readonly ILogger _logger;
 
-    private readonly ContentfulManagementClient _contentfulManagementClient;
-    protected ContentfulManagementClient ContentfulManagementClient => _contentfulManagementClient;
-
-    private readonly ContentfulClient _contentfulClient;
-    protected ContentfulClient ContentfulClient => _contentfulClient;
-
-    private readonly ContentfulOptions _contentfulOptions;
-
-    protected string ContentfulSpaceId => _contentfulOptions.SpaceId;
-
-    protected string ContentfulEnvironmentId => _contentfulOptions.Environment;
+    private readonly ContentfulConnection _contentfulConnection;
 
     private User _contentfulUser = new();
 
-    protected User ContentfulUser => _contentfulUser;
-
     private Space _contentfulSpace = new();
 
-    protected Space ContentfulSpace => _contentfulSpace;
-
     private List<Locale> _contentfulLocales = [];
-
-    protected IEnumerable<Locale> Locales => _contentfulLocales;
 
     private Locale _defaultLocale = new();
 
     private string _defaultLocaleCode = "en";
 
+    protected ContentfulManagementClient ContentfulManagementClient => _contentfulConnection.ManagementClient;
+    protected ContentfulClient ContentfulClient => _contentfulConnection.DeliveryClient;
+    protected ContentfulOptions ContentfulOptions => _contentfulConnection.Options;
+    protected string ContentfulSpaceId => ContentfulOptions.SpaceId;
+    protected string ContentfulEnvironmentId => ContentfulOptions.Environment;
+    protected User ContentfulUser => _contentfulUser;
+    protected Space ContentfulSpace => _contentfulSpace;
+    protected IEnumerable<Locale> Locales => _contentfulLocales;
     protected Locale DefaultLocale => _defaultLocale;
     protected string DefaultLocaleCode => _defaultLocaleCode;
 
     protected readonly AppSettings _appSettings;
 
-    public LoggedInCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger logger)
+    public LoggedInCommand(IConsoleWriter console, ILogger logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings)
     {
         _console = console;
 
         _console.Logger = logger;
 
-        _tokenCache = tokenCache;
-
         _logger = logger;
 
-        _appSettings = _tokenCache.LoadAsync(Globals.AppName).Result
-            ?? throw new CliException($"Use '{Globals.AppName} login' to connect to contentful first.");
+        _contentfulConnection = contentfulConnection;
 
-        if (string.IsNullOrEmpty(_appSettings.ContentfulManagementApiKey))
-        {
-            throw new CliException($"Invalid management api key. Use '{Globals.AppName} login' to connect to contentful first.");
-        }
-
-        if (string.IsNullOrEmpty(_appSettings.ContentfulDeliveryApiKey))
-        {
-            throw new CliException($"Invalid delivery api key. Use '{Globals.AppName} login' to connect to contentful first.");
-        }
-
-        _contentfulOptions = new ContentfulOptions()
-        {
-            ManagementApiKey = _appSettings.ContentfulManagementApiKey,
-            SpaceId = _appSettings.ContentfulDefaultSpace,
-            DeliveryApiKey = _appSettings.ContentfulDeliveryApiKey,
-            PreviewApiKey = _appSettings.ContentfulPreviewApiKey,
-            Environment = _appSettings.ContentfulDefaultEnvironment,
-            ResolveEntriesSelectively = true,
-        };
-
-        _contentfulClient = new ContentfulClient(new HttpClient(), _contentfulOptions);
-
-        if (ContentfulClient is null)
-        {
-            throw new CliException("Could not log into the Contentful Delivery API.");
-        }
-
-        _contentfulManagementClient = new ContentfulManagementClient(new HttpClient(), _contentfulOptions);
-
-        if (_contentfulManagementClient is null)
-        {
-            throw new CliException("Could not log into the Contentful Management API.");
-        }
+        _appSettings = appSettings;
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
@@ -119,11 +76,13 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
         var table = new Table().NoBorder();
 
-        _contentfulUser = await _contentfulManagementClient.GetCurrentUser();
+        var showTable = false;
 
-        _contentfulSpace = await _contentfulManagementClient.GetSpace(ContentfulSpaceId);
+        _contentfulUser = await ContentfulManagementClient.GetCurrentUser();
 
-        _contentfulLocales = [.. (await _contentfulManagementClient.GetLocalesCollection())];
+        _contentfulSpace = await ContentfulManagementClient.GetSpace(ContentfulSpaceId);
+
+        _contentfulLocales = [.. (await ContentfulManagementClient.GetLocalesCollection())];
 
         _defaultLocale = _contentfulLocales.First(l => l.Default);
 
@@ -159,6 +118,7 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
                         new Markup($"=", Globals.StyleDim),
                         new Markup($"{value}", Globals.StyleNormal)
                     );
+                    showTable = true;
                 }
             }
         }
@@ -169,9 +129,12 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
         _console.WriteBlankLine();
 
-        _console.Write(table);
+        if (showTable)
+        {
+            _console.Write(table);
 
-        _console.WriteBlankLine();
+            _console.WriteBlankLine();
+        }
     }
 
     public string? GetString(Entry<JObject> entry, string key, string? localeCode = null)

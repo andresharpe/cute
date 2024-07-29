@@ -4,6 +4,7 @@ using Contentful.Core;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
+using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
@@ -20,17 +21,14 @@ using Text = Spectre.Console.Text;
 
 namespace Cute.Commands;
 
-// generate --prompt-id DataGeo.BusinessRationale
-// generate --prompt-id ContentGeo.BusinessRationale
-
-public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
+public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
     private readonly ILogger<GenerateCommand> _logger;
     private readonly AzureTranslator _translator;
 
-    public GenerateCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<GenerateCommand> logger,
-        AzureTranslator translator)
-        : base(console, tokenCache, logger)
+    public GenerateCommand(IConsoleWriter console, ILogger<GenerateCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings, AzureTranslator translator)
+        : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
         _translator = translator;

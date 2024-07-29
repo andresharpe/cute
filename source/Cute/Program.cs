@@ -1,6 +1,7 @@
 ﻿using Contentful.Core.Errors;
 using Cute.Commands;
 using Cute.Constants;
+using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Services;
 using Microsoft.AspNetCore.DataProtection;
@@ -28,12 +29,14 @@ var dataProtectionProvider = DataProtectionProvider.Create(Globals.AppName);
 
 var appSettings = await new PersistedTokenCache(dataProtectionProvider).LoadAsync(Globals.AppName);
 
+appSettings ??= new();
+
 // Configure logging
 
 var loggerConfig = new LoggerConfiguration()
     .Enrich.FromLogContext();
 
-if (appSettings?.OpenTelemetryEndpoint is not null && appSettings?.OpenTelemetryApiKey is not null)
+if (appSettings.OpenTelemetryEndpoint is not null && appSettings.OpenTelemetryApiKey is not null)
 {
     loggerConfig.WriteTo.OpenTelemetry(x =>
     {
@@ -75,10 +78,13 @@ var services = new ServiceCollection();
 services.AddSingleton<IConsoleWriter, ConsoleWriter>();
 services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
 services.AddSingleton(dataProtectionProvider);
-services.AddSingleton(appSettings ?? new());
+services.AddSingleton(appSettings);
+services.AddSingleton<IContentfulOptionsProvider>(appSettings);
 services.AddSingleton<AzureTranslator>();
+services.AddSingleton<ContentfulConnection>();
 
 services.AddHttpClient<AzureTranslator>();
+services.AddHttpClient<ContentfulConnection>();
 
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 

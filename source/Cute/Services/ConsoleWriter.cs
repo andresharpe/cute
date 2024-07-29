@@ -32,11 +32,17 @@ public partial class ConsoleWriter : IConsoleWriter
 
     public void WriteHeading(string textTemplate, params object?[] args)
     {
-        Console?.MarkupLine(Format(textTemplate, Globals.StyleHeading, args));
+        Console?.MarkupLine(Format(textTemplate, Globals.StyleHeading, Globals.StyleAlertAccent, args));
         Logger?.LogInformation(message: textTemplate, args: args);
     }
 
-    private static string Format(string textTemplate, Style style, params object?[] args)
+    public void WriteHeadingWithHighlights(FormattableString text, Style highlightStyle)
+    {
+        Console?.MarkupLine(Format(text.Format, Globals.StyleHeading, highlightStyle, text.GetArguments()));
+        Logger?.LogInformation(text.Format, text.GetArguments());
+    }
+
+    private static string Format(string textTemplate, Style style, Style highlightStyle, params object?[] args)
     {
         var matches = ParameterMatch().Matches(textTemplate);
         var sb = new StringBuilder(textTemplate);
@@ -44,7 +50,7 @@ public partial class ConsoleWriter : IConsoleWriter
         foreach (Match m in matches)
         {
             if (i > args.Length - 1) break;
-            sb.Replace(m.Value, $"[{Globals.StyleHeading.Foreground}]{args[i++]?.ToString()}[/]");
+            sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{args[i++]?.ToString()}[/]");
         }
         sb.Insert(0, $"[{style.Foreground}]");
         sb.Append("[/]");
@@ -98,8 +104,14 @@ public partial class ConsoleWriter : IConsoleWriter
 
     public void WriteNormal(string textTemplate, params object?[] args)
     {
-        Console?.MarkupLine(Format(textTemplate, Globals.StyleNormal, args));
+        Console?.MarkupLine(Format(textTemplate, Globals.StyleNormal, Globals.StyleHeading, args));
         Logger?.LogInformation(message: textTemplate, args: args);
+    }
+
+    public void WriteNormalWithHighlights(FormattableString text, Style highlightStyle)
+    {
+        Console?.MarkupLine(Format(text.Format, Globals.StyleNormal, highlightStyle, text.GetArguments()));
+        Logger?.LogInformation(text.Format, text.GetArguments());
     }
 
     public void WriteLine()

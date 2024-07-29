@@ -1,4 +1,6 @@
 ﻿using Contentful.Core.Models;
+using Cute.Config;
+using Cute.Lib.Contentful;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.TypeGenAdapter;
@@ -9,12 +11,13 @@ using System.ComponentModel;
 
 namespace Cute.Commands;
 
-public class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
+public sealed class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
 {
     private readonly ILogger<TypeGenCommand> _logger;
 
-    public TypeGenCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<TypeGenCommand> logger)
-     : base(console, tokenCache, logger)
+    public TypeGenCommand(IConsoleWriter console, ILogger<TypeGenCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
     }

@@ -7,15 +7,18 @@ using Cute.UiComponents;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
+using Cute.Config;
+using Cute.Lib.Contentful;
 
 namespace Cute.Commands;
 
-public class UploadCommand : LoggedInCommand<UploadCommand.Settings>
+public sealed class UploadCommand : LoggedInCommand<UploadCommand.Settings>
 {
     private readonly ILogger<UploadCommand> _logger;
 
-    public UploadCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<UploadCommand> logger)
-        : base(console, tokenCache, logger)
+    public UploadCommand(IConsoleWriter console, ILogger<UploadCommand> logger,
+        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
     }
