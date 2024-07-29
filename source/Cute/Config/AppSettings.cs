@@ -17,6 +17,9 @@ public class AppSettings
     public string OpenAiDeploymentName { get; set; } = default!;
     public string OpenTelemetryEndpoint { get; set; } = default!;
     public string OpenTelemetryApiKey { get; set; } = default!;
+    public string AzureTranslatorApiKey { get; set; } = default!;
+    public string AzureTranslatorEndpoint { get; set; } = default!;
+    public string AzureTranslatorRegion { get; set; } = default!;
 
     [OnDeserialized]
     internal void SetFromEnvironment(StreamingContext context)

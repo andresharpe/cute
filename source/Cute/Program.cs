@@ -20,7 +20,7 @@ var exitValue = 0;
 
 var isGettingVersion = args.Contains("version");
 
-var isServer = args.Contains("--as-server") && !args.Contains("--console-output");
+var isServer = args.Contains("--log-output"); // outputs logs and surpresses pretty console
 
 // Get config from protected settings file and environment
 
@@ -76,6 +76,10 @@ services.AddSingleton<IConsoleWriter, ConsoleWriter>();
 services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
 services.AddSingleton(dataProtectionProvider);
 services.AddSingleton(appSettings ?? new());
+services.AddSingleton<AzureTranslator>();
+
+services.AddHttpClient<AzureTranslator>();
+
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 
 // Build cli app with DI

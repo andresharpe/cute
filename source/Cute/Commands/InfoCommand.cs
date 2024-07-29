@@ -19,7 +19,7 @@ public class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        var result = await base.ExecuteAsync(context, settings);
+        _ = await base.ExecuteAsync(context, settings);
 
         var spaceTable = new Table()
             .RoundedBorder()

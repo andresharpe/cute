@@ -1,5 +1,6 @@
 ﻿using Azure;
 using Azure.AI.OpenAI;
+using Contentful.Core;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Contentful.Core.Search;
@@ -25,11 +26,14 @@ namespace Cute.Commands;
 public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
     private readonly ILogger<GenerateCommand> _logger;
+    private readonly AzureTranslator _translator;
 
-    public GenerateCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<GenerateCommand> logger)
+    public GenerateCommand(IConsoleWriter console, IPersistedTokenCache tokenCache, ILogger<GenerateCommand> logger,
+        AzureTranslator translator)
         : base(console, tokenCache, logger)
     {
         _logger = logger;
+        _translator = translator;
     }
 
     public class Settings : CommandSettings
@@ -85,6 +89,10 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         [CommandOption("-r|--related-entry-id")]
         [Description("The field containing language targets for translated content.")]
         public string? RelatedEntryId { get; set; } = null;
+
+        [CommandOption("--use-azure-translator")]
+        [Description("Use Azure Translator service, otherwise let the LLM handle translations.")]
+        public bool UseAzureTranslator { get; set; } = false;
 
         [CommandOption("-l|--limit")]
         [Description("The total number of entries to generate content for before stopping. Default is five.")]
@@ -320,16 +328,28 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
                 continue;
             }
 
-            await TranslateContent(
-                promptContentFieldId,
-                contentType,
-                generatorLanguageCode,
-                translatedLanguageCodeAndName,
-                chatClient,
-                translatorCompletionOptions,
-                fullEntry,
-                fieldValue,
-                settings.Delay);
+            if (settings.UseAzureTranslator)
+            {
+                await TranslateContentWithAzure(
+                    promptContentFieldId,
+                    generatorLanguageCode,
+                    translatedLanguageCodeAndName,
+                    fullEntry,
+                    fieldValue);
+            }
+            else
+            {
+                await TranslateContent(
+                    promptContentFieldId,
+                    contentType,
+                    generatorLanguageCode,
+                    translatedLanguageCodeAndName,
+                    chatClient,
+                    translatorCompletionOptions,
+                    fullEntry,
+                    fieldValue,
+                    settings.Delay);
+            }
 
             if (++limit >= settings.Limit)
             {
@@ -423,6 +443,75 @@ public class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         _console.WriteBlankLine();
         _console.WriteBlankLine();
         _console.WriteRuler();
+    }
+
+    private async Task TranslateContentWithAzure(string promptContentFieldId, string generatorLanguageCode,
+        Dictionary<string, string> translatorLanguageCodeAndName,
+        Entry<JObject> fullEntry, string quotedText)
+    {
+        var codesToTranslate = new HashSet<string>();
+
+        foreach (var (languageCode, _) in translatorLanguageCodeAndName)
+        {
+            if (!string.IsNullOrEmpty(GetString(fullEntry, promptContentFieldId, languageCode)))
+            {
+                continue;
+            }
+            codesToTranslate.Add(languageCode);
+        }
+
+        if (codesToTranslate.Count == 0) return;
+
+        AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
+        _console.WriteHeading("Using Azure Tranlator to translate:");
+        _console.WriteDim(quotedText);
+
+        var translations = await _translator.Translate(generatorLanguageCode, codesToTranslate, quotedText);
+
+        if (translations is null) return;
+
+        var updated = false;
+
+        foreach (var translation in translations)
+        {
+            var languageCode = translation.To;
+            var output = translation.Text;
+
+            AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
+            _console.WriteNormal(output);
+
+            var fieldDict = fullEntry.Fields;
+
+            if (fieldDict[promptContentFieldId] == null)
+            {
+                fieldDict[promptContentFieldId] = new JObject(new JProperty(languageCode, output));
+            }
+            else if (fieldDict[promptContentFieldId] is JObject existingValues)
+            {
+                if (existingValues[languageCode] == null)
+                {
+                    existingValues.Add(new JProperty(languageCode, output));
+                }
+                else
+                {
+                    existingValues[languageCode] = output;
+                }
+            }
+
+            _console.WriteBlankLine();
+
+            updated = true;
+        }
+
+        if (updated)
+        {
+            _ = await ContentfulManagementClient!.CreateOrUpdateEntry<dynamic>(fullEntry.Fields,
+                    id: fullEntry.SystemProperties.Id,
+                    version: fullEntry.SystemProperties.Version);
+
+            _ = await ContentfulManagementClient.PublishEntry(fullEntry.SystemProperties.Id,
+                    fullEntry.SystemProperties.Version!.Value + 1);
+        }
     }
 
     private async Task TranslateContent(string promptContentFieldId, ContentType contentType,

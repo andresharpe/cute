@@ -130,7 +130,10 @@ public class WebserverCommand : WebCommand<WebserverCommand.Settings>
 
     private async Task ExecuteCommand(WebhookRequest request)
     {
-        var bulkActionId = request.Headers["X-Contentful-Bulk-Action-Id"];
+        if (!request.Headers.TryGetValue("X-Contentful-Bulk-Action-Id", out string? bulkActionId) || bulkActionId is null)
+        {
+            bulkActionId = Guid.NewGuid().ToString();
+        }
 
         using (_logger.BeginScope("{actionId}", bulkActionId))
         {

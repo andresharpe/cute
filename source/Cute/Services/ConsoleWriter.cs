@@ -32,8 +32,7 @@ public partial class ConsoleWriter : IConsoleWriter
 
     public void WriteHeading(string textTemplate, params object?[] args)
     {
-        Console?.MarkupLine($"Thus is a [underline {Globals.StyleAlertAccent.Foreground}]test[/]");
-        Console?.WriteLine(Format(textTemplate, Globals.StyleHeading, args));
+        Console?.MarkupLine(Format(textTemplate, Globals.StyleHeading, args));
         Logger?.LogInformation(message: textTemplate, args: args);
     }
 
