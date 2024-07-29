@@ -32,7 +32,7 @@ public partial class ConsoleWriter : IConsoleWriter
 
     public void WriteHeading(string textTemplate, params object?[] args)
     {
-        Console?.MarkupLine(Format(textTemplate, Globals.StyleHeading, Globals.StyleAlertAccent, args));
+        Console?.MarkupLine(Format(textTemplate, Globals.StyleHeading, Globals.StyleHeading, args));
         Logger?.LogInformation(message: textTemplate, args: args);
     }
 
@@ -130,9 +130,25 @@ public partial class ConsoleWriter : IConsoleWriter
         Logger?.LogInformation(message: text);
     }
 
-    public void WriteException(Exception ex, ExceptionSettings settings)
+    public void WriteException(Exception ex)
     {
-        Console?.WriteException(ex, settings);
+        Console?.WriteException(ex, new ExceptionSettings
+        {
+            Format = ExceptionFormats.ShortenEverything | ExceptionFormats.ShowLinks,
+            Style = new ExceptionStyle
+            {
+                Exception = Globals.StyleDim,
+                Message = Globals.StyleHeading,
+                NonEmphasized = Globals.StyleDim,
+                Parenthesis = Globals.StyleAlertAccent,
+                Method = Globals.StyleAlert,
+                ParameterName = Globals.StyleAlertAccent,
+                ParameterType = Globals.StyleDim,
+                Path = Globals.StyleAlert,
+                LineNumber = Globals.StyleNormal,
+                Dimmed = Globals.StyleDim,
+            }
+        });
         Logger?.LogError(ex, "An error occured.");
     }
 

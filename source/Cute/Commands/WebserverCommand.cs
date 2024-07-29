@@ -158,7 +158,7 @@ public sealed class WebserverCommand : WebCommand<WebserverCommand.Settings>
             catch (Exception ex)
             {
                 _console.WriteBlankLine();
-                _logger.LogError(ex, "Task error!");
+                _console.WriteException(ex);
             }
 
             _console.WriteBlankLine();

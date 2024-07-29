@@ -195,23 +195,7 @@ static void WriteException(Exception ex)
         console.WriteLine($"Error: {ex.Message}", Globals.StyleAlert);
     else // something bigger and unhandled.
     {
-        console.WriteException(ex, new ExceptionSettings
-        {
-            Format = ExceptionFormats.ShortenEverything | ExceptionFormats.ShowLinks,
-            Style = new ExceptionStyle
-            {
-                Exception = Globals.StyleDim,
-                Message = Globals.StyleHeading,
-                NonEmphasized = Globals.StyleDim,
-                Parenthesis = Globals.StyleAlertAccent,
-                Method = Globals.StyleAlert,
-                ParameterName = Globals.StyleAlertAccent,
-                ParameterType = Globals.StyleDim,
-                Path = Globals.StyleAlert,
-                LineNumber = Globals.StyleNormal,
-                Dimmed = Globals.StyleDim,
-            }
-        });
+        console.WriteException(ex);
     }
 }
 

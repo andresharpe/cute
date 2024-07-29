@@ -330,6 +330,7 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             {
                 await TranslateContentWithAzure(
                     promptContentFieldId,
+                    contentType,
                     generatorLanguageCode,
                     translatedLanguageCodeAndName,
                     fullEntry,
@@ -443,7 +444,7 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         _console.WriteRuler();
     }
 
-    private async Task TranslateContentWithAzure(string promptContentFieldId, string generatorLanguageCode,
+    private async Task TranslateContentWithAzure(string promptContentFieldId, ContentType contentType, string generatorLanguageCode,
         Dictionary<string, string> translatorLanguageCodeAndName,
         Entry<JObject> fullEntry, string quotedText)
     {
@@ -460,8 +461,10 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         if (codesToTranslate.Count == 0) return;
 
-        AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
-        _console.WriteHeading("Using Azure Tranlator to translate:");
+        _console.WriteBlankLine();
+        _console.WriteHeading("{displayField} > {language}", GetString(fullEntry, contentType.DisplayField),
+            string.Join(", ", codesToTranslate.Select(c => translatorLanguageCodeAndName[c])));
+        _console.WriteBlankLine();
         _console.WriteDim(quotedText);
 
         var translations = await _translator.Translate(generatorLanguageCode, codesToTranslate, quotedText);
@@ -476,6 +479,7 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             var output = translation.Text;
 
             AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });
+            _console.WriteHeading($"{GetString(fullEntry, contentType.DisplayField)} > {translatorLanguageCodeAndName[languageCode]}");
             _console.WriteNormal(output);
 
             var fieldDict = fullEntry.Fields;
