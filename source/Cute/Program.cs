@@ -134,6 +134,9 @@ app.Configure(config =>
 
     config.AddCommand<WebserverCommand>("webserver")
         .WithDescription("Launch web server and listen to http requests and webhook calls.");
+
+    config.AddCommand<EvaluateCommand>("evaluate")
+        .WithDescription("Evaluate AI generated content and translations against a set of metrics.");
 });
 
 try
