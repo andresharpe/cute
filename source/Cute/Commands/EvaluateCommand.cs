@@ -150,7 +150,7 @@ public sealed class EvaluateCommand : AsyncCommand<EvaluateCommand.Settings>
                 var codeCompiled = PythonEngine.Compile(code, file); // Compile the code/file
                 scope.Execute(codeCompiled); // Execute the compiled python so we can start calling it.
 
-                // Execute the python class and method if provided
+                // Execute the python method if provided with its arguments
                 if (pyClass != null && pyMethod != null && pyArgs != null)
                 {
                     
@@ -164,20 +164,20 @@ public sealed class EvaluateCommand : AsyncCommand<EvaluateCommand.Settings>
                         param[0] = pyObj; // Append the class to the arguments
                         for (int i = 1; i < param.Length; i++) // Loop through the arguments
                         {
-                            param[i] = pyArgs[i-1]; // Append the method arguments to the arguments
+                            param[i] = pyArgs[i-1]; // Append the method arguments to the PyObject[] array
                         }
                     }
-                    else // If the method is not __init__, we need to call the method on the class
+                    else // If the method is not __init__, we call the method on the provided instance of the class
                     {
-                        pyObj = pyArgs[0]; // Get pyObject from the arguments 
-                        param[0] = pyObj; // Append pyObject to the arguments
+                        pyObj = pyArgs[0]; // Get class instance from the arguments 
+                        param[0] = pyObj; // Append instance to the arguments (i.e., self)
                         for (int i = 1; i < param.Length; i++) // Loop through the arguments
                         {
-                            param[i] = pyArgs[i]; // Append the method arguments to the arguments
+                            param[i] = pyArgs[i]; // Append the method arguments to the PyObject[] array
                         }
                     }
 
-                    result = pyObj.InvokeMethod(pyMethod, param); // Call the pyMethod with pyArgs on the pyClass
+                    result = pyObj.InvokeMethod(pyMethod, param); // Call the pyMethod with pyArgs on the pyObject of pyClass
                 }
 
                 scope.Dispose(); // Dispose scope
