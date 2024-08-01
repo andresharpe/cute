@@ -31,7 +31,8 @@ public sealed class EvaluateCommand : AsyncCommand<EvaluateCommand.Settings>
     {
         string pythonDLL = @"C:\Python312\python312.dll";
         string setupFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\setup.py");
-        string evalRagFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\eval_rag.py");
+        string evalGenerationFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\eval_generation.py");
+        string evalTranslationFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\eval_translation.py");
 
         try
         {
@@ -40,7 +41,8 @@ public sealed class EvaluateCommand : AsyncCommand<EvaluateCommand.Settings>
 
             ExecutePython(filePath: setupFile); // Execute the setup.py file first
 
-            string input = @"
+            // Define the parameters for the Generation test case
+            string genInput = @"
                 Write a 200-210 word website intro as to why Canton of Zug in Switzerland is good for setting up your business 
                 and having an office there. Mention some of the famous businesses that are headquartered there, 
                 industries based there, major transport hubs in the vicinity and other facts relevant to doing business there.
@@ -49,13 +51,11 @@ public sealed class EvaluateCommand : AsyncCommand<EvaluateCommand.Settings>
 
                 Output your response in bullets using valid Markdown syntax. Use '''-''' for a list prefix 
                 but don't make use of bold, underline or other Markdown.";
-
-            string actualOutput = @" 
+            string genActualOutput = @" 
                 - Nestled in the heart of Switzerland, Canton of Zug is a prime spot for creative entrepreneurs looking to establish their next venture. Its strategic location offers quick access to major cities such as Zurich and Lucerne, making it a vibrant nexus for business. The region's excellent transport connectivity, including proximity to Zurich International Airport, ensures seamless global operations. Modern office buildings and state-of-the-art coworking spaces cater perfectly to the needs of contemporary enterprises.
                 - Zug stands out with its business-friendly environment characterized by low tax regimes and supportive economic policies. This favorable climate has attracted numerous global companies like Glencore and Siemens, underscoring its appeal to industry giants. The diverse business ecosystem here supports a myriad of industries from finance and tech to commodities trading and pharmaceuticals. This diversity not only propels innovation but also enriches networking opportunities across various sectors.
                 - Moreover, Zug boasts access to an exceptionally skilled workforce that is both highly educated and multilingual—an invaluable asset for any growing company. Whether you're launching a startup or relocating an established business, Zug provides all the resources you need for success in one dynamic locale. Embrace this unique opportunity; set up your next venture amid the inspiring backdrop of Canton of Zug today!.";
-
-            string expectedOutput = @" 
+            string genExpectedOutput = @" 
                 - Office space in Canton of Zug offers a strategic advantage for businesses looking to establish a presence in Switzerland.
                 - Zug is home to numerous renowned companies, including Roche Diagnostics, Siemens Smart Infrastructure, and Glencore.
                 - The canton boasts a diverse range of industries such as life sciences, high-tech, fintech, and commodity trading.
@@ -64,50 +64,105 @@ public sealed class EvaluateCommand : AsyncCommand<EvaluateCommand.Settings>
                 - The region also offers a robust infrastructure, including innovation platforms and institutions like the Switzerland Innovation Park Central and the Central Switzerland University of Applied Sciences and Arts.
                 - With a strong network of industry-specific associations and a reputation for efficiency and professionalism, Zug is well-equipped to support business growth and innovation.
                 - Whether you're in life sciences, high-tech, or finance, office space in Canton of Zug provides the ideal setting for your business to thrive.";
-
-            string retrievalContext = @"address: Neugasse 25, 6300 Zug, Switzerland; population: 30000";
+            string genRetrievalContext = @"address: Neugasse 25, 6300 Zug, Switzerland; population: 30000";
            
-            PyString pyGptModel = new PyString("gpt-4o-mini");
-            PyFloat pyThreshold = new PyFloat(0.7);
-            PyString pyInput = new PyString(input);
-            PyString pyActualOutput = new PyString(actualOutput);
-            PyString pyExpectedOutput = new PyString(expectedOutput);
-            PyString pyRetrievalContext = new PyString(retrievalContext);
+            // Define the parameters for the Translation test case
+            string translationInput = "Translate the following text to English: Es una guía para la acción que asegura que el ejército siempre obedecerá los mandatos del Partido.";
+            string translationActualOutput = "It is a guide to action which ensures that the military always obeys the commands of the party.";
+            string translationExpectedOutput = "It is a guide to action that ensures that the military will forever heed Party commands.";
 
-            // First, we need to execute the __init__ method to initialize the EvalRAG class (in eval_rag.py)
-            PyObject? ragEvalObj = ExecutePython(
-                filePath: evalRagFile, 
-                pyClass: "EvalRAG", 
+            PyString pyGptModel = new PyString("gpt-4o-mini");
+            PyFloat pyGenThreshold = new PyFloat(0.7);
+            PyFloat pyTranslationThreshold = new PyFloat(0.4);
+
+            // Define the Python parameters for the Generation test case
+            PyString pyGenInput = new PyString(genInput);
+            PyString pyGenActualOutput = new PyString(genActualOutput);
+            PyString pyGenExpectedOutput = new PyString(genExpectedOutput);
+            PyString pyGenRetrievalContext = new PyString(genRetrievalContext);
+
+            // Define the Python parameters for the Translation test case
+            PyString pyTranslationInput = new PyString(translationInput);
+            PyString pyTranslationActualOutput = new PyString(translationActualOutput);
+            PyString pyTranslationExpectedOutput = new PyString(translationExpectedOutput);
+
+            /*  
+                First, we need to execute the __init__ method to initialize the 
+                EvalGenearation and EvalTranslation classes (in eval_generation.py and eval_translation.py, respectively)
+            */
+            PyObject? genEvalObj = ExecutePython(
+                filePath: evalGenerationFile, 
+                pyClass: "EvalGeneration", 
                 pyMethod: "__init__", 
-                pyArgs: new List<PyObject> { pyGptModel, pyThreshold, pyInput, pyActualOutput, pyExpectedOutput, pyRetrievalContext }
+                pyArgs: new List<PyObject> { pyGptModel, pyGenThreshold, pyGenInput, pyGenActualOutput, pyGenExpectedOutput, pyGenRetrievalContext }
+            );
+            PyObject? translationEvalObj = ExecutePython(
+                filePath: evalTranslationFile, 
+                pyClass: "EvalTranslation", 
+                pyMethod: "__init__", 
+                pyArgs: new List<PyObject> { pyGptModel, pyTranslationThreshold, pyTranslationInput, pyTranslationActualOutput, pyTranslationExpectedOutput }
             );
             
-            // Check if EvalRAG was properly instantiated before invoking EvalRAG methods
-            if (ragEvalObj == null) { throw new NullReferenceException("ragEvalObj is null"); }
+            // Check if EvalGeneration was properly instantiated before invoking EvalGeneration methods
+            if (genEvalObj == null) { throw new NullReferenceException("genEvalObj is null"); }
+            // Check if EvalTranslation was properly instantiated before invoking EvalTranslation methods
+            if (translationEvalObj == null) { throw new NullReferenceException("translationEvalObj is null"); }
 
-            //PyObject? ragEvalEvaluateResult = ExecutePython(filePath: evalRagFile, pyClass: "EvalRAG", pyMethod: "evaluate", pyArgs: new List<PyObject> { ragEvalObj }); // Execute evaluate method on the EvalRAG class (eval_rag.py)
-            //Console.WriteLine(ragEvalEvaluateResult.AsManagedObject(typeof(string)) as string);
+            //PyObject? genEvalEvaluateResult = ExecutePython(filePath: evalGenerationFile, pyClass: "EvalRAG", pyMethod: "evaluate", pyArgs: new List<PyObject> { ragEvalObj }); // Execute evaluate method on the EvalRAG class (eval_rag.py)
+            //Console.WriteLine(genEvalEvaluateResult.AsManagedObject(typeof(string)) as string);
 
-            PyString pyMetric = new PyString("faithfulness"); // Specify the metric to be used for evaluation
+            PyString pyGenMetric = new PyString("faithfulness"); // Specify the metric to be used for evaluation
             // Execute the measure method on the EvalRAG class (in eval_rag.py) to get the result of a specified measure
-            PyObject? ragEvalMeasureResult = ExecutePython(
-                filePath: evalRagFile, 
-                pyClass: "EvalRAG", 
+            PyObject? genEvalMeasureResult = ExecutePython(
+                filePath: evalGenerationFile, 
+                pyClass: "EvalGeneration", 
                 pyMethod: "measure", 
-                pyArgs: new List<PyObject> { ragEvalObj, pyMetric }
+                pyArgs: new List<PyObject> { genEvalObj, pyGenMetric }
             );
-            pyMetric.Dispose(); // Dispose object to free up memory
+            pyGenMetric.Dispose(); // Dispose object to free up memory
 
-            // Check if ragEvalMeasureResult is not null before proceeding
-            if (ragEvalMeasureResult == null) { throw new NullReferenceException("ragEvalMeasureResult is null"); }
-            Console.WriteLine(ragEvalMeasureResult.AsManagedObject(typeof(string)) as string);
+            // Check if genEvalMeasureResult is not null before proceeding
+            if (genEvalMeasureResult == null) { throw new NullReferenceException("genEvalMeasureResult is null"); }
+            Console.WriteLine(genEvalMeasureResult.AsManagedObject(typeof(string)) as string);
+/*
+            // Execute the evaluate method on the EvalTranslation class (in eval_translation.py)
+            PyObject? translationEvalEvaluateResult = ExecutePython(
+                filePath: evalTranslationFile, 
+                pyClass: "EvalTranslation", 
+                pyMethod: "evaluate", 
+                pyArgs: new List<PyObject> { translationEvalObj }
+            );
+
+            // Check if translationEvalEvaluateResult is not null before proceeding
+            if (translationEvalEvaluateResult == null) { throw new NullReferenceException("translationEvalEvaluateResult is null"); }
+            Console.WriteLine(translationEvalEvaluateResult.AsManagedObject(typeof(string)) as string);
+*/
+
+            PyString pyTranslationMetric = new PyString("meteor"); // Specify the metric to be used for evaluation
+            // Execute the measure method on the EvalTranslation class (in eval_translation.py) to get the result of a specified measure
+            PyObject? translationEvalMeasureResult = ExecutePython(
+                filePath: evalTranslationFile, 
+                pyClass: "EvalTranslation", 
+                pyMethod: "measure", 
+                pyArgs: new List<PyObject> { translationEvalObj, pyTranslationMetric }
+            );
+            pyTranslationMetric.Dispose(); // Dispose object to free up memory
+
+            if (translationEvalMeasureResult == null) { throw new NullReferenceException("translationEvalEvaluateResult is null"); }
+            Console.WriteLine(translationEvalMeasureResult.AsManagedObject(typeof(string)) as string);            
 
             pyGptModel.Dispose(); // Dispose pyGptModel to free up memory
-            pyThreshold.Dispose(); // Dispose pyThreshold to free up memory
-            pyInput.Dispose(); // Dispose pyInput to free up memory
-            pyActualOutput.Dispose(); // Dispose pyActualOutput to free up memory
-            pyExpectedOutput.Dispose(); // Dispose pyExpectedOutput to free up memory
-            pyRetrievalContext.Dispose(); // Dispose pyRetrievalContext to free up memory
+            pyGenThreshold.Dispose(); // Dispose pyThreshold to free up memory
+            pyTranslationThreshold.Dispose(); // Dispose pyThreshold to free up memory
+
+            pyGenInput.Dispose(); // Dispose pyInput to free up memory
+            pyGenActualOutput.Dispose(); // Dispose pyActualOutput to free up memory
+            pyGenExpectedOutput.Dispose(); // Dispose pyExpectedOutput to free up memory
+            pyGenRetrievalContext.Dispose(); // Dispose pyRetrievalContext to free up memory
+
+            pyTranslationInput.Dispose(); // Dispose pyTranslationInput to free up memory
+            pyTranslationActualOutput.Dispose(); // Dispose pyTranslationActualOutput to free up memory
+            pyTranslationExpectedOutput.Dispose(); // Dispose pyTranslationExpectedOutput to free up memory
 
             PythonEngine.Shutdown(); // Shutdown Python engine
 
