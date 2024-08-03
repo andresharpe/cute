@@ -31,9 +31,9 @@ public class AppSettings : IContentfulOptionsProvider
 
     internal AppSettings SetFromEnvironment()
     {
-        var envValues = EnvironmentVars.GetAll();
-
         var prefix = $"{Globals.AppName.CamelToPascalCase()}__";
+
+        var envValues = EnvironmentVars.GetAll().Where(kv => kv.Key.StartsWith(prefix)).ToDictionary(kv => kv.Key, kv => kv.Value);
 
         foreach (var prop in typeof(AppSettings).GetProperties())
         {
@@ -43,6 +43,27 @@ public class AppSettings : IContentfulOptionsProvider
             }
         }
         return this;
+    }
+
+    public IReadOnlyDictionary<string, string?> GetSettings()
+    {
+        var prefix = $"{Globals.AppName.CamelToPascalCase()}__";
+
+        var envValues = EnvironmentVars.GetAll().Where(kv => kv.Key.StartsWith(prefix));
+
+        Dictionary<string, string?> returnVal = [];
+
+        foreach (var prop in typeof(AppSettings).GetProperties())
+        {
+            returnVal[$"{prefix}{prop.Name}"] = prop.GetValue(this)?.ToString();
+        }
+
+        foreach (var kv in envValues)
+        {
+            returnVal[kv.Key] = kv.Value;
+        }
+
+        return returnVal;
     }
 
     public ContentfulOptions GetContentfulOptions()

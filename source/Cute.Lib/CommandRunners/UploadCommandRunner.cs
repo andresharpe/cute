@@ -115,7 +115,7 @@ public class UploadCommandRunner
         var steps = -1;
         var currentStep = 1;
 
-        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(_contentfulManagementClient, _contentType, _contentInfo.DisplayField))
+        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(_contentfulManagementClient, _contentType, _contentInfo.DisplayField))
         {
             _contentfulEntries.Add(entry);
 

@@ -80,11 +80,13 @@ services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
 services.AddSingleton(dataProtectionProvider);
 services.AddSingleton(appSettings);
 services.AddSingleton<IContentfulOptionsProvider>(appSettings);
-services.AddSingleton<AzureTranslator>();
-services.AddSingleton<ContentfulConnection>();
+services.AddTransient<AzureTranslator>();
+services.AddTransient<ContentfulConnection>();
 
 services.AddHttpClient<AzureTranslator>();
 services.AddHttpClient<ContentfulConnection>();
+services.AddHttpClient<GetDataCommand>();
+services.AddHttpClient<BulkCommand>();
 
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 
@@ -128,6 +130,9 @@ app.Configure(config =>
 
     config.AddCommand<TypeGenCommand>("typegen")
         .WithDescription("Generate language types from Contentful content types.");
+
+    config.AddCommand<BulkCommand>("purge")
+        .WithDescription("Unpublish, delete and purge all content type entries.");
 
     config.AddCommand<GetDataCommand>("getdata")
         .WithDescription("Sync Contentful content with WikiData.");

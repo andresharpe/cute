@@ -8,6 +8,7 @@ using Cute.Lib.OutputAdapters;
 using Cute.Lib.Serializers;
 using Cute.Services;
 using Cute.UiComponents;
+using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
@@ -95,7 +96,7 @@ public sealed class DownloadCommand : LoggedInCommand<DownloadCommand.Settings>
 
                 taskExtract.MaxValue = 1;
 
-                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(ContentfulManagementClient, settings.ContentType, contentInfo.DisplayField))
+                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, settings.ContentType, contentInfo.DisplayField))
                 {
                     if (taskExtract.MaxValue == 1)
                     {

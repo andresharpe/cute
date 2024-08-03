@@ -6,7 +6,6 @@ using Contentful.Core.Models.Management;
 using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
-using Cute.Lib.Exceptions;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
@@ -36,6 +35,7 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
     protected ContentfulManagementClient ContentfulManagementClient => _contentfulConnection.ManagementClient;
     protected ContentfulClient ContentfulClient => _contentfulConnection.DeliveryClient;
+    protected ContentfulClient ContentfulPreviewClient => _contentfulConnection.PreviewClient;
     protected ContentfulOptions ContentfulOptions => _contentfulConnection.Options;
     protected string ContentfulSpaceId => ContentfulOptions.SpaceId;
     protected string ContentfulEnvironmentId => ContentfulOptions.Environment;

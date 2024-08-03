@@ -1,50 +1,45 @@
-﻿using Cute.Lib.Exceptions;
+﻿using Contentful.Core;
+using Contentful.Core.Models;
+using Cute.Lib.Contentful;
+using Cute.Lib.Exceptions;
 using Cute.Lib.Scriban;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Scriban;
 using Scriban.Runtime;
 using Scriban.Syntax;
-using Scriban;
-using Contentful.Core;
-using dotenv.net;
-using System.Collections;
 
 namespace Cute.Lib.GetDataAdapter;
 
 public class HttpDataAdapter
 {
-    private readonly ContentfulManagementClient _contentfulManagementClient;
-    private readonly Action<string> _displayAction;
+    private Action<string>? _displayAction;
 
-    public HttpDataAdapter(ContentfulManagementClient contentfulManagementClient, Action<string> displayAction)
+    public HttpDataAdapter WithDisplayAction(Action<string> displayAction)
     {
-        _contentfulManagementClient = contentfulManagementClient;
-
         _displayAction = displayAction;
+
+        return this;
     }
 
-    public async Task<List<Dictionary<string, string>>?> GetData(HttpDataAdapterConfig adapter)
+    public async Task<List<Dictionary<string, string>>?> GetData(HttpDataAdapterConfig adapter,
+            IReadOnlyDictionary<string, string?> envSettings,
+            ContentfulManagementClient contentfulManagementClient,
+            ContentfulClient contentfulDeliveryClient)
     {
-        if (!Uri.IsWellFormedUriString(adapter.EndPoint, UriKind.Absolute))
+        var compiledTemplates = CompileMappingTemplates(adapter);
+
+        var scriptObject = CreateScripObject(envSettings, contentfulManagementClient, contentfulDeliveryClient);
+
+        if (adapter.EnumerateForContentTypes is not null && adapter.EnumerateForContentTypes.Count != 0)
         {
-            throw new CliException($"Invalid uri '{adapter.EndPoint}'");
-        }
+            var enumerators = adapter.EnumerateForContentTypes
+                .Select(contentType =>
+                    ContentfulEntryEnumerator.Entries<Entry<JObject>>(contentfulManagementClient, contentType.ContentType, "title",
+                        queryString: contentType.QueryParameters)
+                ).ToArray();
 
-        var uriDict = CompileValues(new Dictionary<string, string> { ["uri"] = adapter.EndPoint });
-
-        var httpClient = new HttpClient()
-        {
-            BaseAddress = new Uri(uriDict["uri"]),
-        };
-
-        if (adapter.Headers is not null)
-        {
-            var compiledHeaders = CompileValues(adapter.Headers);
-
-            foreach (var (key, value) in compiledHeaders)
-            {
-                httpClient.DefaultRequestHeaders.Add(key, value);
-            }
+            return await MakeHttpCallsForEnumerators(adapter, compiledTemplates, enumerators, scriptObject: scriptObject);
         }
 
         FormUrlEncodedContent? formContent = null;
@@ -54,27 +49,143 @@ public class HttpDataAdapter
             formContent = new FormUrlEncodedContent(adapter.FormUrlEncodedContent);
         }
 
+        return await MakeHttpCall(adapter, compiledTemplates, formContent, scriptObject);
+    }
+
+    private async Task<List<Dictionary<string, string>>?> MakeHttpCallsForEnumerators(HttpDataAdapterConfig adapter,
+        Dictionary<string, Template> compiledTemplates,
+        IAsyncEnumerable<(Entry<JObject>, ContentfulCollection<Entry<JObject>>)>[] enumerators, ScriptObject scriptObject,
+        int level = 0, List<Dictionary<string, string>>? returnVal = null)
+    {
+        if (level > enumerators.Length - 1)
+        {
+            FormUrlEncodedContent? formContent = null;
+
+            if (adapter.FormUrlEncodedContent is not null)
+            {
+                var compiledFormUrlEncodedContent = adapter.FormUrlEncodedContent.
+                    ToDictionary(kv => kv.Key, kv => Template.Parse(kv.Value).Render(scriptObject));
+
+                formContent = new FormUrlEncodedContent(compiledFormUrlEncodedContent);
+            }
+
+            returnVal?.AddRange(await MakeHttpCall(adapter, compiledTemplates, formContent, scriptObject) ?? []);
+
+            return returnVal;
+        }
+
+        returnVal ??= [];
+
+        Template? filterTemplate = null;
+
+        if (adapter.EnumerateForContentTypes[level].Filter is not null)
+        {
+            filterTemplate = Template.Parse(adapter.EnumerateForContentTypes[level].Filter);
+        }
+
+        var padding = new string(' ', level * 3);
+
+        await foreach (var (obj, _) in enumerators[level])
+        {
+            obj.Fields["id"] = obj.SystemProperties.Id;
+
+            string contentType = adapter.EnumerateForContentTypes[level].ContentType;
+
+            scriptObject.SetValue(contentType, obj.Fields, true);
+
+            var filterResult = filterTemplate?.Render(scriptObject);
+
+            if (filterTemplate is null ||
+                (filterResult is not null && filterResult.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)))
+            {
+                _displayAction?.Invoke($"{padding}Processing '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
+
+                _ = await MakeHttpCallsForEnumerators(adapter, compiledTemplates, enumerators, scriptObject, level + 1, returnVal);
+            }
+            else
+            {
+                _displayAction?.Invoke($"{padding}Skipping '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
+            }
+
+            scriptObject.Remove(contentType);
+        }
+
+        return returnVal;
+    }
+
+    private ScriptObject CreateScripObject(IReadOnlyDictionary<string, string?> contentfulOptions,
+        ContentfulManagementClient contentfulManagementClient,
+        ContentfulClient contentfulDeliveryClient)
+    {
+        ScriptObject? scriptObject = [];
+
+        CuteFunctions.ContentfulManagementClient = contentfulManagementClient;
+
+        CuteFunctions.ContentfulClient = contentfulDeliveryClient;
+
+        scriptObject.SetValue("cute", new CuteFunctions(), true);
+
+        scriptObject.SetValue("config", contentfulOptions, true);
+
+        return scriptObject;
+    }
+
+    private async Task<List<Dictionary<string, string>>?> MakeHttpCall(HttpDataAdapterConfig adapter,
+        Dictionary<string, Template> compiledTemplates,
+        FormUrlEncodedContent? formContent,
+        ScriptObject scriptObject)
+    {
+        var uriDict = CompileValuesWithEnvironment(new Dictionary<string, string> { ["uri"] = adapter.EndPoint }, scriptObject);
+
+        if (!Uri.IsWellFormedUriString(uriDict["uri"], UriKind.Absolute))
+        {
+            throw new CliException($"Invalid uri '{adapter.EndPoint}'");
+        }
+
+        var httpClient = new HttpClient();
+
+        if (adapter.Headers is not null)
+        {
+            var compiledHeaders = CompileValuesWithEnvironment(adapter.Headers, scriptObject);
+
+            foreach (var (key, value) in compiledHeaders)
+            {
+                httpClient.DefaultRequestHeaders.Add(key, value);
+            }
+        }
+
         var returnValue = new List<Dictionary<string, string>>();
 
         var cachedResults = new HashSet<string>();
 
         var requestCount = 1;
 
-        var compiledTemplates = CompileMappingTemplates(adapter);
+        var skipTotal = 0;
+
+        var baseAddress = uriDict["uri"];
 
         while (true)
         {
+            var getParameters = string.Empty;
+
+            if (adapter.Pagination is not null)
+            {
+                getParameters = $"&{adapter.Pagination.SkipKey}={skipTotal}&{adapter.Pagination.LimitKey}={adapter.Pagination.LimitMax}";
+
+                skipTotal += adapter.Pagination.LimitMax;
+            }
+
             HttpResponseMessage? endpointResult = null;
 
             string? endpointContent = null;
 
             if (adapter.HttpMethod == HttpMethod.Post)
             {
-                endpointResult = await httpClient.PostAsync("", formContent);
+                endpointResult = await httpClient.PostAsync(baseAddress + getParameters, formContent);
             }
             else if (adapter.HttpMethod == HttpMethod.Get)
             {
-                endpointResult = await httpClient.GetAsync("");
+                endpointResult = await httpClient.GetAsync(baseAddress + getParameters);
             }
 
             if (endpointResult is not null)
@@ -105,11 +216,23 @@ public class HttpDataAdapter
                 throw new CliException($"The result of the endpoint call is not a valid json object or array."); ;
             }
 
-            _displayAction($"...{httpClient.BaseAddress.Host} returned {rootArray.Count} entries...");
+            if (_displayAction is not null)
+            {
+                _displayAction($"...'{baseAddress + getParameters}' returned {rootArray.Count} entries...");
+            }
 
-            var batchValue = MapResultValues(rootArray, compiledTemplates);
+            var batchValue = MapResultValues(rootArray, compiledTemplates, scriptObject);
 
             returnValue.AddRange(batchValue);
+
+            if (adapter.Pagination is not null)
+            {
+                if (rootArray.Count < adapter.Pagination.LimitMax)
+                {
+                    break;
+                }
+                continue;
+            }
 
             if (adapter.ContinuationTokenHeader is null) break;
 
@@ -141,7 +264,7 @@ public class HttpDataAdapter
         return [.. returnValue.OrderBy(e => e[adapter.ContentKeyField])];
     }
 
-    private static Dictionary<string, string> CompileValues(Dictionary<string, string> headers)
+    private static Dictionary<string, string> CompileValuesWithEnvironment(Dictionary<string, string> headers, ScriptObject scriptObject)
     {
         var templates = headers.ToDictionary(m => m.Key, m => Template.Parse(m.Value));
 
@@ -159,23 +282,7 @@ public class HttpDataAdapter
 
         try
         {
-            var scriptObjectGlobal = new ScriptObject();
-
-            scriptObjectGlobal.SetValue("cute", new CuteFunctions(), true);
-
-            var templateContext = new TemplateContext();
-
-            templateContext.PushGlobal(scriptObjectGlobal);
-
-            var scriptObjectInstance = new ScriptObject();
-
-            scriptObjectInstance.Import(new { config = new { env = Config.EnvironmentVars.GetAll() } });
-
-            templateContext.PushGlobal(scriptObjectInstance);
-
-            var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(templateContext));
-
-            templateContext.PopGlobal();
+            var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(scriptObject));
 
             return newRecord;
         }
@@ -204,28 +311,17 @@ public class HttpDataAdapter
         return templates;
     }
 
-    private List<Dictionary<string, string>> MapResultValues(JArray rootArray, Dictionary<string, Template> templates)
+    private static List<Dictionary<string, string>> MapResultValues(JArray rootArray, Dictionary<string, Template> templates,
+        ScriptObject scriptObject)
     {
-        CuteFunctions.ContentfulManagementClient ??= _contentfulManagementClient;
-
         try
         {
-            var scriptObjectGlobal = new ScriptObject();
-
-            scriptObjectGlobal.SetValue("cute", new CuteFunctions(), true);
-
-            var templateContext = new TemplateContext();
-
-            templateContext.PushGlobal(scriptObjectGlobal);
-
             var batchValue = rootArray.Cast<JObject>()
                 .Select(o =>
                 {
-                    var scriptObjectInstance = new ScriptObject();
-                    scriptObjectInstance.Import(new { row = o });
-                    templateContext.PushGlobal(scriptObjectInstance);
-                    var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(templateContext));
-                    templateContext.PopGlobal();
+                    scriptObject.SetValue("row", o, true);
+                    var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(scriptObject));
+                    scriptObject.Remove("row");
                     return newRecord;
                 })
                 .ToList();

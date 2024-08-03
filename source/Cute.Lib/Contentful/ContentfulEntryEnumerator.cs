@@ -1,33 +1,46 @@
-﻿using Contentful.Core.Models;
+﻿using Contentful.Core;
+using Contentful.Core.Models;
 using Contentful.Core.Search;
-using Newtonsoft.Json.Linq;
-using Contentful.Core;
+using System.Text;
 
 namespace Cute.Lib.Contentful;
 
 public static class ContentfulEntryEnumerator
 {
-    public static async IAsyncEnumerable<(Entry<JObject>, ContentfulCollection<Entry<JObject>>)> Entries(ContentfulManagementClient client, string contentType, string orderByField,
-        int includeLevels = 2, Action<QueryBuilder<Entry<JObject>>>? queryConfigurator = null)
+    public static async IAsyncEnumerable<(T, ContentfulCollection<T>)> Entries<T>(ContentfulManagementClient client, string contentType,
+        string? orderByField = null,
+        int includeLevels = 2, Action<QueryBuilder<T>>? queryConfigurator = null, string? queryString = null)
     {
         var skip = 0;
-        var page = 100;
+        var page = 1000;
 
         while (true)
         {
-            var queryBuilder = new QueryBuilder<Entry<JObject>>()
+            var queryBuilder = new QueryBuilder<T>()
                 .ContentTypeIs(contentType)
                 .Include(includeLevels)
                 .Skip(skip)
-                .Limit(page)
-                .OrderBy($"fields.{orderByField}");
+                .Limit(page);
+
+            if (orderByField != null)
+            {
+                queryBuilder.OrderBy($"fields.{orderByField}");
+            }
 
             if (queryConfigurator is not null)
             {
                 queryConfigurator(queryBuilder);
             }
 
-            var entries = await client.GetEntriesCollection(queryBuilder);
+            var fullQueryString = new StringBuilder(queryBuilder.Build());
+
+            if (queryString != null)
+            {
+                fullQueryString.Append('&');
+                fullQueryString.Append(queryString);
+            }
+
+            var entries = await client.GetEntriesCollection<T>(fullQueryString.ToString());
 
             if (!entries.Any()) break;
 
@@ -40,11 +53,12 @@ public static class ContentfulEntryEnumerator
         }
     }
 
-    public static async IAsyncEnumerable<(T, ContentfulCollection<T>)> DeliveryEntries<T>(ContentfulClient client, string contentType, string orderByField,
+    public static async IAsyncEnumerable<(T, ContentfulCollection<T>)> DeliveryEntries<T>(ContentfulClient client,
+        string contentType, string? orderByField = null,
         int includeLevels = 2, Action<QueryBuilder<T>>? queryConfigurator = null) where T : class, new()
     {
         var skip = 0;
-        var page = 100;
+        var page = 1000;
 
         while (true)
         {
@@ -52,8 +66,12 @@ public static class ContentfulEntryEnumerator
                 .ContentTypeIs(contentType)
                 .Include(includeLevels)
                 .Skip(skip)
-                .Limit(page)
-                .OrderBy($"fields.{orderByField}");
+                .Limit(page);
+
+            if (orderByField != null)
+            {
+                queryBuilder.OrderBy($"fields.{orderByField}");
+            }
 
             if (queryConfigurator is not null)
             {
