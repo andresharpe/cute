@@ -1,7 +1,7 @@
 import json
 import nltk
-nltk.download('wordnet', quiet=True)
 
+nltk.download('wordnet', quiet=True)
 from nltk.translate.gleu_score import sentence_gleu
 from nltk.translate.meteor_score import single_meteor_score
 from hlepor import single_hlepor_score
@@ -76,7 +76,7 @@ class EvalTranslation:
         elif metric == "lepor":
             self.lepor.measure(self.test_case)
             result = {
-                "Result": self.lepor.success,
+                "Result": bool(self.lepor.success),
                 "Score": self.lepor.score,
                 "Reason": self.lepor.reason
             }

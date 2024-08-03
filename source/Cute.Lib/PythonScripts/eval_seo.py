@@ -1,38 +1,31 @@
 import requests
 import json
 
-from deepeval import evaluate
 from deepeval.test_case import LLMTestCase
 from deepeval.metrics import BaseMetric
 
 
 class EvalSeo:
-    def __init__(self):
-        pass
+    def __init__(
+            self, 
+            th: float, 
+            actual_output: str, 
+            input_method: str, 
+            keywords: str, 
+            related_keywords: list[str]):
+        self.test_case = LLMTestCase(actual_output=actual_output)
+        self.content_analysis_metric = ContentAnalysisMetric(tresh_score=th, input_method=input_method)
+        return self
 
-    def run(self):
-        # Test case metrics
-        seo_analysis_metric = ContentAnalysisMetric(
-            tresh_score=0.75, 
-            model="gpt-4o-mini", 
-            input_method="url", 
-            api_key="<YOUR_API_KEY>"
-        )
 
-        # Test case parameters
-        test_case_params = {
-            "input": "Write a 200-220 word copy for a website that is SEO optimized.", 
-            "actual_output": "https://www.example.com/seo-optimized-website"
+    def measure(self):
+        self.content_analysis_metric.measure(self.test_case)
+        result = {
+            "Result": self.content_analysis_metric.success,
+            "Score": self.content_analysis_metric.score,
+            "Reason": self.content_analysis_metric.reason
         }
-
-        # Test case
-        test_case_seo = LLMTestCase(
-            input = test_case_params["input"],
-            actual_output = test_case_params["actual_output"]
-        )
-
-        # Evaluate test case
-        evaluate([test_case_seo], [seo_analysis_metric])
+        return json.dumps(result)
 
 
 #############################################################################################################
@@ -46,11 +39,10 @@ class ContentAnalysisMetric(BaseMetric):
     analysis API."""
 
     # This metric by default checks if the latency is greater than 10 seconds
-    def __init__(self, tresh_score: float=0.75, model: str=None, input_method: str=None, api_key: str=None):
+    def __init__(self, tresh_score: float=0.75, model: str=None, input_method: str=None):
         self.threshold = tresh_score
         self.model = model
         self.input_method = input_method
-        self.api_key = api_key
 
     def measure(self, test_case: LLMTestCase):
         # Set self.success and self.score in the "measure" method
@@ -61,11 +53,11 @@ class ContentAnalysisMetric(BaseMetric):
 
         self.success = seo_score >= self.threshold 
         if self.success:
-            self.score = 1
+            self.score = 1.0
+            self.reason = "Feedback from API" #TODO: Parse feedback from API
         else:
-            self.score = 0
-
-        self.reason = "Feedback from API"
+            self.score = 0.0
+            self.reason = "Feedback from API" #TODO: Parse feedback from API
 
         return self.score
 
@@ -77,12 +69,13 @@ class ContentAnalysisMetric(BaseMetric):
 
     @property
     def __name__(self):
-        return "BLEU"
+        return "SEO"
     
+    # Function to make a POST request to the SEO Review Tools API
     def curl_function(tool_request_url, data):
         response = requests.post(tool_request_url, json=data)
         return response.json()
-    
+
     # Get SEO score from content
     def get_seo_score(self, content: str):
         # Title tag
