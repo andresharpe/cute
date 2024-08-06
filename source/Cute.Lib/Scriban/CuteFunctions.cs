@@ -38,6 +38,25 @@ public class CuteFunctions : ScriptObject
         return uri.Segments.LastOrDefault() ?? string.Empty;
     }
 
+    public static object? Switch(object value, params object[] values)
+    {
+        if (values.Length < 3) return null;
+
+        if (values.Length % 2 == 0) return null;
+
+        if (value == null) return values[^1];
+
+        for (var i = 0; i + 1 < values.Length; i += 2)
+        {
+            if (value.ToString() == values[i]?.ToString())
+            {
+                return values[i + 1];
+            }
+        }
+
+        return values[^1];
+    }
+
     public static bool EntriesExist(string contentType, string fieldName, string id)
     {
         var queryBuilder = new QueryBuilder<Entry<JObject>>()
@@ -166,5 +185,10 @@ public class CuteFunctions : ScriptObject
         }
 
         return contentEntries;
+    }
+
+    public static int ToInt(string value)
+    {
+        return Convert.ToInt32(value);
     }
 }

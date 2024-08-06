@@ -29,6 +29,8 @@ public class HttpDataAdapter
     {
         var compiledTemplates = CompileMappingTemplates(adapter);
 
+        var compiledPreTemplates = CompilePreMappingTemplates(adapter);
+
         var scriptObject = CreateScripObject(envSettings, contentfulManagementClient, contentfulDeliveryClient);
 
         if (adapter.EnumerateForContentTypes is not null && adapter.EnumerateForContentTypes.Count != 0)
@@ -39,7 +41,7 @@ public class HttpDataAdapter
                         queryString: contentType.QueryParameters)
                 ).ToArray();
 
-            return await MakeHttpCallsForEnumerators(adapter, compiledTemplates, enumerators, scriptObject: scriptObject);
+            return await MakeHttpCallsForEnumerators(adapter, compiledTemplates, compiledPreTemplates, enumerators, scriptObject: scriptObject);
         }
 
         FormUrlEncodedContent? formContent = null;
@@ -49,11 +51,11 @@ public class HttpDataAdapter
             formContent = new FormUrlEncodedContent(adapter.FormUrlEncodedContent);
         }
 
-        return await MakeHttpCall(adapter, compiledTemplates, formContent, scriptObject);
+        return await MakeHttpCall(adapter, compiledTemplates, compiledPreTemplates, formContent, scriptObject);
     }
 
     private async Task<List<Dictionary<string, string>>?> MakeHttpCallsForEnumerators(HttpDataAdapterConfig adapter,
-        Dictionary<string, Template> compiledTemplates,
+        Dictionary<string, Template> compiledTemplates, Dictionary<string, Template> compiledPreTemplates,
         IAsyncEnumerable<(Entry<JObject>, ContentfulCollection<Entry<JObject>>)>[] enumerators, ScriptObject scriptObject,
         int level = 0, List<Dictionary<string, string>>? returnVal = null)
     {
@@ -69,7 +71,7 @@ public class HttpDataAdapter
                 formContent = new FormUrlEncodedContent(compiledFormUrlEncodedContent);
             }
 
-            returnVal?.AddRange(await MakeHttpCall(adapter, compiledTemplates, formContent, scriptObject) ?? []);
+            returnVal?.AddRange(await MakeHttpCall(adapter, compiledTemplates, compiledPreTemplates, formContent, scriptObject) ?? []);
 
             return returnVal;
         }
@@ -100,7 +102,7 @@ public class HttpDataAdapter
             {
                 _displayAction?.Invoke($"{padding}Processing '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
 
-                _ = await MakeHttpCallsForEnumerators(adapter, compiledTemplates, enumerators, scriptObject, level + 1, returnVal);
+                _ = await MakeHttpCallsForEnumerators(adapter, compiledTemplates, compiledPreTemplates, enumerators, scriptObject, level + 1, returnVal);
             }
             else
             {
@@ -131,7 +133,7 @@ public class HttpDataAdapter
     }
 
     private async Task<List<Dictionary<string, string>>?> MakeHttpCall(HttpDataAdapterConfig adapter,
-        Dictionary<string, Template> compiledTemplates,
+        Dictionary<string, Template> compiledTemplates, Dictionary<string, Template> compiledPreTemplates,
         FormUrlEncodedContent? formContent,
         ScriptObject scriptObject)
     {
@@ -221,7 +223,7 @@ public class HttpDataAdapter
                 _displayAction($"...'{baseAddress + getParameters}' returned {rootArray.Count} entries...");
             }
 
-            var batchValue = MapResultValues(rootArray, compiledTemplates, scriptObject);
+            var batchValue = MapResultValues(rootArray, compiledTemplates, compiledPreTemplates, scriptObject);
 
             returnValue.AddRange(batchValue);
 
@@ -311,8 +313,29 @@ public class HttpDataAdapter
         return templates;
     }
 
-    private static List<Dictionary<string, string>> MapResultValues(JArray rootArray, Dictionary<string, Template> templates,
-        ScriptObject scriptObject)
+    private static Dictionary<string, Template> CompilePreMappingTemplates(HttpDataAdapterConfig adapter)
+    {
+        if (adapter.PreMapping == null) return [];
+
+        var templates = adapter.PreMapping.ToDictionary(m => m.VarName, m => Template.Parse(m.Expression));
+
+        var errors = new List<string>();
+
+        foreach (var (varName, template) in templates)
+        {
+            if (template.HasErrors)
+            {
+                errors.Add($"Error(s) in mapping for variable '{varName}'.{template.Messages.Select(m => $"\n...{m.Message}")} ");
+            }
+        }
+
+        if (errors.Count != 0) throw new CliException(string.Join('\n', errors));
+
+        return templates;
+    }
+
+    private static List<Dictionary<string, string>> MapResultValues(JArray rootArray, Dictionary<string, Template> compiledTemplates,
+        Dictionary<string, Template> compiledPreTemplates, ScriptObject scriptObject)
     {
         try
         {
@@ -320,7 +343,10 @@ public class HttpDataAdapter
                 .Select(o =>
                 {
                     scriptObject.SetValue("row", o, true);
-                    var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(scriptObject));
+                    var vars = compiledPreTemplates.ToDictionary(t => t.Key, t => t.Value.Render(scriptObject));
+                    scriptObject.SetValue("var", vars, true);
+                    var newRecord = compiledTemplates.ToDictionary(t => t.Key, t => t.Value.Render(scriptObject));
+                    scriptObject.Remove("var");
                     scriptObject.Remove("row");
                     return newRecord;
                 })

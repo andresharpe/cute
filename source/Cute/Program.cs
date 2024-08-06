@@ -2,6 +2,7 @@
 using Cute.Commands;
 using Cute.Constants;
 using Cute.Lib.Contentful;
+using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
 using Cute.Services;
 using Microsoft.AspNetCore.DataProtection;
@@ -82,11 +83,12 @@ services.AddSingleton(appSettings);
 services.AddSingleton<IContentfulOptionsProvider>(appSettings);
 services.AddTransient<AzureTranslator>();
 services.AddTransient<ContentfulConnection>();
+services.AddTransient<BulkActionExecutor>();
 
 services.AddHttpClient<AzureTranslator>();
 services.AddHttpClient<ContentfulConnection>();
 services.AddHttpClient<GetDataCommand>();
-services.AddHttpClient<BulkCommand>();
+services.AddHttpClient<BulkActionExecutor>();
 
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 
@@ -131,7 +133,7 @@ app.Configure(config =>
     config.AddCommand<TypeGenCommand>("typegen")
         .WithDescription("Generate language types from Contentful content types.");
 
-    config.AddCommand<BulkCommand>("purge")
+    config.AddCommand<BulkCommand>("bulk")
         .WithDescription("Unpublish, delete and purge all content type entries.");
 
     config.AddCommand<GetDataCommand>("getdata")
@@ -187,7 +189,7 @@ static void WriteBanner()
 
 static void WriteException(Exception ex)
 {
-    IConsoleWriter console = new ConsoleWriter(AnsiConsole.Console);
+    var console = new ConsoleWriter(AnsiConsole.Console);
 
     if (ex is ICliException
         || ex is CommandParseException

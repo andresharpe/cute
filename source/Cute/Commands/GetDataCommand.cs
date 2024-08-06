@@ -3,6 +3,7 @@ using Contentful.Core.Search;
 using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
+using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
 using Cute.Lib.GetDataAdapter;
 using Cute.Lib.Serializers;
@@ -10,14 +11,11 @@ using Cute.Services;
 using Microsoft.AspNetCore.Mvc;
 using NCrontab;
 using NCrontab.Scheduler;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Nox.Cron;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Net.Http.Headers;
-using System.Text;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -28,7 +26,9 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
     private readonly ILogger<GetDataCommand> _logger;
 
     private readonly ILogger<Scheduler> _cronLogger;
-    private readonly HttpClient _httpClient;
+
+    private readonly BulkActionExecutor _bulkActionExecutor;
+
     private readonly Scheduler _scheduler;
 
     private Dictionary<Guid, Entry<JObject>> _cronTasks = [];
@@ -37,12 +37,12 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
     public GetDataCommand(IConsoleWriter console, ILogger<GetDataCommand> logger,
         ContentfulConnection contentfulConnection, AppSettings appSettings, ILogger<Scheduler> cronLogger,
-        HttpClient httpClient)
+        BulkActionExecutor bulkActionExecutor)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
         _cronLogger = cronLogger;
-        _httpClient = httpClient;
+        _bulkActionExecutor = bulkActionExecutor;
         _scheduler = new Scheduler(_cronLogger,
             new SchedulerOptions
             {
@@ -350,10 +350,12 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
         await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, contentTypeId, contentKeyField))
         {
+            /*
             if (entry.SystemProperties.PublishedAt is null)
             {
                 continue;
             }
+            */
 
             var cfEntry = contentSerializer.SerializeEntry(entry);
 
@@ -407,15 +409,14 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
                 foreach (var (fieldname, value) in changedFields)
                 {
-                    var valueBefore = value.Item1;
-                    var valueAfter = value.Item2;
+                    var fieldnameDisplay = fieldname.EscapeMarkup();
+                    var valueBefore = value.Item1.EscapeMarkup();
+                    var valueAfter = value.Item2.EscapeMarkup();
 
-                    _console.WriteNormal("...field '{fieldname}' changed from '{valueBefore}' to '{valueAfter}'", fieldname, valueBefore, valueAfter);
+                    _console.WriteNormal("...field '{fieldnameDisplay}' changed from '{valueBefore}' to '{valueAfter}'", fieldnameDisplay, valueBefore, valueAfter);
                 }
 
-                await UpdateEntry(contentSerializer.DeserializeEntry(cfEntry), contentTypeId);
-
-                entriesUpdated.Add(entry);
+                entriesUpdated.Add(contentSerializer.DeserializeEntry(cfEntry));
             }
         }
 
@@ -437,161 +438,60 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             _console.WriteNormal("Creating {contentTypeId} '{contentKeyField}' - '{contentDisplayField}'",
                 contentTypeId, newRecord[contentKeyField], newRecord[contentDisplayField]);
 
-            await UpdateEntry(newEntry, contentTypeId);
-
             entriesUpdated.Add(newEntry);
 
             entriesProcessed.Add(newRecord[contentKeyField], newLanguageId);
         }
 
-        Task.WaitAll(_updateTasks.Where(t => t is not null).ToArray());
+        await UpdateEntries(contentTypeId, entriesUpdated);
 
-        await PublishEntries(entriesUpdated);
+        await PublishEntries(contentTypeId, entriesUpdated);
 
         return entriesProcessed;
     }
 
-    private readonly Task[] _updateTasks = new Task[20];
-
-    private int _currentUpdateTask = 0;
-
-    private async Task UpdateEntry(Entry<JObject> newEntry, string contentType)
+    private async Task UpdateEntries(string contentTypeId, List<Entry<JObject>> entries)
     {
-        await Task.Delay(125);
+        if (entries.Count == 0) return;
 
-        _updateTasks[_currentUpdateTask++] = ContentfulManagementClient.CreateOrUpdateEntry(
-                newEntry.Fields,
-                id: newEntry.SystemProperties.Id,
-                version: newEntry.SystemProperties.Version,
-                contentTypeId: contentType);
+        var count = entries.Count;
 
-        if (_currentUpdateTask >= _updateTasks.Length)
-        {
-            _currentUpdateTask = 0;
-            try
-            {
-                Task.WaitAll(_updateTasks);
-            }
-            catch (Exception ex)
-            {
-                _console.WriteException(ex);
-            }
-        }
+        _console.WriteNormalWithHighlights($"Publishing {count} '{contentTypeId}' entries...", Globals.StyleHeading);
+
+        await Task.Delay(2000);
+
+        await _bulkActionExecutor
+            .WithContentType(contentTypeId)
+            .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+            .WithNewEntries(entries)
+            .Execute(BulkAction.Upsert);
     }
 
-    private async Task PublishEntries(IEnumerable<Entry<JObject>> entries)
+    private async Task PublishEntries(string contentTypeId, List<Entry<JObject>> entries)
     {
-        var bulkActionIds = new Dictionary<string, string>();
+        if (entries.Count == 0) return;
 
-        var _publishChunkSize = 50;
+        var count = entries.Count;
 
-        var _bulkActionCallLimit = 4;
+        _console.WriteNormalWithHighlights($"Publishing {count} '{contentTypeId}' entries...", Globals.StyleHeading);
 
-        var _millisecondsBetweenCalls = 100;
+        await Task.Delay(2000);
 
-        foreach (var chunk in entries.Chunk(_publishChunkSize))
-        {
-            var bulkObject = new
+        await _bulkActionExecutor
+            .WithContentType(contentTypeId)
+            .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+            .WithEntries(entries.Select(entry => new BulkItem()
             {
-                entities = new
+                Sys = new Sys()
                 {
-                    items = chunk.Select(i => new { sys = new { id = i.SystemProperties.Id, type = "Link", linkType = "Entry", version = (i.SystemProperties.Version ?? 0) + 1 } }).ToArray()
-                }
-            };
-
-            var bulkActionResponse = await SendBulkPublishRequest(bulkObject);
-
-            var bulkActionResponseId = bulkActionResponse.Sys.Id;
-
-            var bulkActionResponseStatus = bulkActionResponse.Sys.Status;
-
-            var entriesCount = bulkObject.entities.items.Length;
-
-            bulkActionIds.Add(bulkActionResponseId, string.Empty);
-
-            _console.WriteNormalWithHighlights($"Created bulk action '{bulkActionResponseId}' with status '{bulkActionResponseStatus}' ({entriesCount} entries)",
-                Globals.StyleHeading);
-
-            if (bulkActionIds.Count < _bulkActionCallLimit && entriesCount == _publishChunkSize)
-            {
-                await Task.Delay(_millisecondsBetweenCalls);
-                continue;
-            }
-
-            while (bulkActionIds.Count > 0)
-            {
-                foreach (var bulkActionId in bulkActionIds.ToArray())
-                {
-                    await Task.Delay(_millisecondsBetweenCalls * 2);
-
-                    var bulkActionStatus = await SendBulkActionStatusRequest(bulkActionId.Key);
-
-                    var status = bulkActionStatus.Sys.Status;
-
-                    if (bulkActionId.Value != status)
-                    {
-                        _console.WriteNormalWithHighlights($"...checking action '{bulkActionId.Key}' and it's status is '{status}'",
-                            Globals.StyleHeading);
-
-                        bulkActionIds[bulkActionId.Key] = status;
-                    }
-
-                    if (status is null || status != "inProgress")
-                    {
-                        bulkActionIds.Remove(bulkActionId.Key);
-                    }
-                }
-
-                if (bulkActionIds.Count < _bulkActionCallLimit && entriesCount == _publishChunkSize)
-                {
-                    break;
+                    Id = entry.SystemProperties.Id,
+                    PublishedAt = entry.SystemProperties.PublishedAt,
+                    ArchivedVersion = entry.SystemProperties.ArchivedVersion,
+                    PublishedVersion = entry.SystemProperties.PublishedVersion,
+                    Version = entry.SystemProperties.Version + 1,
                 }
             }
-        }
-    }
-
-    private async Task<BulkActionResponse> SendBulkActionStatusRequest(string bulkActionResponseId)
-    {
-        var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{ContentfulSpaceId}/environments/{ContentfulEnvironmentId}/bulk_actions/actions/{bulkActionResponseId}");
-
-        var bulkRequest = new HttpRequestMessage
-        {
-            RequestUri = bulkEndpoint,
-            Method = System.Net.Http.HttpMethod.Get,
-        };
-
-        bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _appSettings.ContentfulManagementApiKey);
-
-        using var bulkResponse = await _httpClient.SendAsync(bulkRequest);
-
-        var responseText = await bulkResponse.Content.ReadAsStringAsync();
-
-        var bulkActionResponseCheck = JsonConvert.DeserializeObject<BulkActionResponse>(responseText) ??
-            throw new CliException("Could not read the bulk action response.");
-
-        return bulkActionResponseCheck;
-    }
-
-    private async Task<BulkActionResponse> SendBulkPublishRequest(object bulkObject)
-    {
-        var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{ContentfulSpaceId}/environments/{ContentfulEnvironmentId}/bulk_actions/publish");
-
-        var bulkRequest = new HttpRequestMessage
-        {
-            RequestUri = bulkEndpoint,
-            Method = System.Net.Http.HttpMethod.Post,
-            Content = new StringContent(JsonConvert.SerializeObject(bulkObject), Encoding.UTF8, "application/json")
-        };
-
-        bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _appSettings.ContentfulManagementApiKey);
-
-        using var bulkResponse = await _httpClient.SendAsync(bulkRequest);
-
-        var responseText = await bulkResponse.Content.ReadAsStringAsync();
-
-        var bulkActionResponse = JsonConvert.DeserializeObject<BulkActionResponse>(responseText) ??
-            throw new CliException("Could not read the bulk action response.");
-
-        return bulkActionResponse;
+            ).ToList())
+            .Execute(BulkAction.Publish);
     }
 }

@@ -12,6 +12,7 @@ public class HttpDataAdapterConfig
     public Dictionary<string, string> FormUrlEncodedContent { get; set; } = default!;
     public string ResultsJsonPath { get; set; } = default!;
     public FieldMapping[] Mapping = [];
+    public VarMapping[] PreMapping = [];
     public List<ContentEntryDefinition> EnumerateForContentTypes = [];
     public string FilterExpression = default!;
     public Pagination Pagination { get; set; } = default!;
