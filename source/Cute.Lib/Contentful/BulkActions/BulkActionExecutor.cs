@@ -223,7 +223,7 @@ public class BulkActionExecutor
 
         using var bulkResponse = await _httpClient.SendAsync(bulkRequest);
 
-        bulkResponse.EnsureSuccessStatusCode();
+        // bulkResponse.EnsureSuccessStatusCode();
 
         var responseText = await bulkResponse.Content.ReadAsStringAsync();
 
