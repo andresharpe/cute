@@ -24,6 +24,8 @@ public class BulkActionExecutor
 
     private string? _contentType;
 
+    private ContentType? _contentTypeDefinition;
+
     private Action<FormattableString>? _displayAction;
 
     private List<BulkItem>? _withEntries;
@@ -237,9 +239,16 @@ public class BulkActionExecutor
 
         var allItems = new List<BulkItem>();
 
+        var displayField = _contentTypeDefinition?.DisplayField;
+
         var i = 0;
-        await foreach (var (entry, _) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(_contentfulConnection.ManagementClient, contentType))
+
+        await foreach (var (entry, _) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(_contentfulConnection.ManagementClient, contentType, displayField))
         {
+            var displayFieldValue = displayField == null
+                ? string.Empty
+                : entry.Fields[displayField]?["en"]?.Value<string>() ?? string.Empty;
+
             allItems.Add(new BulkItem()
             {
                 Sys = new Sys()
@@ -249,12 +258,13 @@ public class BulkActionExecutor
                     PublishedVersion = entry.SystemProperties.PublishedVersion,
                     ArchivedVersion = entry.SystemProperties.ArchivedVersion,
                     Version = entry.SystemProperties.Version,
+                    DisplayFieldValue = displayFieldValue
                 }
             });
 
             if (++i % 1000 == 0)
             {
-                _displayAction?.Invoke($"Getting record {i}...");
+                _displayAction?.Invoke($"Getting '{_contentType}' entry {i}...");
             }
         }
 
@@ -274,10 +284,11 @@ public class BulkActionExecutor
 
             var itemId = item.Sys.Id;
             var itemVersion = item.Sys.Version ?? 0;
+            var displayFieldValue = item.Sys.DisplayFieldValue;
 
             processed++;
 
-            _displayAction?.Invoke($"...deleting '{_contentType}' item '{itemId}' ({processed}/{count})");
+            _displayAction?.Invoke($"...deleting '{_contentType}' item '{itemId}' ({processed}/{count}) {displayFieldValue}");
 
             tasks[taskNo++] = _contentfulConnection.ManagementClient.DeleteEntry(itemId, itemVersion);
 
@@ -300,6 +311,7 @@ public class BulkActionExecutor
 
         var count = entries.Count;
         var processed = 0;
+        var displayField = _contentTypeDefinition?.DisplayField;
 
         foreach (var newEntry in entries)
         {
@@ -307,10 +319,13 @@ public class BulkActionExecutor
 
             var itemId = newEntry.SystemProperties.Id;
             var itemVersion = newEntry.SystemProperties.Version ?? 0;
+            var displayFieldValue = displayField == null
+                ? string.Empty
+                : newEntry.Fields[displayField]?["en"]?.Value<string>() ?? string.Empty;
 
             processed++;
 
-            _displayAction?.Invoke($"...creating/updating '{_contentType}' item '{itemId}' ({processed}/{count})");
+            _displayAction?.Invoke($"...creating/updating '{_contentType}' item '{itemId}' ({processed}/{count}) {displayFieldValue}");
 
             tasks[taskNo++] = _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
                 newEntry.Fields,
@@ -331,6 +346,8 @@ public class BulkActionExecutor
     public async Task Execute(BulkAction bulkAction)
     {
         if (_contentType is null) throw new CliException("No content type specified");
+
+        _contentTypeDefinition = await _contentfulConnection.ManagementClient.GetContentType(_contentType);
 
         var allEntries = _withEntries ?? await GetAllEntries(_contentType);
 

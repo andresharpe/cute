@@ -7,6 +7,7 @@ public class Sys
     public int? Version { get; set; } = default!;
     public int? PublishedVersion { get; set; }
     public int? ArchivedVersion { get; set; }
+    public string DisplayFieldValue { get; internal set; } = default!;
 
     public bool IsDraft()
     {

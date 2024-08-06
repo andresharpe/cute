@@ -189,6 +189,12 @@ public class HttpDataAdapter
             {
                 endpointResult = await httpClient.GetAsync(baseAddress + getParameters);
             }
+            else
+            {
+                throw new NotImplementedException($"Unknown method {adapter.HttpMethod}");
+            }
+
+            endpointResult?.EnsureSuccessStatusCode();
 
             if (endpointResult is not null)
             {
