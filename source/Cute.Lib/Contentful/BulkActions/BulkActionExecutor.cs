@@ -14,9 +14,9 @@ public class BulkActionExecutor
 
     private int _bulkActionCallLimit = 5;
 
-    private int _millisecondsBetweenCalls = 110;
+    private int _millisecondsBetweenCalls = 100;
 
-    private int _concurrentTaskLimit = 50;
+    private int _concurrentTaskLimit = 25;
 
     private readonly ContentfulConnection _contentfulConnection;
 
@@ -42,6 +42,30 @@ public class BulkActionExecutor
         return this;
     }
 
+    public BulkActionExecutor WithPublishChunkSize(int publishChunkSize)
+    {
+        _publishChunkSize = publishChunkSize;
+        return this;
+    }
+
+    public BulkActionExecutor WithBulkActionCallLimit(int bulkActionCallLimit)
+    {
+        _bulkActionCallLimit = bulkActionCallLimit;
+        return this;
+    }
+
+    public BulkActionExecutor WithMillisecondsBetweenCalls(int millisecondsBetweenCalls)
+    {
+        _millisecondsBetweenCalls = millisecondsBetweenCalls;
+        return this;
+    }
+
+    public BulkActionExecutor WithConcurrentTaskLimit(int concurrentTaskLimit)
+    {
+        _concurrentTaskLimit = concurrentTaskLimit;
+        return this;
+    }
+
     public BulkActionExecutor WithDisplayAction(Action<FormattableString> displayAction)
     {
         _displayAction = displayAction;
@@ -57,12 +81,6 @@ public class BulkActionExecutor
     public BulkActionExecutor WithNewEntries(List<Entry<JObject>> withNewEntries)
     {
         _withNewEntries = withNewEntries;
-        return this;
-    }
-
-    public BulkActionExecutor WithPublishChunkSize(int publishChunkSize)
-    {
-        _publishChunkSize = publishChunkSize;
         return this;
     }
 
@@ -132,6 +150,7 @@ public class BulkActionExecutor
 
                 if (bulkActionIds.Count < _bulkActionCallLimit && !chunkQueue.IsEmpty)
                 {
+                    await Task.Delay(_millisecondsBetweenCalls * 2);
                     break;
                 }
             }

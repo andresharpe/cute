@@ -464,6 +464,9 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             .WithContentType(contentTypeId)
             .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
             .WithNewEntries(entries)
+            .WithConcurrentTaskLimit(25)
+            .WithPublishChunkSize(100)
+            .WithMillisecondsBetweenCalls(120)
             .Execute(BulkAction.Upsert);
     }
 
@@ -492,6 +495,9 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
                 }
             }
             ).ToList())
+            .WithConcurrentTaskLimit(25)
+            .WithPublishChunkSize(100)
+            .WithMillisecondsBetweenCalls(120)
             .Execute(BulkAction.Publish);
     }
 }

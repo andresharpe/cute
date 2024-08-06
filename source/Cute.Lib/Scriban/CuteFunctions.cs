@@ -1,6 +1,5 @@
 ﻿using Contentful.Core;
 using Contentful.Core.Models;
-using Contentful.Core.Search;
 using Cute.Lib.Contentful;
 using Cute.Lib.Utilities;
 using Html2Markdown;
@@ -59,15 +58,16 @@ public class CuteFunctions : ScriptObject
 
     public static bool EntriesExist(string contentType, string fieldName, string id)
     {
-        var queryBuilder = new QueryBuilder<Entry<JObject>>()
-            .ContentTypeIs(contentType)
-            .Include(1)
-            .Limit(1)
-            .FieldEquals(fieldName, id);
+        var cacheKey = $"{contentType}|{fieldName}";
 
-        var result = ContentfulManagementClient.GetEntriesCollection(queryBuilder).Result;
+        var countCache = GetFromCountCache(contentType, fieldName, cacheKey);
 
-        return result.Any();
+        if (countCache.TryGetValue(id, out var count))
+        {
+            return count > 0;
+        }
+
+        return false;
     }
 
     private static readonly ConcurrentDictionary<string, Dictionary<string, int>> _countEntriesCache = [];
@@ -94,13 +94,24 @@ public class CuteFunctions : ScriptObject
             {
                 if (!_countEntriesCache.TryGetValue(cacheKey, out var _))
                 {
-                    var results = ContentfulEntryEnumerator.Entries<JObject>(
-                            ContentfulManagementClient, contentType)
-                        .ToBlockingEnumerable()
-                        .GroupBy(e => e.Item1.SelectToken(keyField)?.Value<string>() ?? "error")
-                        .ToDictionary(group => group.Key, group => group.Count());
+                    var results = ContentfulEntryEnumerator.Entries<JObject>(ContentfulManagementClient, contentType).ToBlockingEnumerable();
 
-                    _countEntriesCache.TryAdd(cacheKey, results ?? []);
+                    var resultsDictionary = new Dictionary<string, int>();
+
+                    foreach (var (entry, _) in results)
+                    {
+                        var key = entry.SelectToken(keyField)?.Value<string>() ?? "error";
+                        if (resultsDictionary.TryGetValue(key, out var count))
+                        {
+                            resultsDictionary[key] = count + 1;
+                        }
+                        else
+                        {
+                            resultsDictionary.Add(key, 1);
+                        }
+                    }
+
+                    _countEntriesCache.TryAdd(cacheKey, resultsDictionary);
                 }
             }
             countResult = _countEntriesCache[cacheKey];
