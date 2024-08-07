@@ -193,11 +193,9 @@ public class EntrySerializer
 
         var entryFieldsSerializer = _fieldSerializers[fieldName];
 
-        var deserializedOldValue = entryFieldsSerializer.DeserializeToString(oldValue);
+        var isEqual = entryFieldsSerializer.Compare(oldValue, newValue);
 
-        var deserializedNewValue = entryFieldsSerializer.DeserializeToString(newValue);
-
-        if (deserializedOldValue != deserializedNewValue)
+        if (!isEqual)
         {
             flatEntry[fieldName] = newValue;
             return true;

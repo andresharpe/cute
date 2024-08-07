@@ -1,5 +1,6 @@
 ﻿using Contentful.Core;
 using Contentful.Core.Models;
+using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Scriban;
@@ -8,6 +9,8 @@ using Newtonsoft.Json.Linq;
 using Scriban;
 using Scriban.Runtime;
 using Scriban.Syntax;
+using System.IO.Hashing;
+using System.Text;
 
 namespace Cute.Lib.GetDataAdapter;
 
@@ -15,9 +18,18 @@ public class HttpDataAdapter
 {
     private Action<string>? _displayAction;
 
+    private HttpResponseFileCache? _httpResponseFileCache;
+
     public HttpDataAdapter WithDisplayAction(Action<string> displayAction)
     {
         _displayAction = displayAction;
+
+        return this;
+    }
+
+    public HttpDataAdapter WithHttpResponseFileCache(HttpResponseFileCache httpResponseFileCache)
+    {
+        _httpResponseFileCache = httpResponseFileCache;
 
         return this;
     }
@@ -158,9 +170,7 @@ public class HttpDataAdapter
 
         var returnValue = new List<Dictionary<string, string>>();
 
-        var cachedResults = new HashSet<string>();
-
-        var requestCount = 1;
+        var requestCount = 0;
 
         var skipTotal = 0;
 
@@ -168,6 +178,8 @@ public class HttpDataAdapter
 
         while (true)
         {
+            requestCount++;
+
             var getParameters = string.Empty;
 
             if (adapter.Pagination is not null)
@@ -177,44 +189,20 @@ public class HttpDataAdapter
                 skipTotal += adapter.Pagination.LimitMax;
             }
 
-            HttpResponseMessage? endpointResult = null;
+            var requestUri = baseAddress + getParameters;
 
-            string? endpointContent = null;
+            var results = await GetResponseFromEndpointOrCache(adapter, httpClient, formContent, requestUri, requestCount);
 
-            if (adapter.HttpMethod == HttpMethod.Post)
-            {
-                endpointResult = await httpClient.PostAsync(baseAddress + getParameters, formContent);
-            }
-            else if (adapter.HttpMethod == HttpMethod.Get)
-            {
-                endpointResult = await httpClient.GetAsync(baseAddress + getParameters);
-            }
-            else
-            {
-                throw new NotImplementedException($"Unknown method {adapter.HttpMethod}");
-            }
-
-            endpointResult?.EnsureSuccessStatusCode();
-
-            if (endpointResult is not null)
-            {
-                endpointContent = await endpointResult.Content.ReadAsStringAsync();
-            }
-
-            if (endpointContent is null) return [];
-
-            var results = JsonConvert.DeserializeObject(endpointContent);
-
-            if (results is null) return null;
+            if (results is null) return [];
 
             JArray rootArray = [];
 
             if (adapter.ResultsJsonPath is null)
             {
-                rootArray = results as JArray
+                rootArray = results.ResponseContent as JArray
                     ?? throw new CliException("The result of the endpoint call is not a json array.");
             }
-            else if (results is JObject obj)
+            else if (results.ResponseContent is JObject obj)
             {
                 rootArray = obj.SelectToken($"$.{adapter.ResultsJsonPath}") as JArray
                     ?? throw new CliException($"The json path '{adapter.ResultsJsonPath}' does not exist or is not a json array.");
@@ -226,7 +214,7 @@ public class HttpDataAdapter
 
             if (_displayAction is not null)
             {
-                _displayAction($"...'{baseAddress + getParameters}' returned {rootArray.Count} entries...");
+                _displayAction($"...'{requestUri}' returned {rootArray.Count} entries...");
             }
 
             var batchValue = MapResultValues(rootArray, compiledTemplates, compiledPreTemplates, scriptObject);
@@ -244,15 +232,7 @@ public class HttpDataAdapter
 
             if (adapter.ContinuationTokenHeader is null) break;
 
-            if (cachedResults.Count > 0)
-            {
-                requestCount++;
-                continue;
-            }
-
-            if (endpointResult is null) break;
-
-            if (!endpointResult.Headers.Contains(adapter.ContinuationTokenHeader))
+            if (!results.ResponseContentHeaders.ContainsKey(adapter.ContinuationTokenHeader))
             {
                 break;
             }
@@ -262,14 +242,78 @@ public class HttpDataAdapter
                 httpClient.DefaultRequestHeaders.Remove(adapter.ContinuationTokenHeader);
             }
 
-            var token = endpointResult.Headers.GetValues(adapter.ContinuationTokenHeader).First();
+            var token = results.ResponseContentHeaders[adapter.ContinuationTokenHeader];
 
             httpClient.DefaultRequestHeaders.Add(adapter.ContinuationTokenHeader, token);
-
-            requestCount++;
         }
 
         return [.. returnValue.OrderBy(e => e[adapter.ContentKeyField])];
+    }
+
+    private async Task<HttpResponseCacheEntry?> GetResponseFromEndpointOrCache(HttpDataAdapterConfig adapter,
+        HttpClient httpClient, FormUrlEncodedContent? formContent, string requestUri, int requestCount)
+    {
+        Task<HttpResponseCacheEntry?> getEntryFunc() => GetResponseFromEndpoint(adapter, httpClient, formContent, requestUri);
+
+        if (_httpResponseFileCache is null) return await getEntryFunc();
+
+        var uri = new Uri(requestUri, UriKind.Absolute);
+
+        var fileBaseName = new StringBuilder();
+
+        fileBaseName.Append(adapter.Id);
+        fileBaseName.Append('_');
+        fileBaseName.Append(uri.Host.Replace('.', '-').Trim('-'));
+        fileBaseName.Append('_');
+        fileBaseName.Append($"{requestCount:D4}");
+
+        if (formContent is not null)
+        {
+            var hashAlgo = new XxHash3();
+            var item = await formContent.ReadAsByteArrayAsync();
+            hashAlgo.Append(item);
+            fileBaseName.Append('_');
+            fileBaseName.Append(hashAlgo.GetCurrentHashAsUInt64());
+        }
+
+        return await _httpResponseFileCache.Get(fileBaseName.ToString(), getEntryFunc);
+    }
+
+    private static async Task<HttpResponseCacheEntry?> GetResponseFromEndpoint(HttpDataAdapterConfig adapter, HttpClient httpClient, FormUrlEncodedContent? formContent, string requestUri)
+    {
+        HttpResponseMessage? endpointResult = null;
+
+        string? endpointContent = null;
+
+        if (adapter.HttpMethod == HttpMethod.Post)
+        {
+            endpointResult = await httpClient.PostAsync(requestUri, formContent);
+        }
+        else if (adapter.HttpMethod == HttpMethod.Get)
+        {
+            endpointResult = await httpClient.GetAsync(requestUri);
+        }
+        else
+        {
+            throw new NotImplementedException($"Unknown method {adapter.HttpMethod}");
+        }
+
+        endpointResult.EnsureSuccessStatusCode();
+
+        endpointContent = await endpointResult.Content.ReadAsStringAsync();
+
+        if (endpointContent is null) return null;
+
+        var results = JsonConvert.DeserializeObject(endpointContent);
+
+        return new HttpResponseCacheEntry
+        {
+            RequestUri = requestUri,
+            ResponseContent = results,
+            ResponseContentHeaders = endpointResult.Headers
+                .AsEnumerable()
+                .ToDictionary(kv => kv.Key, kv => kv.Value.FirstOrDefault()),
+        };
     }
 
     private static Dictionary<string, string> CompileValuesWithEnvironment(Dictionary<string, string> headers, ScriptObject scriptObject)

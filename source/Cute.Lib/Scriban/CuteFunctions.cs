@@ -3,6 +3,7 @@ using Contentful.Core.Models;
 using Cute.Lib.Contentful;
 using Cute.Lib.Utilities;
 using Html2Markdown;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Scriban.Runtime;
 using System.Collections.Concurrent;
@@ -24,6 +25,19 @@ public class CuteFunctions : ScriptObject
         if (content == null) return string.Empty;
 
         return _htmlConverter.Convert(content);
+    }
+
+    public static string ToJson(object value)
+    {
+        if (value is JObject jObject)
+        {
+            return jObject.ToString();
+        }
+        else if (value is JArray jArray)
+        {
+            return jArray.ToString();
+        }
+        return JsonConvert.SerializeObject(value);
     }
 
     public static string UrlLastSegment(string? url)
@@ -94,7 +108,7 @@ public class CuteFunctions : ScriptObject
             {
                 if (!_countEntriesCache.TryGetValue(cacheKey, out var _))
                 {
-                    var results = ContentfulEntryEnumerator.Entries<JObject>(ContentfulManagementClient, contentType).ToBlockingEnumerable();
+                    var results = ContentfulEntryEnumerator.Entries<JObject>(ContentfulManagementClient, contentType, includeLevels: 1, pageSize: 500).ToBlockingEnumerable();
 
                     var resultsDictionary = new Dictionary<string, int>();
 

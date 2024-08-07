@@ -2,6 +2,7 @@
 using Contentful.Core.Search;
 using Cute.Config;
 using Cute.Constants;
+using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
@@ -28,7 +29,7 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
     private readonly ILogger<Scheduler> _cronLogger;
 
     private readonly BulkActionExecutor _bulkActionExecutor;
-
+    private readonly HttpResponseFileCache _httpResponseCache;
     private readonly Scheduler _scheduler;
 
     private Dictionary<Guid, Entry<JObject>> _cronTasks = [];
@@ -37,12 +38,13 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
     public GetDataCommand(IConsoleWriter console, ILogger<GetDataCommand> logger,
         ContentfulConnection contentfulConnection, AppSettings appSettings, ILogger<Scheduler> cronLogger,
-        BulkActionExecutor bulkActionExecutor)
+        BulkActionExecutor bulkActionExecutor, HttpResponseFileCache httpResponseCache)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
         _cronLogger = cronLogger;
         _bulkActionExecutor = bulkActionExecutor;
+        _httpResponseCache = httpResponseCache;
         _scheduler = new Scheduler(_cronLogger,
             new SchedulerOptions
             {
@@ -280,7 +282,8 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
         if (_settings is null) return;
 
         var dataAdapter = new HttpDataAdapter()
-            .WithDisplayAction(_console.WriteDim);
+            .WithDisplayAction(_console.WriteDim)
+            .WithHttpResponseFileCache(_httpResponseCache);
 
         var getDataId = GetString(getDataEntry, _settings.GetDataIdField);
 
@@ -299,6 +302,8 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             .Build();
 
         var adapter = yamlDeserializer.Deserialize<HttpDataAdapterConfig>(yaml);
+
+        adapter.Id = getDataId;
 
         var contentType = await ContentfulManagementClient.GetContentType(adapter.ContentType);
 

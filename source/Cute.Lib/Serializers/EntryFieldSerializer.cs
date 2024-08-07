@@ -134,12 +134,12 @@ internal class EntryFieldSerializer
             FieldType.RichText => ToDocument(value),
             FieldType.Integer => Convert.ToInt64(value is string s && string.IsNullOrWhiteSpace(s) ? null : value),
             FieldType.Number => Convert.ToDouble(value is string s && string.IsNullOrWhiteSpace(s) ? null : value),
-            FieldType.Date => ObjectExtensions.FromInvariantDateTime(value),
+            FieldType.Date => ToDateTime(value),
             FieldType.Location => ToLocation(values),
             FieldType.Boolean => Convert.ToBoolean(value),
             FieldType.Link => ToLink(value),
             FieldType.Array => ToObjectArray(value),
-            FieldType.Object => JObject.Parse((string)value),
+            FieldType.Object => JsonConvert.DeserializeObject<JToken>((string)value),
             _ => throw new NotImplementedException(),
         };
     }
@@ -157,14 +157,61 @@ internal class EntryFieldSerializer
             FieldType.RichText => ToDocument(value)?.ToString(),
             FieldType.Integer => Convert.ToInt64(value).ToString(),
             FieldType.Number => Convert.ToDouble(value).ToString(),
-            FieldType.Date => ObjectExtensions.FromInvariantDateTime(value).ToString("u"),
+            FieldType.Date => ToDateTime(value)?.ToString("u"),
             FieldType.Location => Convert.ToDouble(value).ToString(),
             FieldType.Boolean => Convert.ToBoolean(value).ToString(),
             FieldType.Link => ToLink(value)?.ToString(),
             FieldType.Array => ToObjectArray(value)?.ToString(),
-            FieldType.Object => JObject.Parse((string)value).ToString(),
+            FieldType.Object => ToObjectString(value),
             _ => throw new NotImplementedException(),
         }; ;
+    }
+
+    internal bool Compare<T>(object? value1, T? value2)
+    {
+        if (_contentfulType == FieldType.Object)
+        {
+            if (value1 is string str1 && value2 is string str2)
+            {
+                var obj1 = JsonConvert.DeserializeObject<JToken>(str1);
+                var obj2 = JsonConvert.DeserializeObject<JToken>(str2);
+                return JToken.DeepEquals(obj1, obj2);
+            }
+            else if (value1 is null && value2 is null)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        var normalizedValue1 = DeserializeToString(value1);
+        var normalizedValue2 = DeserializeToString(value2);
+
+        return normalizedValue1 == normalizedValue2;
+    }
+
+    private DateTime? ToDateTime(object? value)
+    {
+        if (value is null) return null;
+
+        var date = ObjectExtensions.FromInvariantDateTime(value);
+
+        if (date == DateTime.MinValue) return null;
+
+        return date;
+    }
+
+    private string? ToObjectString(object? value)
+    {
+        if (value is string stringValue)
+        {
+            return stringValue;
+        }
+        else if (value is JToken jsonValue)
+        {
+            return jsonValue.ToString();
+        }
+        return JsonConvert.SerializeObject(value);
     }
 
     private JObject? ToLink(object value)

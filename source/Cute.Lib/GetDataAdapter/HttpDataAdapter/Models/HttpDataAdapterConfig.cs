@@ -2,6 +2,7 @@
 
 public class HttpDataAdapterConfig
 {
+    public string Id { get; set; } = default!;
     public string ContentType { get; set; } = default!;
     public string ContentDisplayField { get; set; } = default!;
     public string ContentKeyField { get; set; } = default!;

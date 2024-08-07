@@ -7,12 +7,12 @@ namespace Cute.Lib.Contentful;
 
 public static class ContentfulEntryEnumerator
 {
-    public static async IAsyncEnumerable<(T Entry, ContentfulCollection<T> Entries)> Entries<T>(ContentfulManagementClient client, string contentType,
+    public static async IAsyncEnumerable<(T Entry, ContentfulCollection<T> Entries)> Entries<T>(
+        ContentfulManagementClient client, string contentType,
         string? orderByField = null,
-        int includeLevels = 2, Action<QueryBuilder<T>>? queryConfigurator = null, string? queryString = null)
+        int includeLevels = 2, Action<QueryBuilder<T>>? queryConfigurator = null, string? queryString = null, int pageSize = 1000)
     {
         var skip = 0;
-        var page = 1000;
 
         while (true)
         {
@@ -20,7 +20,7 @@ public static class ContentfulEntryEnumerator
                 .ContentTypeIs(contentType)
                 .Include(includeLevels)
                 .Skip(skip)
-                .Limit(page);
+                .Limit(pageSize);
 
             if (orderByField != null)
             {
@@ -49,7 +49,7 @@ public static class ContentfulEntryEnumerator
                 yield return (Entry: entry, Entries: entries);
             }
 
-            skip += page;
+            skip += pageSize;
         }
     }
 

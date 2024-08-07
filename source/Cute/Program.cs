@@ -1,6 +1,7 @@
 ﻿using Contentful.Core.Errors;
 using Cute.Commands;
 using Cute.Constants;
+using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
@@ -84,6 +85,7 @@ services.AddSingleton<IContentfulOptionsProvider>(appSettings);
 services.AddTransient<AzureTranslator>();
 services.AddTransient<ContentfulConnection>();
 services.AddTransient<BulkActionExecutor>();
+services.AddTransient<HttpResponseFileCache>();
 
 services.AddHttpClient<AzureTranslator>();
 services.AddHttpClient<ContentfulConnection>();

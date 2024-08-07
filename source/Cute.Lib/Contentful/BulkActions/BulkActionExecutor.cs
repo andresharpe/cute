@@ -1,4 +1,5 @@
 ﻿using Contentful.Core.Models;
+using Cute.Lib.Cache;
 using Cute.Lib.Exceptions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -21,7 +22,7 @@ public class BulkActionExecutor
     private readonly ContentfulConnection _contentfulConnection;
 
     private readonly HttpClient _httpClient;
-
+    private readonly HttpResponseFileCache _httpResponseCache;
     private string? _contentType;
 
     private ContentType? _contentTypeDefinition;
@@ -32,10 +33,11 @@ public class BulkActionExecutor
 
     private List<Entry<JObject>>? _withNewEntries;
 
-    public BulkActionExecutor(ContentfulConnection contentfulConnection, HttpClient httpClient)
+    public BulkActionExecutor(ContentfulConnection contentfulConnection, HttpClient httpClient, HttpResponseFileCache httpResponseCache)
     {
         _contentfulConnection = contentfulConnection;
         _httpClient = httpClient;
+        _httpResponseCache = httpResponseCache;
     }
 
     public BulkActionExecutor WithContentType(string contentType)
@@ -101,7 +103,7 @@ public class BulkActionExecutor
             chunkQueue.Enqueue(chunk);
         }
 
-        while (!chunkQueue.IsEmpty)
+        while (!chunkQueue.IsEmpty || bulkActionIds.Count != 0)
         {
             if (!chunkQueue.TryDequeue(out var chunk)) continue;
 
