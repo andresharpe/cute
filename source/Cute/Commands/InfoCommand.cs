@@ -1,10 +1,12 @@
-﻿using Cute.Constants;
+﻿using Cute.Config;
+using Cute.Constants;
+using Cute.Lib.Contentful;
+using Cute.Lib.Extensions;
 using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using Cute.Lib.Extensions;
-using Cute.Config;
-using Cute.Lib.Contentful;
+using Table = Spectre.Console.Table;
+using Text = Spectre.Console.Text;
 
 namespace Cute.Commands;
 
@@ -30,6 +32,7 @@ public sealed class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 
         topTable.AddColumn(new TableColumn(new Text("Space", Globals.StyleSubHeading)));
         topTable.AddColumn(new TableColumn(new Text("Id", Globals.StyleSubHeading)));
+        topTable.AddColumn(new TableColumn(new Text("Environment", Globals.StyleSubHeading)));
 
         var mainTable = new Table()
             .RoundedBorder()
@@ -86,7 +89,8 @@ public sealed class InfoCommand : LoggedInCommand<InfoCommand.Settings>
 
                 topTable.AddRow(
                     new Markup(space.Name, Globals.StyleAlert),
-                    new Markup(ContentfulSpaceId, Globals.StyleNormal)
+                    new Markup(ContentfulSpaceId, Globals.StyleNormal),
+                    new Markup(ContentfulEnvironmentId, Globals.StyleNormal)
                 );
 
                 mainTable.AddRow(

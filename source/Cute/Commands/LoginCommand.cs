@@ -1,5 +1,4 @@
 ﻿using Contentful.Core;
-using Contentful.Core.Errors;
 using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Exceptions;

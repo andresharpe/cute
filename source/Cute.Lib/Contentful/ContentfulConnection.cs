@@ -10,6 +10,8 @@ public class ContentfulConnection
 
     private readonly ContentfulClient _contentfulClient;
 
+    private readonly ContentfulClient _contentfulPreviewClient;
+
     private readonly ContentfulManagementClient _contentfulManagementClient;
 
     public ContentfulConnection(HttpClient httpClient, IContentfulOptionsProvider optionsProvider)
@@ -33,6 +35,24 @@ public class ContentfulConnection
             throw new CliException("Could not log into the Contentful Delivery API.");
         }
 
+        var previewOptions = new ContentfulOptions
+        {
+            DeliveryApiKey = _contentfulOptions.DeliveryApiKey,
+            PreviewApiKey = _contentfulOptions.PreviewApiKey,
+            ManagementApiKey = _contentfulOptions.ManagementApiKey,
+            Environment = _contentfulOptions.Environment,
+            SpaceId = _contentfulOptions.SpaceId,
+            ResolveEntriesSelectively = _contentfulOptions.ResolveEntriesSelectively,
+            UsePreviewApi = true,
+        };
+
+        _contentfulPreviewClient = new ContentfulClient(httpClient, previewOptions);
+
+        if (_contentfulPreviewClient is null)
+        {
+            throw new CliException("Could not log into the Contentful Preview API.");
+        }
+
         _contentfulManagementClient = new ContentfulManagementClient(httpClient, _contentfulOptions);
 
         if (_contentfulManagementClient is null)
@@ -43,5 +63,6 @@ public class ContentfulConnection
 
     public ContentfulManagementClient ManagementClient => _contentfulManagementClient;
     public ContentfulClient DeliveryClient => _contentfulClient;
+    public ContentfulClient PreviewClient => _contentfulPreviewClient;
     public ContentfulOptions Options => _contentfulOptions;
 }

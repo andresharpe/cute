@@ -1,9 +1,10 @@
-﻿using Contentful.Core.Errors;
-using Contentful.Core.Models;
+﻿using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Cute.Config;
 using Cute.Constants;
+using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
+using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
 using Cute.Lib.GetDataAdapter;
 using Cute.Lib.Serializers;
@@ -27,6 +28,8 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
     private readonly ILogger<Scheduler> _cronLogger;
 
+    private readonly BulkActionExecutor _bulkActionExecutor;
+    private readonly HttpResponseFileCache _httpResponseCache;
     private readonly Scheduler _scheduler;
 
     private Dictionary<Guid, Entry<JObject>> _cronTasks = [];
@@ -34,11 +37,14 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
     private Settings? _settings;
 
     public GetDataCommand(IConsoleWriter console, ILogger<GetDataCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings, ILogger<Scheduler> cronLogger)
+        ContentfulConnection contentfulConnection, AppSettings appSettings, ILogger<Scheduler> cronLogger,
+        BulkActionExecutor bulkActionExecutor, HttpResponseFileCache httpResponseCache)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
         _cronLogger = cronLogger;
+        _bulkActionExecutor = bulkActionExecutor;
+        _httpResponseCache = httpResponseCache;
         _scheduler = new Scheduler(_cronLogger,
             new SchedulerOptions
             {
@@ -172,7 +178,7 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             var scheduledTask = new AsyncScheduledTask(
                 getDataEntry.Key,
                 CrontabSchedule.Parse(cronSchedule),
-                async ct => await ProcessGetDataEntryAndDisplaySchedule(getDataEntry.Value, settings)
+                async ct => await ProcessGetDataEntryAndDisplaySchedule(getDataEntry.Value)
             );
 
             _scheduler.AddTask(scheduledTask);
@@ -243,7 +249,7 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
         context.Response.Redirect("/");
     }
 
-    private async Task ProcessGetDataEntryAndDisplaySchedule(Entry<JObject> entry, Settings settings)
+    private async Task ProcessGetDataEntryAndDisplaySchedule(Entry<JObject> entry)
     {
         await ProcessGetDataEntry(entry);
 
@@ -275,11 +281,9 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
     {
         if (_settings is null) return;
 
-        var yamlDeserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .Build();
-
-        var dataAdapter = new HttpDataAdapter(ContentfulManagementClient, _console.WriteDim);
+        var dataAdapter = new HttpDataAdapter()
+            .WithDisplayAction(_console.WriteDim)
+            .WithHttpResponseFileCache(_httpResponseCache);
 
         var getDataId = GetString(getDataEntry, _settings.GetDataIdField);
 
@@ -293,7 +297,13 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
         if (yaml is null) return;
 
+        var yamlDeserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
+
         var adapter = yamlDeserializer.Deserialize<HttpDataAdapterConfig>(yaml);
+
+        adapter.Id = getDataId;
 
         var contentType = await ContentfulManagementClient.GetContentType(adapter.ContentType);
 
@@ -301,7 +311,8 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
         ValidateDataAdapter(getDataId, adapter, contentType, serializer);
 
-        var dataResults = await dataAdapter.GetData(adapter);
+        var dataResults = await dataAdapter.GetData(adapter, _appSettings.GetSettings(),
+            ContentfulManagementClient, ContentfulClient);
 
         var ignoreFields = adapter.Mapping.Where(m => !m.Overwrite).Select(m => m.FieldName).ToHashSet();
 
@@ -340,9 +351,17 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
         if (ContentfulManagementClient is null) return [];
 
         var entriesProcessed = new Dictionary<string, string>();
+        var entriesUpdated = new List<Entry<JObject>>();
 
-        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries(ContentfulManagementClient, contentTypeId, contentKeyField))
+        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, contentTypeId, contentKeyField))
         {
+            /*
+            if (entry.SystemProperties.PublishedAt is null)
+            {
+                continue;
+            }
+            */
+
             var cfEntry = contentSerializer.SerializeEntry(entry);
 
             if (cfEntry is null) continue;
@@ -351,7 +370,11 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             if (key is null) continue;
 
-            entriesProcessed.Add(key, entry.SystemProperties.Id);
+            if (!entriesProcessed.TryAdd(key, entry.SystemProperties.Id))
+            {
+                _console.WriteAlert($"The field '{contentKeyField}' has a duplicate '{key}' ({entry.SystemProperties.Id}). The duplicate entry Id is '{entriesProcessed[key]}'.");
+                continue;
+            }
 
             var newRecord = newRecords.FirstOrDefault(c => c[contentKeyField] == key);
 
@@ -389,12 +412,16 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             {
                 var newEntryName = newRecord[contentDisplayField];
 
-                _console.WriteNormal("Contentful {contentTypeId} '{key}' matched with new entry '{newEntryName}'", contentTypeId, key, newEntryName);
                 foreach (var (fieldname, value) in changedFields)
                 {
-                    _console.WriteNormal("...field '{fieldname}' changed from '{value.Item1}' to '{value.Item2}'", fieldname, value.Item1, value.Item2);
+                    var fieldnameDisplay = fieldname.EscapeMarkup();
+                    var valueBefore = value.Item1.EscapeMarkup();
+                    var valueAfter = value.Item2.EscapeMarkup();
+
+                    _console.WriteNormal("...field '{fieldnameDisplay}' changed from '{valueBefore}' to '{valueAfter}'", fieldnameDisplay, valueBefore, valueAfter);
                 }
-                await UpdateAndPublishEntry(contentSerializer.DeserializeEntry(cfEntry), contentTypeId);
+
+                entriesUpdated.Add(contentSerializer.DeserializeEntry(cfEntry));
             }
         }
 
@@ -413,32 +440,69 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             var newEntry = contentSerializer.DeserializeEntry(newContentfulRecord);
 
-            _console.WriteNormal("Creating {contentTypeId} '{newRecord[contentKeyField]}' - '{newRecord[contentDisplayField]}'",
+            _console.WriteNormal("Creating {contentTypeId} '{contentKeyField}' - '{contentDisplayField}'",
                 contentTypeId, newRecord[contentKeyField], newRecord[contentDisplayField]);
 
-            await UpdateAndPublishEntry(newEntry, contentTypeId);
+            entriesUpdated.Add(newEntry);
 
             entriesProcessed.Add(newRecord[contentKeyField], newLanguageId);
         }
 
+        await UpdateEntries(contentTypeId, entriesUpdated);
+
+        await PublishEntries(contentTypeId, entriesUpdated);
+
         return entriesProcessed;
     }
 
-    private async Task UpdateAndPublishEntry(Entry<JObject> newEntry, string contentType)
+    private async Task UpdateEntries(string contentTypeId, List<Entry<JObject>> entries)
     {
-        _ = await ContentfulManagementClient!.CreateOrUpdateEntry<JObject>(
-                newEntry.Fields,
-                id: newEntry.SystemProperties.Id,
-                version: newEntry.SystemProperties.Version,
-                contentTypeId: contentType);
+        if (entries.Count == 0) return;
 
-        try
-        {
-            await ContentfulManagementClient.PublishEntry(newEntry.SystemProperties.Id, newEntry.SystemProperties.Version!.Value + 1);
-        }
-        catch (ContentfulException ex)
-        {
-            _console.WriteAlert($"   --> Not published ({ex.Message})");
-        }
+        var count = entries.Count;
+
+        _console.WriteNormalWithHighlights($"Publishing {count} '{contentTypeId}' entries...", Globals.StyleHeading);
+
+        await Task.Delay(2000);
+
+        await _bulkActionExecutor
+            .WithContentType(contentTypeId)
+            .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+            .WithNewEntries(entries)
+            .WithConcurrentTaskLimit(25)
+            .WithPublishChunkSize(100)
+            .WithMillisecondsBetweenCalls(120)
+            .Execute(BulkAction.Upsert);
+    }
+
+    private async Task PublishEntries(string contentTypeId, List<Entry<JObject>> entries)
+    {
+        if (entries.Count == 0) return;
+
+        var count = entries.Count;
+
+        _console.WriteNormalWithHighlights($"Publishing {count} '{contentTypeId}' entries...", Globals.StyleHeading);
+
+        await Task.Delay(2000);
+
+        await _bulkActionExecutor
+            .WithContentType(contentTypeId)
+            .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+            .WithEntries(entries.Select(entry => new BulkItem()
+            {
+                Sys = new Sys()
+                {
+                    Id = entry.SystemProperties.Id,
+                    PublishedAt = entry.SystemProperties.PublishedAt,
+                    ArchivedVersion = entry.SystemProperties.ArchivedVersion,
+                    PublishedVersion = entry.SystemProperties.PublishedVersion,
+                    Version = entry.SystemProperties.Version + 1,
+                }
+            }
+            ).ToList())
+            .WithConcurrentTaskLimit(25)
+            .WithPublishChunkSize(100)
+            .WithMillisecondsBetweenCalls(120)
+            .Execute(BulkAction.Publish);
     }
 }

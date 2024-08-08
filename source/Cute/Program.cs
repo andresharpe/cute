@@ -1,7 +1,9 @@
 ﻿using Contentful.Core.Errors;
 using Cute.Commands;
 using Cute.Constants;
+using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
+using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
 using Cute.Services;
 using Microsoft.AspNetCore.DataProtection;
@@ -80,11 +82,15 @@ services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
 services.AddSingleton(dataProtectionProvider);
 services.AddSingleton(appSettings);
 services.AddSingleton<IContentfulOptionsProvider>(appSettings);
-services.AddSingleton<AzureTranslator>();
-services.AddSingleton<ContentfulConnection>();
+services.AddTransient<AzureTranslator>();
+services.AddTransient<ContentfulConnection>();
+services.AddTransient<BulkActionExecutor>();
+services.AddTransient<HttpResponseFileCache>();
 
 services.AddHttpClient<AzureTranslator>();
 services.AddHttpClient<ContentfulConnection>();
+services.AddHttpClient<GetDataCommand>();
+services.AddHttpClient<BulkActionExecutor>();
 
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 
@@ -128,6 +134,9 @@ app.Configure(config =>
 
     config.AddCommand<TypeGenCommand>("typegen")
         .WithDescription("Generate language types from Contentful content types.");
+
+    config.AddCommand<BulkCommand>("bulk")
+        .WithDescription("Unpublish, delete and purge all content type entries.");
 
     config.AddCommand<GetDataCommand>("getdata")
         .WithDescription("Sync Contentful content with WikiData.");
@@ -185,7 +194,7 @@ static void WriteBanner()
 
 static void WriteException(Exception ex)
 {
-    IConsoleWriter console = new ConsoleWriter(AnsiConsole.Console);
+    var console = new ConsoleWriter(AnsiConsole.Console);
 
     if (ex is ICliException
         || ex is CommandParseException
