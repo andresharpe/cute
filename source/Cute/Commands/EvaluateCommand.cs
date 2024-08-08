@@ -1,15 +1,9 @@
 using Cute.Config;
-using Cute.Constants;
 using Cute.Lib.Contentful;
-using Cute.Lib.Exceptions;
 using Cute.Services;
-using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Dynamic;
-using System.Text;
-using Text = Spectre.Console.Text;
 using Python.Runtime;
 
 namespace Cute.Commands;
@@ -36,7 +30,7 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         public string? TranslationMetric { get; set; } = default!;
 
         [CommandOption("-s|--seo")]
-        [Description("The seo metric to evaluate. Default is 'all'.")]
+        [Description("The seo metric to evaluate.")]
         public string? SeoMetric { get; set; } = default!;
 
         [CommandOption("-i|--prompt-id")]
@@ -45,19 +39,39 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 
         [CommandOption("-p|--prompt-field")]
         [Description("The field containing the prompt template for the LLM.")]
-        public string PromptField { get; set; } = "prompt";
+        public string PromptField { get; set; } = default!;
 
         [CommandOption("-c|--generated-content")]
         [Description("The field containing the LLM's generated content.")]
-        public string GeneratedContentField { get; set; } = "generated_content";
+        public string GeneratedContentField { get; set; } = default!;
 
         [CommandOption("-r|--reference-content")]
         [Description("The field containing the reference content.")]
-        public string ReferenceContentField { get; set; } = "reference_content";
+        public string ReferenceContentField { get; set; } = default!;
 
         [CommandOption("-f|--facts")]
         [Description("The field containing the facts for the generation evaluation.")]
-        public string FactsField { get; set; } = "facts";
+        public string FactsField { get; set; } = default!;
+
+        [CommandOption("-k|--keyword")]
+        [Description("The keyword used to evaluate SEO.")]
+        public string KeywordField { get; set; } = default!;
+
+        [CommandOption("-w|--related-keywords")]
+        [Description("The list of related keywords to evaluate SEO.")]
+        public string RelatedKeywordsField { get; set; } = default!;
+
+        [CommandOption("-u|--seo-input-method")]
+        [Description("The input method to evaluate SEO. Can be 'url' or 'content'. Default is 'url'.")]
+        public string SeoInputField { get; set; } = "url";
+
+        [CommandOption("-h|--threshold")]
+        [Description("The threshold to either pass or fail the metric's evaluation. Default is 0.7.")]
+        public float Threshold { get; set; } = 0.7f;
+
+        [CommandOption("-m|--llm-model")]
+        [Description("The LLM model to use for the evaluation. Default is 'gpt-4o'.")]
+        public string LlmModel { get; set; } = "gpt-4o";
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -68,67 +82,44 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
     #pragma warning disable CS1998
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-
         var result = await base.ExecuteAsync(context, settings);
         var metricsResult = string.Empty;
 
         var generationMetric = settings.GenerationMetric;
         var translationMetric = settings.TranslationMetric;
-        var seoMetric = settings.SeoMetric;       
-        //var promptMainPrompt = settings.PromptField;
-        var promptMainPrompt = @"
-            Write a 200-210 word website intro as to why Canton of Zug in Switzerland is good for setting up your business 
-            and having an office there. Mention some of the famous businesses that are headquartered there, 
-            industries based there, major transport hubs in the vicinity and other facts relevant to doing business there.
+        var seoMetric = settings.SeoMetric;   
+        var promptMainPrompt = settings.PromptField;
+        var generatedContentField = settings.GeneratedContentField;
+        var referenceContentField = settings.ReferenceContentField;
+        var factsField = settings.FactsField;
+        var keywordField = settings.KeywordField;
+        var relatedKeywordsField = settings.RelatedKeywordsField;
+        var seoInputField = settings.SeoInputField;
+        var threshold = settings.Threshold;
+        var llmModel = settings.LlmModel;       
 
-            Make sure you include the phrase '''Office space in Canton of Zug''' in the intro.
-
-            Output your response in bullets using valid Markdown syntax. Use '''-''' for a list prefix 
-            but don't make use of bold, underline or other Markdown.";
-
-        var promptMainPromptTrans = "Translate the following text to English: Es una guía para la acción que asegura que el ejército siempre obedecerá los mandatos del Partido.";
-
-        // var generatedContentField = settings.GeneratedContentField;
-        var generatedContentField = @" 
-            - Nestled in the heart of Switzerland, Canton of Zug is a prime spot for creative entrepreneurs looking to establish their next venture. Its strategic location offers quick access to major cities such as Zurich and Lucerne, making it a vibrant nexus for business. The region's excellent transport connectivity, including proximity to Zurich International Airport, ensures seamless global operations. Modern office buildings and state-of-the-art coworking spaces cater perfectly to the needs of contemporary enterprises.
-            - Zug stands out with its business-friendly environment characterized by low tax regimes and supportive economic policies. This favorable climate has attracted numerous global companies like Glencore and Siemens, underscoring its appeal to industry giants. The diverse business ecosystem here supports a myriad of industries from finance and tech to commodities trading and pharmaceuticals. This diversity not only propels innovation but also enriches networking opportunities across various sectors.
-            - Moreover, Zug boasts access to an exceptionally skilled workforce that is both highly educated and multilingual—an invaluable asset for any growing company. Whether you're launching a startup or relocating an established business, Zug provides all the resources you need for success in one dynamic locale. Embrace this unique opportunity; set up your next venture amid the inspiring backdrop of Canton of Zug today!.";
-
-        var translatedContentField = "It is a guide to action which ensures that the military always obeys the commands of the party.";
-
-        // var referenceContentField = settings.ReferenceContentField;
-        var referenceContentField = @" 
-            - Office space in Canton of Zug offers a strategic advantage for businesses looking to establish a presence in Switzerland.
-            - Zug is home to numerous renowned companies, including Roche Diagnostics, Siemens Smart Infrastructure, and Glencore.
-            - The canton boasts a diverse range of industries such as life sciences, high-tech, fintech, and commodity trading.
-            - Its central location in Switzerland provides excellent connectivity, with major transport hubs like Zurich Airport and Zurich Hauptbahnhof nearby.
-            - Zug's business-friendly environment is characterized by low taxes, a stable political climate, and a high quality of life, making it an attractive destination for both startups and established enterprises.
-            - The region also offers a robust infrastructure, including innovation platforms and institutions like the Switzerland Innovation Park Central and the Central Switzerland University of Applied Sciences and Arts.
-            - With a strong network of industry-specific associations and a reputation for efficiency and professionalism, Zug is well-equipped to support business growth and innovation.
-            - Whether you're in life sciences, high-tech, or finance, office space in Canton of Zug provides the ideal setting for your business to thrive.";
-
-        var translatedExpectedOutput = "It is a guide to action that ensures that the military will forever heed Party commands.";
-
-
-        // var factsField = settings.FactsField;
-        var factsField = @"address: Neugasse 25, 6300 Zug, Switzerland; population: 30000";
-
-        string pythonDLL = @"C:\Python312\python312.dll";
-        string setupFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\setup.py");
-        string evalGenerationFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\eval_generation.py");
-        string evalTranslationFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\eval_translation.py");
-        string evalSEOFile = Path.GetFullPath(@"..\Cute.Lib\PythonScripts\eval_seo.py");
-        string llmModel = "gpt-4o-mini";
-        double threshold = 0.7;
+        var pythonDLL = _appSettings.GetSettings()["Cute__PythonDLL"]; // Path to the python dll
+        #pragma warning disable CS8604 // Possible null reference argument.
+        var setupFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonSetupFile"]); // Path to the setup.py file
+        #pragma warning restore CS8604
+        #pragma warning disable CS8604 // Possible null reference argument.
+        var evalGenerationFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonEvalGenerationFile"]); // Path to the eval_generation.py file
+        #pragma warning restore CS8604
+        #pragma warning disable CS8604 // Possible null reference argument.
+        var evalTranslationFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonEvalTranslationFile"]); // Path to the eval_translation.py file
+        #pragma warning restore CS8604
+        #pragma warning disable CS8604 // Possible null reference argument.
+        var evalSEOFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonEvalSeoFile"]); // Path to the eval_seo.py file
+        #pragma warning restore CS8604
 
         try
         {
             Runtime.PythonDLL = pythonDLL; // Set the python dll path
             PythonEngine.Initialize();
 
-            //ExecutePython(filePath: setupFile); // Execute the setup.py file first
+            ExecutePython(filePath: setupFile); // Execute the setup.py file to import any missing libraries
 
-            if (generationMetric != null)
+            if (generationMetric != null && translationMetric == null && seoMetric == null)
             {
                 metricsResult = generationMetric switch
                 {
@@ -141,24 +132,24 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
                     _ => throw new ArgumentException("Invalid metric provided"),
                 };
             }
-            else if (translationMetric != null)
+            else if (translationMetric != null && generationMetric == null && seoMetric == null)
             {
                 metricsResult = translationMetric switch
                 {
-                    "gleu" => EvaluateTranslation(evalTranslationFile, promptMainPromptTrans, translatedContentField, translatedExpectedOutput, 
+                    "gleu" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
                         translationMetric, llmModel, threshold),
-                    "meteor" => EvaluateTranslation(evalTranslationFile, promptMainPromptTrans, translatedContentField, translatedExpectedOutput, 
+                    "meteor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
                         translationMetric, llmModel, threshold),
-                    "lepor" => EvaluateTranslation(evalTranslationFile, promptMainPromptTrans, translatedContentField, translatedExpectedOutput, 
+                    "lepor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
                         translationMetric, llmModel, threshold),
-                    "all" => EvaluateTranslation(evalTranslationFile, promptMainPromptTrans, translatedContentField, translatedExpectedOutput, 
+                    "all" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
                         translationMetric, llmModel, threshold),
                     _ => throw new ArgumentException("Invalid metric provided"),
                 };
             }
-            else if (seoMetric != null)
+            else if (seoMetric != null && generationMetric == null && translationMetric == null)
             {
-                // TODO: Implement SEO evaluation
+                metricsResult = EvaluateSEO(evalSEOFile, seoInputField, keywordField, relatedKeywordsField, threshold);
             }
             else
             {
@@ -400,39 +391,23 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         return result;
     }
 
-    private static string? EvaluateSEO(string filePath, string actualOutput, string keyword, string relatedKeywords, double threshold)
+    private static string? EvaluateSEO(string filePath, string seoInput, string keyword, string relatedKeywords, double threshold)
     {
 
         string? result = null;
 
-        // Define the parameters for the SEO test case
-        string seoActualOutput = @"
-            <html>
-                <head>
-                    <title>SEO Title</title>
-                    <meta name='description' content='SEO Description'>
-                    <meta name='keywords' content='SEO, Keywords'>
-                </head>
-                <body>
-                    <h1>SEO Heading</h1>
-                    <p>SEO Content</p>
-                </body>
-        ";
-        string seoKeyword = "Hybrid Office Space";
-        string seoRelatedKeywords = "flexible office|virtual office|co-working space|shared office|meeting room|conference room|event space";
-
         // Define the Python parameters for the SEO test case
-        PyFloat pySeoThreshold = new PyFloat(0.75);
-        PyString pySeoActualOutput = new PyString(seoActualOutput);
-        PyString pySeoKeyword = new PyString(seoKeyword);
-        PyString pySeoRelatedKeywords = new PyString(seoRelatedKeywords);
+        PyFloat pySeoThreshold = new(threshold);
+        PyString pySeoInput = new(seoInput);
+        PyString pySeoKeyword = new(keyword);
+        PyString pySeoRelatedKeywords = new(relatedKeywords);
 
         // First, execute __init__ method to initialize the EvalSEO class (eval_seo.py)
         PyObject? seoEvalObj = ExecutePython(
             filePath: filePath, 
             pyClass: "EvalSEO", 
             pyMethod: "__init__", 
-            pyArgs: [pySeoThreshold, pySeoActualOutput]
+            pyArgs: [pySeoInput, pySeoKeyword, pySeoRelatedKeywords, pySeoThreshold]
         ) ?? throw new NullReferenceException("seoEvalObj is null");
         
         return result;

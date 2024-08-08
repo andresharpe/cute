@@ -1,6 +1,6 @@
+import os
+import subprocess
 import pip
-
-from setuptools import setup, find_packages
 
 def import_or_install(package):
     try:
@@ -8,10 +8,22 @@ def import_or_install(package):
         return 'Package {package} is already installed'.format(package=package)
     except ImportError:
         pip.main(['install', '--user', package])
+        print('Package {package} not found. Installing {package}...'.format(package=package))
         return 'Package {package} is installed'.format(package=package)
 
-print(import_or_install('json'))
-print(import_or_install('requests'))
-print(import_or_install('deepeval'))
-print(import_or_install('nltk'))
-print(import_or_install('hlepor'))
+import_or_install('dotenv')
+import_or_install('requests')
+import_or_install('bs4')
+import_or_install('nltk')
+import_or_install('hlepor')
+import_or_install('deepeval')
+
+# Set the Azure OpenAI credentials for the deepeval package
+from dotenv import load_dotenv
+load_dotenv()
+subprocess.run(["deepeval", "set-azure-openai" ,
+                "--openai-api-key", os.getenv('Cute__OpenaiApiKey'), 
+                "--openai-endpoint", os.getenv('Cute__OpenaiEndpoint'), 
+                "--openai-api-version", os.getenv('Cute__OpenaiApiVersion'), 
+                "--deployment-name", os.getenv('Cute__DeploymentName'),
+                "--model-version", os.getenv('Cute__ModelVersion')])

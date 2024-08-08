@@ -122,12 +122,13 @@ class MeteorMetric(BaseMetric):
         actual_output = test_case.actual_output.replace('.', '').split(' ')
         expected_output = test_case.expected_output.replace('.', '').split(' ')
 
-        self.success = round(single_meteor_score(expected_output, actual_output), 2) >= self.threshold 
+        meteor_score = round(single_meteor_score(expected_output, actual_output), 2)
+        self.success = meteor_score >= self.threshold 
         if self.success:
-            self.score = 1.0
+            self.score = meteor_score
             self.reason = f"The METEOR score is { self.score } because the generated translation is a close or exact match to the reference translation."
         else:
-            self.score = 0.0
+            self.score = meteor_score
             self.reason = f"The METEOR score is { self.score } because the generated translation chose the wrong words, eaving things out, or scrambling the sentence order. Even if the words are mostly correct, if the translation sounds awkward or misses the key idea, it won't score well."
             
         return self.score
@@ -202,12 +203,13 @@ class GleuMetric(BaseMetric):
         expected_output = test_case.expected_output.replace('.', '').split(' ')
         actual_output = test_case.actual_output.replace('.', '').split(' ')
 
-        self.success = round(sentence_gleu([expected_output], actual_output), 2) >= self.threshold 
+        gleu_score = round(sentence_gleu([expected_output], actual_output), 2)
+        self.success = gleu_score >= self.threshold 
         if self.success:
-            self.score = 1.0
+            self.score = gleu_score
             self.reason = f"The GLEU score is { self.score } because the generated translation is a close or exact match to the reference translation."
         else:
-            self.score = 0.0
+            self.score = gleu_score
             self.reason = f"The GLEU score is { self.score } because the are significant differences between the generated translation and the reference translation, such as incorrect word choices, poor grammar, or missing key information."
 
         return self.score
@@ -275,14 +277,13 @@ class LeporMetric(BaseMetric):
         Returns:
             float: The LEPOR score, ranging from 0 to 1.
         """
-        self.success = round(single_hlepor_score(
-            reference=test_case.expected_output, 
-            hypothesis=test_case.actual_output), 2) >= self.threshold 
+        lepor_score = round(single_hlepor_score(reference=test_case.expected_output, hypothesis=test_case.actual_output), 2)
+        self.success = lepor_score >= self.threshold 
         if self.success:
-            self.score = 1.0
+            self.score = lepor_score
             self.reason = f"The LEPOR score is { self.score } because the generated translation is a close or exact match to the reference translation."
         else:
-            self.score = 0.0
+            self.score = lepor_score
             self.reason = f"The LEPOR score is { self.score } because the generated translation has poor lexical similarity, inadequate precision, and recall, as well as significant differences in word order compared to the reference translation."
 
         return self.score

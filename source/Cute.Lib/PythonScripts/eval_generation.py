@@ -5,7 +5,7 @@ from deepeval import evaluate
 
 class EvalGeneration:
     """
-    Class for evaluating the performance of a RAG (Retrieval-Augmented Generation) model.
+    Class for evaluating a prompt's effectiveness in generating high-quality output from an LLM model.
     """
 
     def __init__(self, llm_model: str, th: float, input: str, actual_output: str, expected_output: str, retrieval_context: str):
@@ -46,7 +46,7 @@ class EvalGeneration:
         Measures a specific evaluation metric for the test case.
 
         Args:
-            metric (str): The metric to measure. Possible values: "precision", "recall", "relevancy", "answer", "faithfulness".
+            metric (str): The metric to measure. Possible values: "answer", "faithfulness".
 
         Returns:
             str: The measurement result in JSON format.

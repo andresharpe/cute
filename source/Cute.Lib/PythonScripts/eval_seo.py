@@ -1,29 +1,58 @@
+import os
 import requests
 import json
+
+from bs4 import BeautifulSoup
 
 from deepeval.test_case import LLMTestCase
 from deepeval.metrics import BaseMetric
 
 
 class EvalSeo:
-    def __init__(
-            self, 
-            th: float, 
-            actual_output: str, 
-            input_method: str, 
-            keywords: str, 
-            related_keywords: list[str]):
-        self.test_case = LLMTestCase(actual_output=actual_output)
-        self.content_analysis_metric = ContentAnalysisMetric(tresh_score=th, input_method=input_method)
+    def __init__(self, input: str, keyword: str, related_keywords: str, th: float):
+        self.test_case = LLMTestCase(actual_output=input)
+        self.content_analysis_metric = ContentAnalysisMetric(tresh_score=th, keyword=keyword, related_keywords=related_keywords)
         return self
-
 
     def measure(self):
         self.content_analysis_metric.measure(self.test_case)
         result = {
             "Result": self.content_analysis_metric.success,
-            "Score": self.content_analysis_metric.score,
-            "Reason": self.content_analysis_metric.reason
+            "Overall SEO Score": self.content_analysis_metric.overall_seo_score,
+            "Title Tag": {
+                "Score": self.content_analysis_metric.title_tag_score,
+                "Feedback": self.content_analysis_metric.title_tag_feedback
+            },
+            "Meta Description": {
+                "Score": self.content_analysis_metric.meta_description_score,
+                "Feedback": self.content_analysis_metric.meta_description_feedback
+            },
+            "Page Headings": {
+                "Score": self.content_analysis_metric.page_headings_score,
+                "Feedback": self.content_analysis_metric.page_headings_feedback
+            },
+            "Content Length": {
+                "Score": self.content_analysis_metric.content_length_score,
+                "Feedback": self.content_analysis_metric.content_length_feedback
+            },
+            "On Page Links": {
+                "Score": self.content_analysis_metric.on_page_links_score,
+                "Feedback": self.content_analysis_metric.on_page_links_feedback
+            },
+            "Image": {
+                "Score": self.content_analysis_metric.image_score,
+                "Feedback": self.content_analysis_metric.image_feedback
+            },
+            "Keyword Usage": {
+                "Score": self.content_analysis_metric.keyword_usage_score,
+                "Feedback": self.content_analysis_metric.keyword_usage_feedback
+            },
+            "Related Keywords": {
+                "Score": self.content_analysis_metric.related_keywords_score,
+                "Related Keywords Found": self.content_analysis_metric.related_keywords_found,
+                "Related Keywords Not Found": self.content_analysis_metric.related_keywords_not_found,
+                "Feedback": self.content_analysis_metric.related_keywords_feedback
+            }
         }
         return json.dumps(result)
 
@@ -39,27 +68,67 @@ class ContentAnalysisMetric(BaseMetric):
     analysis API."""
 
     # This metric by default checks if the latency is greater than 10 seconds
-    def __init__(self, tresh_score: float=0.75, model: str=None, input_method: str=None):
+    def __init__(self, tresh_score: float, keyword: str=None, related_keywords: str=None):
         self.threshold = tresh_score
-        self.model = model
-        self.input_method = input_method
+        self.keyword = keyword
+        self.related_keywords = related_keywords
 
     def measure(self, test_case: LLMTestCase):
         # Set self.success and self.score in the "measure" method
-        if self.input_method == "url":
-            seo_score = self.get_seo_score(test_case.actual_output)
-        else:
-            seo_score = self.get_seo_score(test_case.actual_output)
+        seo_analysis_result = self.analyze_seo(test_case.actual_output, self.keyword, self.related_keywords)
 
-        self.success = seo_score >= self.threshold 
-        if self.success:
-            self.score = 1.0
-            self.reason = "Feedback from API" #TODO: Parse feedback from API
-        else:
-            self.score = 0.0
-            self.reason = "Feedback from API" #TODO: Parse feedback from API
+        # Parse the SEO analysis result
+        self.overall_seo_score = float(seo_analysis_result['Overview']['Overall SEO Score'] / 100) # Overall SEO score
+        self.success = self.overall_seo_score >= self.threshold 
 
-        return self.score
+        # Title Tag analysis
+        self.title_tag_score = float(seo_analysis_result['Title Tag']['SEO Score'] / seo_analysis_result['Title Tag']['Max SEO score available'])
+        self.title_tag_feedback = "\n".join(
+            seo_analysis_result['Title Tag']['Feedback details']['Status']['text'],
+            seo_analysis_result['Title Tag']['Feedback details']['Length']['text'],
+            seo_analysis_result['Title Tag']['Feedback details']['Focus keyword']['text'],
+            seo_analysis_result['Title Tag']['Feedback details']['Focus keywords position']['text'])
+
+        # Meta Description analysis
+        self.meta_description_score = float(seo_analysis_result['Meta description']['SEO Score'] / seo_analysis_result['Meta description']['Max SEO score available'])
+        self.meta_description_feedback = "\n".join(
+            seo_analysis_result['Meta description']['Feedback details']['Status']['text'],
+            seo_analysis_result['Meta description']['Feedback details']['Length']['text'],
+            seo_analysis_result['Meta description']['Feedback details']['Focus keyword']['text'],
+            seo_analysis_result['Meta description']['Feedback details']['Focus keywords position']['text'])
+        
+        # Page Headings analysis
+        self.page_headings_score = float(seo_analysis_result['Page headings']['SEO Score'] / seo_analysis_result['Page headings']['Max SEO score available'])
+        self.page_headings_feedback = "\n".join(
+            seo_analysis_result['Page headings']['Feedback details']['Status']['text'],
+            seo_analysis_result['Page headings']['Feedback details']['Focus keyword']['text'])
+
+        # Content Length analysis
+        self.content_length_score = float(seo_analysis_result['Content length']['SEO Score'] / seo_analysis_result['Content length']['Max SEO score available'])
+        self.content_length_feedback = seo_analysis_result['Content length']['Feedback details']['Status']['text']
+
+        # On Page Links analysis
+        self.on_page_links_score = float(seo_analysis_result['On page links']['SEO Score'] / seo_analysis_result['On page links']['Max SEO score available'])
+        self.on_page_links_feedback = seo_analysis_result['On page links']['Feedback details']['Status']['text']
+
+        # Image analysis
+        self.image_score = float(seo_analysis_result['Image analysis']['SEO Score'] / seo_analysis_result['Image analysis']['Max SEO score available'])
+        self.image_feedback = "\n".join(
+            seo_analysis_result['Image analysis']['Feedback details']['Status']['text'],
+            seo_analysis_result['Image analysis']['Feedback details']['Image name contains keyword']['text'],
+            seo_analysis_result['Image analysis']['Feedback details']['Image ALT tag contains keyword']['text'])
+        
+        # Keyword Usage analysis
+        self.keyword_usage_score = float(seo_analysis_result['Keyword usage']['SEO Score'] / seo_analysis_result['Keyword usage']['Max SEO score available'])
+        self.keyword_usage_feedback = seo_analysis_result['Keyword usage']['Feedback details']['Status']['text']
+
+        # Related Keywords analysis
+        self.related_keywords_score = float(seo_analysis_result['Related keywords']['SEO Score'] / seo_analysis_result['Related keywords']['Max SEO score available'])
+        self.related_keywords_feedback = seo_analysis_result['Related keywords']['Feedback details']['Status']['text']
+        self.related_keywords_found = seo_analysis_result['Related keywords']['Related keywords found']
+        self.related_keywords_not_found = seo_analysis_result['Related keywords']['Related keywords not found']
+        
+        return self
 
     async def a_measure(self, test_case: LLMTestCase):
         return self.measure(test_case)
@@ -71,54 +140,55 @@ class ContentAnalysisMetric(BaseMetric):
     def __name__(self):
         return "SEO"
     
-    # Function to make a POST request to the SEO Review Tools API
-    def curl_function(tool_request_url, data):
-        response = requests.post(tool_request_url, json=data)
-        return response.json()
 
-    # Get SEO score from content
-    def get_seo_score(self, content: str):
-        # Title tag
-        title_tag = 'Example Copywriting Guide - Expert Tips'
-        # Meta description
-        meta_description = 'Master the art of copywriting with expert tips and techniques. Create compelling content and drive results with our guide'
-        # Content to check
-        body_content = content
-        # Remove tabs and spaces
-        body_content = ' '.join(body_content.split())
+    # Get SEO score from API
+    def analyze_seo(self, input: str, keyword: str, related_keywords: str):
 
-        data = {
-            'content_input': {
-                'title_tag': title_tag,
-                'meta_description': meta_description,
-                'body_content': body_content.strip()
+        api_key = os.getenv('SEO_REVIEW_TOOLS_API_KEY')
+
+        # URL input
+        if input.startswith("http"):
+            tool_request_url = "https://api.seoreviewtools.com/seo-content-analysis-4-0/?keyword={}&relatedkeywords={}&url={}&key={}".format(
+                requests.utils.quote(keyword),
+                requests.utils.quote(related_keywords),
+                requests.utils.quote(input),
+                api_key)
+            seo_response = requests.request("GET", tool_request_url).json()
+            return seo_response['data']
+        # Content input
+        else:
+            title_tag = str(self.extract_html_content(input, 'title')).replace('<title>', '').replace('</title>', '') # Title tag
+            meta_description = str(self.find_self_closing_tags(input, "meta", "description")[0].attrs['description'])   # Meta description
+            body_content = self.extract_html_content(input, 'body') # Content to check
+            body_content = ' '.join(body_content.split())   # Remove tabs and spaces
+            data = {
+                'content_input': {
+                    'title_tag': title_tag,
+                    'meta_description': meta_description,
+                    'body_content': body_content.strip()
+                }
             }
-        }
-
-        # Keyword to check
-        keyword_input = "Copywriting Guide"
-        # Related keywords (optional)
-        related_keywords = "Search engine optimization|Headlines|SEO content audit|Content analysis methods|Content analysis research|SEO-friendly content"
-        # URL generation with proper encoding
-        tool_request_url = "https://api.seoreviewtools.com/v5/seo-content-optimization/?content=1&keyword={}&relatedkeywords={}&key={}".format(
-            requests.utils.quote(keyword_input),
-            requests.utils.quote(related_keywords),
-            self.api_key
-        )
-
-        seo_data_json = self.curl_function(tool_request_url, data)
-        return seo_data_json['data']['Overview']['Overall SEO score']
+            keyword_input = keyword # Keyword to check
+            related_keywords = related_keywords # Related keywords (optional)
         
-    # Get SEO score from URL
-    def get_seo_score(self, url: str):
-        # keyword
-        keyword = 'Content marketing'
-        # related keywords (optional)
-        relatedKeywords = 'Content creation|marketing strategy|brand awareness|content marketing strategy|high quality content|target audience|online pr|sharing content|content marketing definition|content marketing examples|content distribution|promoting content'
-        # input URL
-        inputUrl = url
-        # API URL
-        toolRequestUrl = 'https://api.seoreviewtools.com/seo-content-analysis-4-0/?keyword='+keyword+'&relatedkeywords='+relatedKeywords+'&url='+inputUrl+'&key='+self.api_key
-
-        r = requests.request("GET", toolRequestUrl,)
-        r.text['data']['Overview']['Overall SEO score']
+            # URL generation with proper encoding
+            tool_request_url = "https://api.seoreviewtools.com/v5/seo-content-optimization/?content=1&keyword={}&relatedkeywords={}&key={}".format(
+                requests.utils.quote(keyword_input),
+                requests.utils.quote(related_keywords),
+                api_key
+            )
+            seo_response = requests.post(tool_request_url, json=data).json()
+            return seo_response['data']
+    
+    # Function to extract content within a specific HTML tag
+    def extract_html_content(html_content, tag):
+        start_index = html_content.find(f"<{tag}")
+        end_index = html_content.find(f"</{tag}>") + len(f"</{tag}>")
+        extracted_content = html_content[start_index:end_index] # Extract the substring within the tag
+        return extracted_content
+    
+    # Function to find all self-closing tags with a specific attribute
+    def find_self_closing_tags(html_content, tag, attribute):
+        soup = BeautifulSoup(html_content, 'html.parser')
+        matching_tags = soup.find_all(tag, attrs={attribute: True})
+        return matching_tags
