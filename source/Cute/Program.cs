@@ -91,6 +91,7 @@ services.AddHttpClient<AzureTranslator>();
 services.AddHttpClient<ContentfulConnection>();
 services.AddHttpClient<GetDataCommand>();
 services.AddHttpClient<BulkActionExecutor>();
+services.AddHttpClient<EvaluateCommand>();
 
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 

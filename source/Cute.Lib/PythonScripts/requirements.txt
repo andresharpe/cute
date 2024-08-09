@@ -1,0 +1,10 @@
+flask
+redis
+requests
+bs4
+nptyping
+nltk
+hlepor
+deepeval
+jsonify
+jsonpickle

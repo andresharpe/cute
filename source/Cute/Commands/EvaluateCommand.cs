@@ -1,27 +1,25 @@
 using Cute.Config;
+using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Services;
-using Python.Runtime;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Reflection;
 
 namespace Cute.Commands;
 
 public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 {
-    private readonly ILogger<EvaluateCommand> _logger;
-
-    private IReadOnlyDictionary<string, string?> _allEnvSettings = new Dictionary<string, string?>();
+    private readonly HttpClient _httpClient;
 
     public EvaluateCommand(IConsoleWriter console, ILogger<EvaluateCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        ContentfulConnection contentfulConnection, AppSettings appSettings, HttpClient httpClient)
         : base(console, logger, contentfulConnection, appSettings)
     {
-        _logger = logger;
+        _httpClient = httpClient;
     }
 
     public class Settings : CommandSettings
@@ -90,443 +88,46 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
     {
         await base.ExecuteAsync(context, settings);
 
-        var pythonPath = InstallPythonIfNeededAndReturnPath();
+        var commandOptions = GetOptions(settings);
 
-        var metricsResult = string.Empty;
+        var envSettings = _appSettings.GetSettings()
+            .Where(kv => kv.Key.StartsWith("Cute__OpenAi"))
+            .ToDictionary();
 
-        var generationMetric = settings.GenerationMetric;
-        var translationMetric = settings.TranslationMetric;
-        var seoMetric = settings.SeoMetric;
-        var promptMainPrompt = settings.PromptField;
-        var generatedContentField = settings.GeneratedContentField;
-        var referenceContentField = settings.ReferenceContentField;
-        var factsField = settings.FactsField;
-        var keywordField = settings.KeywordField;
-        var relatedKeywordsField = settings.RelatedKeywordsField;
-        var seoInputField = settings.SeoInputField;
-        var threshold = settings.Threshold;
-        var llmModel = settings.LlmModel;
+        string apiCall = string.Empty;
 
-        _allEnvSettings = _appSettings.GetSettings();
-
-        if (!_allEnvSettings.TryGetValue("Cute__PythonDLL", out var pythonDLL))
+        if (settings.GenerationMetric is not null && settings.TranslationMetric is null && settings.SeoMetric is null)
         {
-            pythonDLL = Path.Combine(pythonPath, "python312.dll");
+            apiCall = $"generator/{settings.GenerationMetric.ToLower()}";
+        }
+        else if (settings.TranslationMetric is not null && settings.GenerationMetric is null && settings.SeoMetric is null)
+        {
+            apiCall = $"translator/{settings.TranslationMetric.ToLower()}";
+        }
+        else if (settings.SeoMetric is not null && settings.GenerationMetric is null && settings.TranslationMetric is null)
+        {
+            apiCall = $"seo";
+        }
+        else
+        {
+            throw new CliException("No valid metric provided for evaluation");
         }
 
-        var runTimeScriptFolder = Path.Combine((Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty)
-            , "PythonScripts");
+        var endPoint = $"http://localhost:8000/api/{apiCall}";
 
-        var setupFile = Path.Combine(runTimeScriptFolder, "setup.py");
+        _console.WriteNormalWithHighlights($"Calling eval API on '{endPoint}'...", Globals.StyleHeading);
 
-        var evalGenerationFile = Path.Combine(runTimeScriptFolder, "eval_generation.py"); // Path to the eval_generation.py file
+        var result = await _httpClient.PostAsJsonAsync(endPoint,
+            new { options = commandOptions, env = envSettings });
 
-        var evalTranslationFile = Path.Combine(runTimeScriptFolder, "eval_translation.py"); // Path to the eval_translation.py file
+        _console.WriteRuler();
 
-        var evalSEOFile = Path.Combine(runTimeScriptFolder, "eval_seo.py"); // Path to the eval_seo.py file
+        var content = await result.Content.ReadAsStringAsync();
 
-        EnsureAllFilesExist(pythonDLL!, evalGenerationFile, evalSEOFile, evalTranslationFile, setupFile);
+        _console.WriteSubHeading(JValue.Parse(content).ToString(Formatting.Indented));
 
-        try
-        {
-            Runtime.PythonDLL = pythonDLL; // Set the python dll path
-            PythonEngine.Initialize();
-
-            ExecutePython(filePath: setupFile); // Execute the setup.py file to import any missing libraries
-
-            if (generationMetric != null && translationMetric == null && seoMetric == null)
-            {
-                metricsResult = generationMetric switch
-                {
-                    "answer" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField,
-                        generationMetric, llmModel, threshold),
-                    "faithfulness" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField,
-                        generationMetric, llmModel, threshold),
-                    "all" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField,
-                        generationMetric, llmModel, threshold),
-                    _ => throw new ArgumentException("Invalid metric provided"),
-                };
-            }
-            else if (translationMetric != null && generationMetric == null && seoMetric == null)
-            {
-                metricsResult = translationMetric switch
-                {
-                    "gleu" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
-                        translationMetric, llmModel, threshold),
-                    "meteor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
-                        translationMetric, llmModel, threshold),
-                    "lepor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
-                        translationMetric, llmModel, threshold),
-                    "all" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
-                        translationMetric, llmModel, threshold),
-                    _ => throw new ArgumentException("Invalid metric provided"),
-                };
-            }
-            else if (seoMetric != null && generationMetric == null && translationMetric == null)
-            {
-                metricsResult = EvaluateSEO(evalSEOFile, seoInputField, keywordField, relatedKeywordsField, threshold);
-            }
-            else
-            {
-                Console.WriteLine("No metric provided for evaluation");
-            }
-
-            PythonEngine.Shutdown(); // Shutdown Python engine
-        }
-        catch (PythonException ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-        catch (NullReferenceException ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-        catch (NotSupportedException)
-        {
-            /*
-            BinaryFormatter serialization and deserialization are disabled within this application.
-            This is a known issue when using .NET 8, as BinaryFormatter serialization and deserialization are disabled by default for security reasons.
-            */
-        }
-
-        Console.WriteLine(metricsResult);
+        _console.WriteRuler();
 
         return 0;
-    }
-
-    private static void EnsureAllFilesExist(params string[] files)
-    {
-        foreach (var file in files)
-        {
-            if (!File.Exists(file))
-            {
-                throw new CliException($"The required file '{file}' does not exist.");
-            }
-        }
-    }
-
-    private string InstallPythonIfNeededAndReturnPath()
-    {
-        // TODO: Make this work for non windows enviroments
-        // We will assume the PATH for now - but can be extracted by running a new process
-
-        var pythonPath = Environment.GetEnvironmentVariable("PATH")?
-            .Split(';')
-            .FirstOrDefault(p => p.EndsWith(@"\Python312\", StringComparison.OrdinalIgnoreCase));
-
-        if (pythonPath is null)
-        {
-            _console.WriteRuler();
-            _console.WriteBlankLine();
-            _console.WriteNormal("You need Python, let's get it for you...");
-            _console.WriteBlankLine();
-
-            var process = new Process();
-            process.StartInfo.FileName = "winget";
-            process.StartInfo.Arguments = "install Python.Python.3.12";
-            process.StartInfo.RedirectStandardOutput = true;
-            process.Start();
-            process.WaitForExit();
-            var installResult = process.StandardOutput.ReadToEnd();
-
-            _console.WriteNormal("Completed...");
-
-            if (!installResult.Contains("Successfully installed"))
-            {
-                throw new CliException($"You need Python installed. On Windows you can simply use 'winget install Python.Python.3.12'\n{installResult}");
-            }
-
-            _console.WriteBlankLine();
-            _console.WriteRuler();
-            _console.WriteBlankLine();
-        }
-
-        return $"{Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)}\\Programs\\Python\\Python312\\";
-    }
-
-    private string? EvaluateGeneration(string filePath, string prompt, string actualOutput, string expectedOutput,
-        string retrievalContext, string metric, string llmModel, double threshold)
-    {
-        string? result;
-
-        // Define the Python parameters for the Generation test case
-        PyObject? pyResult;
-        PyString? pyGenMetric;
-        PyString pyLlmModel = new(llmModel);
-        PyFloat pyThreshold = new(threshold);
-        PyString pyInput = new(prompt);
-        PyString pyActualOutput = new(actualOutput);
-        PyString pyExpectedOutput = new(expectedOutput);
-        PyString pyRetrievalContext = new(retrievalContext);
-
-        // First, execute __init__ method to initialize the EvalGenearation class (eval_generation.py)
-        PyObject? genEvalObj = ExecutePython(
-            filePath: filePath,
-            pyClass: "EvalGeneration",
-            pyMethod: "__init__",
-            pyArgs: [pyLlmModel, pyThreshold, pyInput, pyActualOutput, pyExpectedOutput, pyRetrievalContext]
-        ) ?? throw new NullReferenceException("genEvalObj is null");
-
-        switch (metric)
-        {
-            case "answer":
-                pyGenMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /*
-                    Execute the measure method on the EvalGeneration class
-                    (in eval_generation.py) to get the result of a answer relevancy metric
-                */
-                pyResult = ExecutePython(
-                    filePath: filePath,
-                    pyClass: "EvalGeneration",
-                    pyMethod: "measure",
-                    pyArgs: [genEvalObj, pyGenMetric]);
-
-                // Check if pyResult is not null before proceeding
-                if (pyResult == null) { throw new NullReferenceException("pyResult for answer relevancy metric is null"); }
-
-                result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                pyGenMetric.Dispose(); // Dispose object to free up memory
-                break;
-
-            case "faithfulness":
-                pyGenMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /*
-                    Execute the measure method on the EvalGeneration class
-                    (in eval_generation.py) to get the result of faithfulness metric
-                */
-                pyResult = ExecutePython(
-                    filePath: filePath,
-                    pyClass: "EvalGeneration",
-                    pyMethod: "measure",
-                    pyArgs: [genEvalObj, pyGenMetric]);
-
-                // Check if pyResult is not null before proceeding
-                if (pyResult == null) { throw new NullReferenceException("pyResult for faithfulness metric is null"); }
-
-                result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                pyGenMetric.Dispose(); // Dispose object to free up memory
-                break;
-
-            case "all":
-                /*
-                    Execute evaluate method on the EvalGeneration class
-                    (in eval_generation.py) to get the result of the evaluation
-                */
-                pyResult = ExecutePython(
-                    filePath: filePath,
-                    pyClass: "EvalGeneration",
-                    pyMethod: "evaluate",
-                    pyArgs: [genEvalObj]);
-
-                // Check if pyResult is not null before proceeding
-                if (pyResult == null) { throw new NullReferenceException("pyResult for all metrics is null"); }
-
-                result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                break;
-
-            default:
-                throw new ArgumentException("Invalid metric provided");
-        }
-
-        // Dispose all the Python objects to free up memory
-        pyLlmModel.Dispose();
-        pyThreshold.Dispose();
-        pyInput.Dispose();
-        pyActualOutput.Dispose();
-        pyExpectedOutput.Dispose();
-        pyRetrievalContext.Dispose();
-
-        return result;
-    }
-
-    private string? EvaluateTranslation(string filePath, string prompt, string actualOutput, string expectedOutput,
-        string metric, string llmModel, double threshold)
-    {
-        string? result;
-
-        // Define the Python parameters for the Translation test case
-        PyObject? pyResult;
-        PyString? pyTranslationMetric;
-        PyString pyLlmModel = new(llmModel);
-        PyFloat pyThreshold = new(threshold);
-        PyString pyInput = new(prompt);
-        PyString pyActualOutput = new(actualOutput);
-        PyString pyExpectedOutput = new(expectedOutput);
-
-        // First, execute __init__ method to initialize the EvalTranslation class (eval_translation.py)
-        PyObject? translationEvalObj = ExecutePython(
-            filePath: filePath,
-            pyClass: "EvalTranslation",
-            pyMethod: "__init__",
-            pyArgs: [pyLlmModel, pyThreshold, pyInput, pyActualOutput, pyExpectedOutput]
-        ) ?? throw new NullReferenceException("translationEvalObj is null");
-
-        switch (metric)
-        {
-            case "gleu":
-                pyTranslationMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /*
-                    Execute the measure method on the EvalTranslation class
-                    (in eval_translation.py) to get the result of gleu metric
-                */
-                pyResult = ExecutePython(
-                    filePath: filePath,
-                    pyClass: "EvalTranslation",
-                    pyMethod: "measure",
-                    pyArgs: [translationEvalObj, pyTranslationMetric]
-                );
-
-                // Check if pyResult is not null before proceeding
-                if (pyResult == null) { throw new NullReferenceException("pyResult for gleu measure is null"); }
-
-                result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                pyTranslationMetric.Dispose(); // Dispose object to free up memory
-                break;
-
-            case "meteor":
-                pyTranslationMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /*
-                    Execute the measure method on the EvalTranslation class
-                    (in eval_translation.py) to get the result of meteor metric
-                */
-                pyResult = ExecutePython(
-                    filePath: filePath,
-                    pyClass: "EvalTranslation",
-                    pyMethod: "measure",
-                    pyArgs: [translationEvalObj, pyTranslationMetric]
-                );
-
-                // Check if pyResult is not null before proceeding
-                if (pyResult == null) { throw new NullReferenceException("pyResult for meteor metric is null"); }
-
-                result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                pyTranslationMetric.Dispose(); // Dispose object to free up memory
-                break;
-
-            case "lepor":
-                pyTranslationMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /*
-                    Execute the measure method on the EvalTranslation class
-                    (in eval_translation.py) to get the result of lepor metric
-                */
-                pyResult = ExecutePython(
-                    filePath: filePath,
-                    pyClass: "EvalTranslation",
-                    pyMethod: "measure",
-                    pyArgs: [translationEvalObj, pyTranslationMetric]
-                );
-
-                // Check if pyResult is not null before proceeding
-                if (pyResult == null) { throw new NullReferenceException("pyResult for lepor metric is null"); }
-
-                result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                pyTranslationMetric.Dispose(); // Dispose object to free up memory
-                break;
-
-            case "all":
-                /*
-                    Execute evaluate method on the EvalTranslation class
-                    (in eval_translation.py) to get the result of the evaluation
-                */
-                pyResult = ExecutePython(
-                    filePath: filePath,
-                    pyClass: "EvalTranslation",
-                    pyMethod: "evaluate",
-                    pyArgs: [translationEvalObj]
-                );
-
-                // Check if pyResult is not null before proceeding
-                if (pyResult == null) { throw new NullReferenceException("pyResult for all metrics is null"); }
-
-                result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                break;
-
-            default:
-                throw new ArgumentException("Invalid metric provided");
-        }
-
-        // Dispose all the Python objects to free up memory
-        pyLlmModel.Dispose();
-        pyThreshold.Dispose();
-        pyInput.Dispose();
-        pyActualOutput.Dispose();
-        pyExpectedOutput.Dispose();
-
-        return result;
-    }
-
-    private string? EvaluateSEO(string filePath, string seoInput, string keyword, string relatedKeywords, double threshold)
-    {
-        string? result = null;
-
-        // Define the Python parameters for the SEO test case
-        PyFloat pySeoThreshold = new(threshold);
-        PyString pySeoInput = new(seoInput);
-        PyString pySeoKeyword = new(keyword);
-        PyString pySeoRelatedKeywords = new(relatedKeywords);
-
-        // First, execute __init__ method to initialize the EvalSEO class (eval_seo.py)
-        PyObject? seoEvalObj = ExecutePython(
-            filePath: filePath,
-            pyClass: "EvalSEO",
-            pyMethod: "__init__",
-            pyArgs: [pySeoInput, pySeoKeyword, pySeoRelatedKeywords, pySeoThreshold]
-        ) ?? throw new NullReferenceException("seoEvalObj is null");
-
-        return result;
-    }
-
-    private PyObject? ExecutePython(string filePath, string? pyClass = null, string? pyMethod = null, List<PyObject>? pyArgs = null)
-    {
-        PyObject? result = null; // Create a PyObject to hold the result
-        string file = Path.GetFullPath(filePath);
-
-        if (!PythonEngine.IsInitialized) // Since using asp.net, we may need to re-initialize
-        {
-            PythonEngine.Initialize();
-        }
-
-        using var gil = Py.GIL();
-
-        using var scope = Py.CreateScope(); // create a Python scope
-
-        string code = File.ReadAllText(file); // Get code as raw text
-
-        var codeCompiled = PythonEngine.Compile(code, file); // Compile the code/file
-
-        scope.Set("settings", _allEnvSettings.ToPython());
-
-        scope.Execute(codeCompiled); // Execute the compiled python so we can start calling it.
-
-        // Execute the python method if provided with its arguments
-        if (pyClass != null && pyMethod != null && pyArgs != null)
-        {
-            PyObject? pyObj = null; // Create a PyObject to hold the class
-            PyObject[]? param = new PyObject[pyArgs.Count]; // Create an array of PyObject to hold the arguments
-
-            if (pyMethod == "__init__") // If the method is __init__, we need to create an instance of the class
-            {
-                Array.Resize(ref param, pyArgs.Count + 1); // Resize the array to hold the class and the arguments
-                pyObj = scope.Get(pyClass); // Get an instance of pyClass
-                param[0] = pyObj; // Append the class to the arguments
-                for (int i = 1; i < param.Length; i++) // Loop through the arguments
-                {
-                    param[i] = pyArgs[i - 1]; // Append the method arguments to the PyObject[] array
-                }
-            }
-            else // If the method is not __init__, we call the method on the provided instance of the class
-            {
-                pyObj = pyArgs[0]; // Get class instance from the arguments
-                param[0] = pyObj; // Append instance to the arguments (i.e., self)
-                for (int i = 1; i < param.Length; i++) // Loop through the arguments
-                {
-                    param[i] = pyArgs[i]; // Append the method arguments to the PyObject[] array
-                }
-            }
-
-            result = pyObj.InvokeMethod(pyMethod, param); // Call the pyMethod with pyArgs on the pyObject of pyClass
-        }
-
-        return result; // Return the result
     }
 }

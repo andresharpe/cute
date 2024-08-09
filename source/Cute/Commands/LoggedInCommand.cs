@@ -68,12 +68,35 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
         return 0;
     }
 
-    private async Task DisplaySettings(CommandContext context, TSettings settings)
+    protected IReadOnlyDictionary<string, object?> GetOptions(TSettings settings)
     {
         var settingsType = settings.GetType();
 
         var properties = settingsType.GetProperties();
 
+        var returnDict = new Dictionary<string, object?>();
+
+        foreach (var prop in properties)
+        {
+            var attr = prop.GetAttributes<CommandOptionAttribute>()
+                .FirstOrDefault()?
+                .LongNames.ToArray();
+
+            if (attr != null && attr.Length > 0)
+            {
+                var option = attr[0];
+                if (option != null)
+                {
+                    var value = prop.GetValue(settings);
+                    returnDict.Add(option, value);
+                }
+            }
+        }
+        return returnDict;
+    }
+
+    private async Task DisplaySettings(CommandContext context, TSettings settings)
+    {
         var table = new Table().NoBorder();
 
         var showTable = false;
@@ -100,27 +123,17 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
         table.AddColumn(new TableColumn(new Text("", Globals.StyleSubHeading)));
         table.AddColumn(new TableColumn(new Text("Value", Globals.StyleSubHeading)));
 
-        foreach (var prop in properties)
-        {
-            var attr = prop.GetAttributes<CommandOptionAttribute>()
-                .FirstOrDefault()?
-                .LongNames.ToArray();
+        var options = GetOptions(settings);
 
-            if (attr != null && attr.Length > 0)
-            {
-                var option = attr[0];
-                if (option != null)
-                {
-                    var value = prop.GetValue(settings);
-                    _logger.LogInformation("Command option: {option} = {value}", option, value);
-                    table.AddRow(
-                        new Markup($"--{option}", Globals.StyleDim),
-                        new Markup($"=", Globals.StyleDim),
-                        new Markup($"{value}", Globals.StyleNormal)
-                    );
-                    showTable = true;
-                }
-            }
+        foreach (var (option, value) in options)
+        {
+            _logger.LogInformation("Command option: {option} = {value}", option, value);
+            table.AddRow(
+                new Markup($"--{option}", Globals.StyleDim),
+                new Markup($"=", Globals.StyleDim),
+                new Markup($"{value}", Globals.StyleNormal)
+            );
+            showTable = true;
         }
 
         _console.Write(new Markup("  " + string.Join(' ', context.Arguments), Globals.StyleAlertAccent));
