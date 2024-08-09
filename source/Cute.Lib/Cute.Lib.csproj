@@ -24,6 +24,7 @@
     <PackageReference Include="Serilog.Sinks.OpenTelemetry" Version="3.0.0" />
     <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
     <PackageReference Include="YamlDotNet" Version="16.0.0" />
+    <PackageReference Include="pythonnet" Version="3.0.3" />
   </ItemGroup>
 
 </Project>
