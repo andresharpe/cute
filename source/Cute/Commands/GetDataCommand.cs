@@ -82,6 +82,10 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
         [CommandOption("-p|--port")]
         [Description("The port to listen on")]
         public int Port { get; set; } = 8084;
+
+        [CommandOption("-u|--use-filecache")]
+        [Description("Whether or not to cache responses to a local file cache")]
+        public bool UseFileCache { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -110,7 +114,7 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
         foreach (var getDataEntry in _cronTasks.Values)
         {
-            await ProcessGetDataEntry(getDataEntry);
+            await ProcessGetDataEntry(getDataEntry, settings);
         }
 
         _console.WriteBlankLine();
@@ -178,7 +182,7 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             var scheduledTask = new AsyncScheduledTask(
                 getDataEntry.Key,
                 CrontabSchedule.Parse(cronSchedule),
-                async ct => await ProcessGetDataEntryAndDisplaySchedule(getDataEntry.Value)
+                async ct => await ProcessGetDataEntryAndDisplaySchedule(getDataEntry.Value, settings)
             );
 
             _scheduler.AddTask(scheduledTask);
@@ -249,9 +253,9 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
         context.Response.Redirect("/");
     }
 
-    private async Task ProcessGetDataEntryAndDisplaySchedule(Entry<JObject> entry)
+    private async Task ProcessGetDataEntryAndDisplaySchedule(Entry<JObject> entry, Settings settings)
     {
-        await ProcessGetDataEntry(entry);
+        await ProcessGetDataEntry(entry, settings);
 
         DisplaySchedule();
     }
@@ -277,13 +281,17 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
         }
     }
 
-    private async Task ProcessGetDataEntry(Entry<JObject> getDataEntry)
+    private async Task ProcessGetDataEntry(Entry<JObject> getDataEntry, Settings settings)
     {
         if (_settings is null) return;
 
         var dataAdapter = new HttpDataAdapter()
-            .WithDisplayAction(_console.WriteDim)
-            .WithHttpResponseFileCache(_httpResponseCache);
+            .WithDisplayAction(_console.WriteDim);
+
+        if (settings.UseFileCache)
+        {
+            dataAdapter.WithHttpResponseFileCache(_httpResponseCache);
+        }
 
         var getDataId = GetString(getDataEntry, _settings.GetDataIdField);
 

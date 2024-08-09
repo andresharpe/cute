@@ -3,6 +3,7 @@ using Contentful.Core.Errors;
 using Contentful.Core.Extensions;
 using Contentful.Core.Models;
 using Cute.Lib.Enums;
+using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
 using Html2Markdown;
 using Newtonsoft.Json;
@@ -126,22 +127,28 @@ internal class EntryFieldSerializer
         var value = values.First().Value;
 
         if (value == null) return null;
-
-        return _contentfulType switch
+        try
         {
-            FieldType.Symbol => value?.ToString(),
-            FieldType.Text => value?.ToString(),
-            FieldType.RichText => ToDocument(value),
-            FieldType.Integer => Convert.ToInt64(value is string s && string.IsNullOrWhiteSpace(s) ? null : value),
-            FieldType.Number => Convert.ToDouble(value is string s && string.IsNullOrWhiteSpace(s) ? null : value),
-            FieldType.Date => ToDateTime(value),
-            FieldType.Location => ToLocation(values),
-            FieldType.Boolean => Convert.ToBoolean(value),
-            FieldType.Link => ToLink(value),
-            FieldType.Array => ToObjectArray(value),
-            FieldType.Object => JsonConvert.DeserializeObject<JToken>((string)value),
-            _ => throw new NotImplementedException(),
-        };
+            return _contentfulType switch
+            {
+                FieldType.Symbol => value?.ToString(),
+                FieldType.Text => value?.ToString(),
+                FieldType.RichText => ToDocument(value),
+                FieldType.Integer => Convert.ToInt64(value is string s && string.IsNullOrWhiteSpace(s) ? null : value),
+                FieldType.Number => Convert.ToDouble(value is string s && string.IsNullOrWhiteSpace(s) ? null : value),
+                FieldType.Date => ToDateTime(value),
+                FieldType.Location => ToLocation(values),
+                FieldType.Boolean => string.IsNullOrWhiteSpace(value.ToString()) ? null : Convert.ToBoolean(value),
+                FieldType.Link => ToLink(value),
+                FieldType.Array => ToObjectArray(value),
+                FieldType.Object => JsonConvert.DeserializeObject<JToken>((string)value),
+                _ => throw new NotImplementedException(),
+            };
+        }
+        catch (Exception ex)
+        {
+            throw new CliException($"Field: '{_fullFieldName}' ({_contentfulType}) {ex.Message}", ex);
+        }
     }
 
     public string? DeserializeToString(object? value)
@@ -159,12 +166,12 @@ internal class EntryFieldSerializer
             FieldType.Number => Convert.ToDouble(value).ToString(),
             FieldType.Date => ToDateTime(value)?.ToString("u"),
             FieldType.Location => Convert.ToDouble(value).ToString(),
-            FieldType.Boolean => Convert.ToBoolean(value).ToString(),
+            FieldType.Boolean => string.IsNullOrWhiteSpace(value.ToString()) ? null : Convert.ToBoolean(value).ToString(),
             FieldType.Link => ToLink(value)?.ToString(),
             FieldType.Array => ToObjectArray(value)?.ToString(),
             FieldType.Object => ToObjectString(value),
             _ => throw new NotImplementedException(),
-        }; ;
+        };
     }
 
     internal bool Compare<T>(object? value1, T? value2)
@@ -190,7 +197,7 @@ internal class EntryFieldSerializer
         return normalizedValue1 == normalizedValue2;
     }
 
-    private DateTime? ToDateTime(object? value)
+    private static DateTime? ToDateTime(object? value)
     {
         if (value is null) return null;
 
@@ -201,7 +208,7 @@ internal class EntryFieldSerializer
         return date;
     }
 
-    private string? ToObjectString(object? value)
+    private static string? ToObjectString(object? value)
     {
         if (value is string stringValue)
         {

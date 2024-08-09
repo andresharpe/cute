@@ -27,17 +27,59 @@ public class CuteFunctions : ScriptObject
         return _htmlConverter.Convert(content);
     }
 
-    public static string ToJson(object value)
+    public static string ToJson(object value, params string[]? keepList)
     {
-        if (value is JObject jObject)
+        if (value is JToken jToken)
         {
-            return jObject.ToString();
-        }
-        else if (value is JArray jArray)
-        {
-            return jArray.ToString();
+            return keepList is null
+                ? jToken.ToString()
+                : SelectProperties(jToken, keepList)?.ToString() ?? string.Empty;
         }
         return JsonConvert.SerializeObject(value);
+    }
+
+    private static JToken? SelectProperties(JToken jToken, params string[] keepList)
+    {
+        var jOldObjectList = new List<JObject>();
+
+        var jNewObjectList = new List<JObject>();
+
+        if (jToken is JArray jArray)
+        {
+            foreach (var obj in jArray.Cast<JObject>())
+            {
+                jOldObjectList.Add(obj);
+            }
+        }
+        else if (jToken is JObject jObject)
+        {
+            jOldObjectList.Add(jObject);
+        }
+
+        foreach (var obj in jOldObjectList)
+        {
+            var newObj = new JObject();
+            foreach (var propName in keepList)
+            {
+                newObj.Add(propName, obj[propName]);
+            }
+            jNewObjectList.Add(newObj);
+        }
+
+        JToken? returnValue = null;
+
+        if (jToken is JObject)
+        {
+            returnValue = jNewObjectList[0];
+        }
+        else if (jToken is JArray)
+        {
+            var returnArray = new JArray();
+            foreach (var obj in jNewObjectList) returnArray.Add(obj);
+            returnValue = returnArray;
+        }
+
+        return returnValue;
     }
 
     public static string UrlLastSegment(string? url)
@@ -136,7 +178,7 @@ public class CuteFunctions : ScriptObject
 
     private static readonly ConcurrentDictionary<string, List<Location>> _nearEntriesCache = [];
 
-    public static int Near(string contentType, string matchField, double radiusInKm, double lat, double lon)
+    public static bool Near(string contentType, string matchField, double radiusInKm, double lat, double lon)
     {
         var cacheKey = $"{contentType}|{matchField}";
 
@@ -146,7 +188,7 @@ public class CuteFunctions : ScriptObject
 
         return contentEntries
             .Where(l => boundingBox.Contains(l.Lon, l.Lat))
-            .Count();
+            .Any();
     }
 
     private static List<Location> GetFromNearCache(string contentType, string locationField, string cacheKey)
@@ -157,8 +199,8 @@ public class CuteFunctions : ScriptObject
             {
                 var contentEntriesLoader = ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, contentType, locationField)
                     .ToBlockingEnumerable()
-                    .Where(e => e.Item1.Fields[locationField]?["en"] != null)
-                    .Select(e => e.Item1.Fields[locationField]?["en"]!.ToObject<Location>()!)
+                    .Where(e => e.Entry.Fields[locationField]?["en"] != null)
+                    .Select(e => e.Entry.Fields[locationField]?["en"]!.ToObject<Location>()!)
                     .ToList();
 
                 _nearEntriesCache.TryAdd(cacheKey, contentEntriesLoader);
@@ -201,8 +243,8 @@ public class CuteFunctions : ScriptObject
             {
                 var contentEntriesLoader = ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, contentType, matchField)
                     .ToBlockingEnumerable()
-                    .Where(e => e.Item1.Fields[matchField]?["en"] != null)
-                    .ToDictionary(e => e.Item1.Fields[matchField]?["en"]!.Value<string>()!, e => e.Item1, StringComparer.InvariantCultureIgnoreCase);
+                    .Where(e => e.Entry.Fields[matchField]?["en"] != null)
+                    .ToDictionary(e => e.Entry.Fields[matchField]?["en"]!.Value<string>()!, e => e.Entry, StringComparer.InvariantCultureIgnoreCase);
 
                 _lookupEntriesCache.TryAdd(cacheKey, contentEntriesLoader);
             }

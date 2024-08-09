@@ -141,6 +141,9 @@ app.Configure(config =>
     config.AddCommand<GetDataCommand>("getdata")
         .WithDescription("Sync Contentful content with WikiData.");
 
+    config.AddCommand<SeedDataCommand>("seeddata")
+        .WithDescription("Get geo data from Simplemaps.com data.");
+
     config.AddCommand<WebserverCommand>("webserver")
         .WithDescription("Launch web server and listen to http requests and webhook calls.");
 });
