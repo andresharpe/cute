@@ -1,16 +1,21 @@
 using Cute.Config;
 using Cute.Lib.Contentful;
+using Cute.Lib.Exceptions;
 using Cute.Services;
+using Python.Runtime;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using Python.Runtime;
+using System.Diagnostics;
+using System.Reflection;
 
 namespace Cute.Commands;
 
 public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 {
     private readonly ILogger<EvaluateCommand> _logger;
+
+    private IReadOnlyDictionary<string, string?> _allEnvSettings = new Dictionary<string, string?>();
 
     public EvaluateCommand(IConsoleWriter console, ILogger<EvaluateCommand> logger,
         ContentfulConnection contentfulConnection, AppSettings appSettings)
@@ -79,15 +84,19 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         return base.Validate(context, settings);
     }
 
-    #pragma warning disable CS1998
+#pragma warning disable CS1998
+
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        var result = await base.ExecuteAsync(context, settings);
+        await base.ExecuteAsync(context, settings);
+
+        var pythonPath = InstallPythonIfNeededAndReturnPath();
+
         var metricsResult = string.Empty;
 
         var generationMetric = settings.GenerationMetric;
         var translationMetric = settings.TranslationMetric;
-        var seoMetric = settings.SeoMetric;   
+        var seoMetric = settings.SeoMetric;
         var promptMainPrompt = settings.PromptField;
         var generatedContentField = settings.GeneratedContentField;
         var referenceContentField = settings.ReferenceContentField;
@@ -96,21 +105,27 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         var relatedKeywordsField = settings.RelatedKeywordsField;
         var seoInputField = settings.SeoInputField;
         var threshold = settings.Threshold;
-        var llmModel = settings.LlmModel;       
+        var llmModel = settings.LlmModel;
 
-        var pythonDLL = _appSettings.GetSettings()["Cute__PythonDLL"]; // Path to the python dll
-        #pragma warning disable CS8604 // Possible null reference argument.
-        var setupFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonSetupFile"]); // Path to the setup.py file
-        #pragma warning restore CS8604
-        #pragma warning disable CS8604 // Possible null reference argument.
-        var evalGenerationFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonEvalGenerationFile"]); // Path to the eval_generation.py file
-        #pragma warning restore CS8604
-        #pragma warning disable CS8604 // Possible null reference argument.
-        var evalTranslationFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonEvalTranslationFile"]); // Path to the eval_translation.py file
-        #pragma warning restore CS8604
-        #pragma warning disable CS8604 // Possible null reference argument.
-        var evalSEOFile = Path.GetFullPath(_appSettings.GetSettings()["Cute__PythonEvalSeoFile"]); // Path to the eval_seo.py file
-        #pragma warning restore CS8604
+        _allEnvSettings = _appSettings.GetSettings();
+
+        if (!_allEnvSettings.TryGetValue("Cute__PythonDLL", out var pythonDLL))
+        {
+            pythonDLL = Path.Combine(pythonPath, "python312.dll");
+        }
+
+        var runTimeScriptFolder = Path.Combine((Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty)
+            , "PythonScripts");
+
+        var setupFile = Path.Combine(runTimeScriptFolder, "setup.py");
+
+        var evalGenerationFile = Path.Combine(runTimeScriptFolder, "eval_generation.py"); // Path to the eval_generation.py file
+
+        var evalTranslationFile = Path.Combine(runTimeScriptFolder, "eval_translation.py"); // Path to the eval_translation.py file
+
+        var evalSEOFile = Path.Combine(runTimeScriptFolder, "eval_seo.py"); // Path to the eval_seo.py file
+
+        EnsureAllFilesExist(pythonDLL!, evalGenerationFile, evalSEOFile, evalTranslationFile, setupFile);
 
         try
         {
@@ -123,11 +138,11 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
             {
                 metricsResult = generationMetric switch
                 {
-                    "answer" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField, 
+                    "answer" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField,
                         generationMetric, llmModel, threshold),
-                    "faithfulness" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField, 
+                    "faithfulness" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField,
                         generationMetric, llmModel, threshold),
-                    "all" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField, 
+                    "all" => EvaluateGeneration(evalGenerationFile, promptMainPrompt, generatedContentField, referenceContentField, factsField,
                         generationMetric, llmModel, threshold),
                     _ => throw new ArgumentException("Invalid metric provided"),
                 };
@@ -136,13 +151,13 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
             {
                 metricsResult = translationMetric switch
                 {
-                    "gleu" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
+                    "gleu" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
                         translationMetric, llmModel, threshold),
-                    "meteor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
+                    "meteor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
                         translationMetric, llmModel, threshold),
-                    "lepor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
+                    "lepor" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
                         translationMetric, llmModel, threshold),
-                    "all" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField, 
+                    "all" => EvaluateTranslation(evalTranslationFile, promptMainPrompt, generatedContentField, referenceContentField,
                         translationMetric, llmModel, threshold),
                     _ => throw new ArgumentException("Invalid metric provided"),
                 };
@@ -157,7 +172,6 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
             }
 
             PythonEngine.Shutdown(); // Shutdown Python engine
-
         }
         catch (PythonException ex)
         {
@@ -180,7 +194,57 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         return 0;
     }
 
-    private static string? EvaluateGeneration(string filePath, string prompt, string actualOutput, string expectedOutput, 
+    private static void EnsureAllFilesExist(params string[] files)
+    {
+        foreach (var file in files)
+        {
+            if (!File.Exists(file))
+            {
+                throw new CliException($"The required file '{file}' does not exist.");
+            }
+        }
+    }
+
+    private string InstallPythonIfNeededAndReturnPath()
+    {
+        // TODO: Make this work for non windows enviroments
+        // We will assume the PATH for now - but can be extracted by running a new process
+
+        var pythonPath = Environment.GetEnvironmentVariable("PATH")?
+            .Split(';')
+            .FirstOrDefault(p => p.EndsWith(@"\Python312\", StringComparison.OrdinalIgnoreCase));
+
+        if (pythonPath is null)
+        {
+            _console.WriteRuler();
+            _console.WriteBlankLine();
+            _console.WriteNormal("You need Python, let's get it for you...");
+            _console.WriteBlankLine();
+
+            var process = new Process();
+            process.StartInfo.FileName = "winget";
+            process.StartInfo.Arguments = "install Python.Python.3.12";
+            process.StartInfo.RedirectStandardOutput = true;
+            process.Start();
+            process.WaitForExit();
+            var installResult = process.StandardOutput.ReadToEnd();
+
+            _console.WriteNormal("Completed...");
+
+            if (!installResult.Contains("Successfully installed"))
+            {
+                throw new CliException($"You need Python installed. On Windows you can simply use 'winget install Python.Python.3.12'\n{installResult}");
+            }
+
+            _console.WriteBlankLine();
+            _console.WriteRuler();
+            _console.WriteBlankLine();
+        }
+
+        return $"{Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)}\\Programs\\Python\\Python312\\";
+    }
+
+    private string? EvaluateGeneration(string filePath, string prompt, string actualOutput, string expectedOutput,
         string retrievalContext, string metric, string llmModel, double threshold)
     {
         string? result;
@@ -197,18 +261,18 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 
         // First, execute __init__ method to initialize the EvalGenearation class (eval_generation.py)
         PyObject? genEvalObj = ExecutePython(
-            filePath: filePath, 
-            pyClass: "EvalGeneration", 
-            pyMethod: "__init__", 
+            filePath: filePath,
+            pyClass: "EvalGeneration",
+            pyMethod: "__init__",
             pyArgs: [pyLlmModel, pyThreshold, pyInput, pyActualOutput, pyExpectedOutput, pyRetrievalContext]
         ) ?? throw new NullReferenceException("genEvalObj is null");
-        
+
         switch (metric)
         {
             case "answer":
                 pyGenMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /* 
-                    Execute the measure method on the EvalGeneration class 
+                /*
+                    Execute the measure method on the EvalGeneration class
                     (in eval_generation.py) to get the result of a answer relevancy metric
                 */
                 pyResult = ExecutePython(
@@ -226,8 +290,8 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 
             case "faithfulness":
                 pyGenMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /* 
-                    Execute the measure method on the EvalGeneration class 
+                /*
+                    Execute the measure method on the EvalGeneration class
                     (in eval_generation.py) to get the result of faithfulness metric
                 */
                 pyResult = ExecutePython(
@@ -244,8 +308,8 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
                 break;
 
             case "all":
-                /* 
-                    Execute evaluate method on the EvalGeneration class 
+                /*
+                    Execute evaluate method on the EvalGeneration class
                     (in eval_generation.py) to get the result of the evaluation
                 */
                 pyResult = ExecutePython(
@@ -275,7 +339,7 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         return result;
     }
 
-    private static string? EvaluateTranslation(string filePath, string prompt, string actualOutput, string expectedOutput, 
+    private string? EvaluateTranslation(string filePath, string prompt, string actualOutput, string expectedOutput,
         string metric, string llmModel, double threshold)
     {
         string? result;
@@ -291,9 +355,9 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 
         // First, execute __init__ method to initialize the EvalTranslation class (eval_translation.py)
         PyObject? translationEvalObj = ExecutePython(
-            filePath: filePath, 
-            pyClass: "EvalTranslation", 
-            pyMethod: "__init__", 
+            filePath: filePath,
+            pyClass: "EvalTranslation",
+            pyMethod: "__init__",
             pyArgs: [pyLlmModel, pyThreshold, pyInput, pyActualOutput, pyExpectedOutput]
         ) ?? throw new NullReferenceException("translationEvalObj is null");
 
@@ -301,8 +365,8 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         {
             case "gleu":
                 pyTranslationMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /* 
-                    Execute the measure method on the EvalTranslation class 
+                /*
+                    Execute the measure method on the EvalTranslation class
                     (in eval_translation.py) to get the result of gleu metric
                 */
                 pyResult = ExecutePython(
@@ -316,13 +380,13 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
                 if (pyResult == null) { throw new NullReferenceException("pyResult for gleu measure is null"); }
 
                 result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                pyTranslationMetric.Dispose(); // Dispose object to free up memory              
+                pyTranslationMetric.Dispose(); // Dispose object to free up memory
                 break;
 
             case "meteor":
                 pyTranslationMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /* 
-                    Execute the measure method on the EvalTranslation class 
+                /*
+                    Execute the measure method on the EvalTranslation class
                     (in eval_translation.py) to get the result of meteor metric
                 */
                 pyResult = ExecutePython(
@@ -336,13 +400,13 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
                 if (pyResult == null) { throw new NullReferenceException("pyResult for meteor metric is null"); }
 
                 result = pyResult.AsManagedObject(typeof(string)) as string; // Convert the PyObject to a string
-                pyTranslationMetric.Dispose(); // Dispose object to free up memory               
+                pyTranslationMetric.Dispose(); // Dispose object to free up memory
                 break;
 
             case "lepor":
                 pyTranslationMetric = new PyString(metric); // Specify the metric to be used for evaluation
-                /* 
-                    Execute the measure method on the EvalTranslation class 
+                /*
+                    Execute the measure method on the EvalTranslation class
                     (in eval_translation.py) to get the result of lepor metric
                 */
                 pyResult = ExecutePython(
@@ -360,8 +424,8 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
                 break;
 
             case "all":
-                /* 
-                    Execute evaluate method on the EvalTranslation class 
+                /*
+                    Execute evaluate method on the EvalTranslation class
                     (in eval_translation.py) to get the result of the evaluation
                 */
                 pyResult = ExecutePython(
@@ -391,9 +455,8 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         return result;
     }
 
-    private static string? EvaluateSEO(string filePath, string seoInput, string keyword, string relatedKeywords, double threshold)
+    private string? EvaluateSEO(string filePath, string seoInput, string keyword, string relatedKeywords, double threshold)
     {
-
         string? result = null;
 
         // Define the Python parameters for the SEO test case
@@ -404,69 +467,66 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 
         // First, execute __init__ method to initialize the EvalSEO class (eval_seo.py)
         PyObject? seoEvalObj = ExecutePython(
-            filePath: filePath, 
-            pyClass: "EvalSEO", 
-            pyMethod: "__init__", 
+            filePath: filePath,
+            pyClass: "EvalSEO",
+            pyMethod: "__init__",
             pyArgs: [pySeoInput, pySeoKeyword, pySeoRelatedKeywords, pySeoThreshold]
         ) ?? throw new NullReferenceException("seoEvalObj is null");
-        
+
         return result;
     }
 
-
-    private static PyObject? ExecutePython(string filePath, string? pyClass = null, string? pyMethod = null, List<PyObject>? pyArgs = null)
-    {        
+    private PyObject? ExecutePython(string filePath, string? pyClass = null, string? pyMethod = null, List<PyObject>? pyArgs = null)
+    {
         PyObject? result = null; // Create a PyObject to hold the result
-        string file = Path.GetFullPath(filePath);            
-            
+        string file = Path.GetFullPath(filePath);
+
         if (!PythonEngine.IsInitialized) // Since using asp.net, we may need to re-initialize
         {
             PythonEngine.Initialize();
         }
 
-        using(Py.GIL()) // acquire the GIL before using the Python interpreter
+        using var gil = Py.GIL();
+
+        using var scope = Py.CreateScope(); // create a Python scope
+
+        string code = File.ReadAllText(file); // Get code as raw text
+
+        var codeCompiled = PythonEngine.Compile(code, file); // Compile the code/file
+
+        scope.Set("settings", _allEnvSettings.ToPython());
+
+        scope.Execute(codeCompiled); // Execute the compiled python so we can start calling it.
+
+        // Execute the python method if provided with its arguments
+        if (pyClass != null && pyMethod != null && pyArgs != null)
         {
-            using (PyModule scope = Py.CreateScope()) // create a Python scope
+            PyObject? pyObj = null; // Create a PyObject to hold the class
+            PyObject[]? param = new PyObject[pyArgs.Count]; // Create an array of PyObject to hold the arguments
+
+            if (pyMethod == "__init__") // If the method is __init__, we need to create an instance of the class
             {
-                string code = File.ReadAllText(file); // Get code as raw text
-                var codeCompiled = PythonEngine.Compile(code, file); // Compile the code/file
-                scope.Execute(codeCompiled); // Execute the compiled python so we can start calling it.
-
-                // Execute the python method if provided with its arguments
-                if (pyClass != null && pyMethod != null && pyArgs != null)
+                Array.Resize(ref param, pyArgs.Count + 1); // Resize the array to hold the class and the arguments
+                pyObj = scope.Get(pyClass); // Get an instance of pyClass
+                param[0] = pyObj; // Append the class to the arguments
+                for (int i = 1; i < param.Length; i++) // Loop through the arguments
                 {
-                    
-                    PyObject? pyObj = null; // Create a PyObject to hold the class
-                    PyObject[]? param = new PyObject[pyArgs.Count]; // Create an array of PyObject to hold the arguments
-
-                    if (pyMethod == "__init__") // If the method is __init__, we need to create an instance of the class
-                    {
-                        Array.Resize(ref param, pyArgs.Count + 1); // Resize the array to hold the class and the arguments
-                        pyObj = scope.Get(pyClass); // Get an instance of pyClass 
-                        param[0] = pyObj; // Append the class to the arguments
-                        for (int i = 1; i < param.Length; i++) // Loop through the arguments
-                        {
-                            param[i] = pyArgs[i-1]; // Append the method arguments to the PyObject[] array
-                        }
-                    }
-                    else // If the method is not __init__, we call the method on the provided instance of the class
-                    {
-                        pyObj = pyArgs[0]; // Get class instance from the arguments 
-                        param[0] = pyObj; // Append instance to the arguments (i.e., self)
-                        for (int i = 1; i < param.Length; i++) // Loop through the arguments
-                        {
-                            param[i] = pyArgs[i]; // Append the method arguments to the PyObject[] array
-                        }
-                    }
-
-                    result = pyObj.InvokeMethod(pyMethod, param); // Call the pyMethod with pyArgs on the pyObject of pyClass
+                    param[i] = pyArgs[i - 1]; // Append the method arguments to the PyObject[] array
                 }
-
-                scope.Dispose(); // Dispose scope
             }
-            Py.GIL().Dispose(); // release the GIL
+            else // If the method is not __init__, we call the method on the provided instance of the class
+            {
+                pyObj = pyArgs[0]; // Get class instance from the arguments
+                param[0] = pyObj; // Append instance to the arguments (i.e., self)
+                for (int i = 1; i < param.Length; i++) // Loop through the arguments
+                {
+                    param[i] = pyArgs[i]; // Append the method arguments to the PyObject[] array
+                }
+            }
+
+            result = pyObj.InvokeMethod(pyMethod, param); // Call the pyMethod with pyArgs on the pyObject of pyClass
         }
 
-        return result; // Return the result   
+        return result; // Return the result
     }
 }
