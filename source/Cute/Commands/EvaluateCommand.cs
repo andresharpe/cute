@@ -82,8 +82,6 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         return base.Validate(context, settings);
     }
 
-#pragma warning disable CS1998
-
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
         await base.ExecuteAsync(context, settings);
