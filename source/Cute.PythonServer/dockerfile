@@ -1,4 +1,4 @@
-FROM python:3.11python -slim-bookworm
+FROM python:3.11python-slim-bookworm
 WORKDIR /code
 
 ENV FLASK_APP=app.py

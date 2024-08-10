@@ -113,8 +113,6 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 
         var endPoint = $"http://localhost:5555/api/{apiCall}";
 
-        Console.ReadKey();
-
         _console.WriteNormalWithHighlights($"Calling eval API on '{endPoint}'...", Globals.StyleHeading);
 
         var result = await _httpClient.PostAsJsonAsync(endPoint,
