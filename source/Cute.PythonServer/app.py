@@ -3,7 +3,6 @@ This script runs the application using a development server.
 It contains the definition of routes and views for the application.
 """
 
-import os
 import subprocess
 
 from apiflask import APIFlask
@@ -69,8 +68,6 @@ def execute_translator_command(measure:str):
 
     options = payload['options']
 
-    env = payload['env']
-    
     translator = EvalTranslation(
                 options['llm-model'], 
                 options['threshold'], 
@@ -131,4 +128,4 @@ if __name__ == '__main__':
         PORT = int(os.environ.get('SERVER_PORT', '5555'))
     except ValueError:
         PORT = 5555
-    app.run(HOST, PORT, debug=True)
+    app.run(host=HOST, port=PORT, debug=True)

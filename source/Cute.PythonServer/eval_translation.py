@@ -1,7 +1,4 @@
-import json
-import nltk
 
-nltk.download('wordnet', quiet=True)
 from nltk.translate.gleu_score import sentence_gleu
 from nltk.translate.meteor_score import single_meteor_score
 from hlepor import single_hlepor_score

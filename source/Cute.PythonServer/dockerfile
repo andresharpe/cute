@@ -1,4 +1,4 @@
-FROM python:3.11python-slim-bookworm
+FROM python:3.12-slim-bookworm
 WORKDIR /code
 
 ENV FLASK_APP=app.py
@@ -11,6 +11,13 @@ RUN apt-get install python3-dev --yes
 COPY requirements.txt requirements.txt
 
 RUN pip install -r requirements.txt
+
+
 EXPOSE 5555
+
 COPY . .
-CMD ["flask", "run", "--debug"]
+
+RUN python nltk_download.py
+
+
+CMD ["flask", "run", "--debug", "-p", "5555"]

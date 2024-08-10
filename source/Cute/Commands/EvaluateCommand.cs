@@ -22,6 +22,11 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         _httpClient = httpClient;
     }
 
+    // Refactor:-
+    // cute evaluate seo
+    // cute evaluate generation --measure
+    // cute evaluate translation --measure
+
     public class Settings : CommandSettings
     {
         [CommandOption("-g|--generation")]
@@ -117,6 +122,8 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
 
         var result = await _httpClient.PostAsJsonAsync(endPoint,
             new { options = commandOptions, env = envSettings });
+
+        result.EnsureSuccessStatusCode();
 
         _console.WriteRuler();
 

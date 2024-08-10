@@ -35,6 +35,9 @@
     <Compile Include="eval_generation.py" />
     <Compile Include="eval_seo.py" />
     <Compile Include="eval_translation.py" />
+    <Compile Include="nltk_download.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Content Include="compose.yml" />
