@@ -1,5 +1,4 @@
-flask
-redis
+apiflask
 requests
 bs4
 nptyping
@@ -8,3 +7,4 @@ hlepor
 deepeval
 jsonify
 jsonpickle
+pydebug

@@ -6,12 +6,17 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "source", "source", "{EE8518CE-60E5-439C-B7CE-9191260998C8}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cute", "source\Cute\Cute.csproj", "{96C1092C-222D-4ECD-9124-429A4CB8C88B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A55BBF14-8A1F-49FA-8B5A-A478694F42E1} = {A55BBF14-8A1F-49FA-8B5A-A478694F42E1}
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cute.Tests", "tests\Cute.Tests\Cute.Tests.csproj", "{72AF751B-FC53-4A08-A7DA-CC3689915B3B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D35DD32C-7382-4F4F-88D7-AFD5DD849390}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cute.Lib", "source\Cute.Lib\Cute.Lib.csproj", "{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}"
+EndProject
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Cute.PythonServer", "source\Cute.PythonServer\Cute.PythonServer.pyproj", "{A55BBF14-8A1F-49FA-8B5A-A478694F42E1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +36,10 @@ Global
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A55BBF14-8A1F-49FA-8B5A-A478694F42E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A55BBF14-8A1F-49FA-8B5A-A478694F42E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A55BBF14-8A1F-49FA-8B5A-A478694F42E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A55BBF14-8A1F-49FA-8B5A-A478694F42E1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -39,6 +48,7 @@ Global
 		{96C1092C-222D-4ECD-9124-429A4CB8C88B} = {EE8518CE-60E5-439C-B7CE-9191260998C8}
 		{72AF751B-FC53-4A08-A7DA-CC3689915B3B} = {D35DD32C-7382-4F4F-88D7-AFD5DD849390}
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA} = {EE8518CE-60E5-439C-B7CE-9191260998C8}
+		{A55BBF14-8A1F-49FA-8B5A-A478694F42E1} = {EE8518CE-60E5-439C-B7CE-9191260998C8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5EF73163-BCCC-4780-8D8D-8A24529EACA5}

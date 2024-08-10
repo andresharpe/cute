@@ -111,7 +111,9 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
             throw new CliException("No valid metric provided for evaluation");
         }
 
-        var endPoint = $"http://localhost:8000/api/{apiCall}";
+        var endPoint = $"http://localhost:5555/api/{apiCall}";
+
+        Console.ReadKey();
 
         _console.WriteNormalWithHighlights($"Calling eval API on '{endPoint}'...", Globals.StyleHeading);
 
