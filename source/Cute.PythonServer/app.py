@@ -121,7 +121,7 @@ def ensure_open_ai_is_used(env):
     ensure_open_ai_is_used.__code__ = (lambda env: None).__code__
 
 
-# this port setting seems to be ignored - investigate later
+# this port setting seems to be ignored - investigate later.
 if __name__ == '__main__':
     import os
     HOST = os.environ.get('SERVER_HOST', 'localhost')
