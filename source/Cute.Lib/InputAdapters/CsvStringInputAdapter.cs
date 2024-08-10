@@ -4,23 +4,26 @@ using System.Globalization;
 
 namespace Cute.Lib.InputAdapters;
 
-internal class CsvInputAdapter : InputAdapterBase
+internal class CsvStringInputAdapter : InputAdapterBase
 {
-    private StreamReader _reader;
+    private StringReader _reader;
 
     private CsvReader _csv;
 
     private readonly List<string> _columns = [];
 
-    public CsvInputAdapter(string contentName, string? fileName, string delimeter = ",")
-        : base(fileName ?? contentName + (delimeter == "\t" ? ".tsv" : ".csv"))
+    public CsvStringInputAdapter(string content, string delimeter = ",")
+        : base("__memory.csv")
     {
+        // 1124001997,CA,Wellington North,,43.9,-80.57,CA-ON,province,,22.6,11914,11914,America/Toronto // 4368009
+        // 1124001704,CA,Hanover,,49.4433,-96.8492,CA-MB,province,,21.2,15733,15733,America/Winnipeg
+
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             Delimiter = delimeter,
         };
 
-        _reader = new(FileName, System.Text.Encoding.UTF8);
+        _reader = new(content);
 
         _csv = new CsvReader(_reader, config);
 

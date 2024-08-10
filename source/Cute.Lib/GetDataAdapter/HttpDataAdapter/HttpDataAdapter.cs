@@ -3,6 +3,8 @@ using Contentful.Core.Models;
 using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
+using Cute.Lib.Extensions;
+using Cute.Lib.InputAdapters;
 using Cute.Lib.Scriban;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -191,7 +193,7 @@ public class HttpDataAdapter
 
             var requestUri = baseAddress + getParameters;
 
-            var results = await GetResponseFromEndpointOrCache(adapter, httpClient, formContent, requestUri, requestCount);
+            var results = await GetResponseFromEndpointOrCache(adapter, httpClient, formContent, requestUri, requestCount, scriptObject);
 
             if (results is null) return [];
 
@@ -251,9 +253,9 @@ public class HttpDataAdapter
     }
 
     private async Task<HttpResponseCacheEntry?> GetResponseFromEndpointOrCache(HttpDataAdapterConfig adapter,
-        HttpClient httpClient, FormUrlEncodedContent? formContent, string requestUri, int requestCount)
+        HttpClient httpClient, FormUrlEncodedContent? formContent, string requestUri, int requestCount, ScriptObject scriptObject)
     {
-        Task<HttpResponseCacheEntry?> getEntryFunc() => GetResponseFromEndpoint(adapter, httpClient, formContent, requestUri);
+        Task<HttpResponseCacheEntry?> getEntryFunc() => GetResponseFromEndpoint(adapter, httpClient, formContent, requestUri, scriptObject);
 
         if (_httpResponseFileCache is null) return await getEntryFunc();
 
@@ -279,7 +281,8 @@ public class HttpDataAdapter
         return await _httpResponseFileCache.Get(fileBaseName.ToString(), getEntryFunc);
     }
 
-    private static async Task<HttpResponseCacheEntry?> GetResponseFromEndpoint(HttpDataAdapterConfig adapter, HttpClient httpClient, FormUrlEncodedContent? formContent, string requestUri)
+    private static async Task<HttpResponseCacheEntry?> GetResponseFromEndpoint(HttpDataAdapterConfig adapter,
+        HttpClient httpClient, FormUrlEncodedContent? formContent, string requestUri, ScriptObject scriptObject)
     {
         HttpResponseMessage? endpointResult = null;
 
@@ -300,11 +303,32 @@ public class HttpDataAdapter
 
         endpointResult.EnsureSuccessStatusCode();
 
-        endpointContent = await endpointResult.Content.ReadAsStringAsync();
+        string? optionalSecret = null;
+        if (adapter.ResultsSecret is not null)
+        {
+            var compiledSecret = CompileValuesWithEnvironment(new Dictionary<string, string> { ["secret"] = adapter.ResultsSecret }, scriptObject);
+            optionalSecret = compiledSecret["secret"];
+        }
+
+        endpointContent = adapter.ResultsFormat switch
+        {
+            ResultsFormat.Json or ResultsFormat.Csv => await endpointResult.Content.ReadAsStringAsync(),
+
+            ResultsFormat.ZippedCsv => await endpointResult.Content.ReadAndUnzipAsCsv(optionalSecret),
+
+            _ => throw new NotImplementedException(),
+        };
 
         if (endpointContent is null) return null;
 
-        var results = JsonConvert.DeserializeObject(endpointContent);
+        var results = adapter.ResultsFormat switch
+        {
+            ResultsFormat.Json => JsonConvert.DeserializeObject(endpointContent),
+
+            ResultsFormat.ZippedCsv or ResultsFormat.ZippedCsv => new CsvStringInputAdapter(endpointContent).GetRecords().ToList(),
+
+            _ => throw new NotImplementedException(),
+        };
 
         return new HttpResponseCacheEntry
         {
