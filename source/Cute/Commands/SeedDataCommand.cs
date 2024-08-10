@@ -6,6 +6,7 @@ using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Utilities;
 using Cute.Services;
+using ICSharpCode.SharpZipLib.Zip;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -22,11 +23,17 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
     {
     }
 
+    private string _extractedFile = default!;
+
     public class Settings : CommandSettings
     {
         [CommandOption("-i|--input-file")]
-        [Description("The id of the content type containing data sync definitions. Default is 'metaGetData'.")]
+        [Description("The path to the input file.")]
         public string InputFile { get; set; } = "metaGetData";
+
+        [CommandOption("-o|--output-folder")]
+        [Description("The output folder.")]
+        public string OutputFolder { get; set; } = "metaGetData";
 
         [CommandOption("-c|--content-type")]
         [Description("The id of the content type containing location data. Default is 'dataLocation'.")]
@@ -58,25 +65,65 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
     {
         _ = await base.ExecuteAsync(context, settings);
 
-        await FilterAndExtractGeos(settings);
+        _extractedFile = _extractedFile = Path.GetDirectoryName(settings.InputFile) + @"\" +
+            Path.GetFileNameWithoutExtension(settings.InputFile) + ".output"
+            + Path.GetExtension(settings.InputFile);
 
+        await FilterAndExtractGeos(settings);
         if (settings.Zip)
         {
-            await ZipExtractedGeos(settings);
+            var zipFile = await ZipExtractedGeos(settings);
+            File.Move(zipFile, Path.Combine(settings.OutputFolder, Path.GetFileName(zipFile)));
         }
-
+        else
+        {
+            File.Move(_extractedFile, Path.Combine(settings.OutputFolder, Path.GetFileName(_extractedFile)));
+        }
         return 0;
     }
 
-    private async Task ZipExtractedGeos(Settings settings)
+    private async Task<string> ZipExtractedGeos(Settings settings)
     {
         var inputFile = settings.InputFile;
 
-        // var zipFile = Path.GetDirectoryName(inputFile) + @"\" + Path.GetFileNameWithoutExtension(inputFile) + ".output.zip";
+        var zipFile = Path.GetDirectoryName(_extractedFile) + @"\" + Path.GetFileNameWithoutExtension(_extractedFile) + ".zip";
 
-        await Task.Delay(1);
+        _console.WriteNormalWithHighlights($"Starting compress to '{zipFile}'...", Globals.StyleHeading);
 
-        return;
+        using var zip = new ZipOutputStream(File.Create(zipFile));
+
+        zip.SetLevel(9);
+
+        if (settings.Password is not null)
+        {
+            zip.Password = settings.Password;
+        }
+
+        var entry = new ZipEntry(Path.GetFileName(_extractedFile))
+        {
+            DateTime = File.GetLastWriteTimeUtc(_extractedFile)
+        };
+
+        await zip.PutNextEntryAsync(entry);
+
+        using var fileStream = File.OpenRead(_extractedFile);
+
+        int sourceBytes;
+        var buffer = new byte[4096];
+
+        do
+        {
+            sourceBytes = await fileStream.ReadAsync(buffer);
+            await zip.WriteAsync(buffer);
+        } while (sourceBytes > 0);
+
+        zip.Finish();
+
+        zip.Close();
+
+        _console.WriteNormalWithHighlights($"Completed compress to '{zipFile}'...", Globals.StyleHeading);
+
+        return zipFile;
     }
 
     private async Task FilterAndExtractGeos(Settings settings)
@@ -88,13 +135,11 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
         var inputFile = settings.InputFile;
 
-        var outputFile = Path.GetDirectoryName(inputFile) + @"\" + Path.GetFileNameWithoutExtension(inputFile) + ".output" + Path.GetExtension(inputFile);
-
         using var reader = new StreamReader(inputFile, System.Text.Encoding.UTF8);
 
         using var csvReader = new CsvReader(reader, config);
 
-        using var writer = new StreamWriter(outputFile, false, System.Text.Encoding.UTF8);
+        using var writer = new StreamWriter(_extractedFile, false, System.Text.Encoding.UTF8);
 
         using var csvWriter = new CsvWriter(writer, CultureInfo.InvariantCulture);
 
@@ -192,7 +237,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
         _console.WriteBlankLine();
 
-        _console.WriteNormalWithHighlights($"New data...: {outputFile}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"New data...: {_extractedFile}", Globals.StyleHeading);
 
         _console.WriteBlankLine();
 
