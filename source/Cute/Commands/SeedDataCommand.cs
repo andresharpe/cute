@@ -73,6 +73,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         if (settings.Zip)
         {
             var zipFile = await ZipExtractedGeos(settings);
+            File.Delete(Path.Combine(settings.OutputFolder, Path.GetFileName(zipFile)));
             File.Move(zipFile, Path.Combine(settings.OutputFolder, Path.GetFileName(zipFile)));
         }
         else
@@ -84,8 +85,6 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
     private async Task<string> ZipExtractedGeos(Settings settings)
     {
-        var inputFile = settings.InputFile;
-
         var zipFile = Path.GetDirectoryName(_extractedFile) + @"\" + Path.GetFileNameWithoutExtension(_extractedFile) + ".zip";
 
         _console.WriteNormalWithHighlights($"Starting compress to '{zipFile}'...", Globals.StyleHeading);
@@ -111,11 +110,14 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         int sourceBytes;
         var buffer = new byte[4096];
 
-        do
+        while (true)
         {
-            sourceBytes = await fileStream.ReadAsync(buffer);
-            await zip.WriteAsync(buffer);
-        } while (sourceBytes > 0);
+            sourceBytes = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+
+            if (sourceBytes == 0) break;
+
+            await zip.WriteAsync(buffer, 0, sourceBytes);
+        }
 
         zip.Finish();
 
@@ -230,6 +232,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
             {
                 _console.WriteNormalWithHighlights($"Read {recordsRead} and wrote {recordsWritten} records...", Globals.StyleHeading);
                 nextOutput = recordsRead + outputEvery;
+                await csvWriter.FlushAsync().ConfigureAwait(false);
             }
         }
 
