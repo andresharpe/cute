@@ -233,7 +233,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
             if (!nearLocations) continue;
 
-            WriteStateOrProvinveEntryIfMissing(record, csvWriter, countryToGeoId, adminCodeToGeoId);
+            var adminCode = WriteStateOrProvinveEntryIfMissing(record, csvWriter, countryToGeoId, adminCodeToGeoId);
 
             var (tzStandardOffset, tzDaylightSavingOffset) = record.Timezone.ToTimeZoneOffsets();
 
@@ -244,7 +244,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
                 Title = $"{record.CountryName} | {record.AdminName} | {record.CityName}",
                 Name = record.CityName,
                 AlternateNames = record.CityAlternateName.Replace(',', '\u2E32').Replace('|', ','),
-                DataGeoParent = adminCodeToGeoId[record.AdminCode],
+                DataGeoParent = adminCodeToGeoId[adminCode],
                 GeoType = "city-or-town",
                 GeoSubType = string.IsNullOrEmpty(record.Capital)
                     ? (record.PopulationProper > 10000 ? "city" : "town")
@@ -282,7 +282,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         return;
     }
 
-    private static void WriteStateOrProvinveEntryIfMissing(SimplemapsGeoInput record, CsvWriter csvWriter,
+    private static string WriteStateOrProvinveEntryIfMissing(SimplemapsGeoInput record, CsvWriter csvWriter,
         Dictionary<string, string> countryToToGeoId, Dictionary<string, string> adminCodeToGeoId)
     {
         var adminCode = string.IsNullOrEmpty(record.AdminCode)
@@ -295,7 +295,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
         if (adminCodeToGeoId.ContainsKey(adminCode))
         {
-            return;
+            return adminCode;
         }
 
         var newRecord = new GeoOutputFormat()
@@ -316,6 +316,8 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         csvWriter.NextRecord();
 
         adminCodeToGeoId.Add(adminCode, newRecord.Id);
+
+        return adminCode;
     }
 
     public sealed class SimplemapsGeoMap : ClassMap<SimplemapsGeoInput>
