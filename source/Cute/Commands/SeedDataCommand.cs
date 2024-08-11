@@ -285,7 +285,15 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
     private static void WriteStateOrProvinveEntryIfMissing(SimplemapsGeoInput record, CsvWriter csvWriter,
         Dictionary<string, string> countryToToGeoId, Dictionary<string, string> adminCodeToGeoId)
     {
-        if (adminCodeToGeoId.ContainsKey(record.AdminCode))
+        var adminCode = string.IsNullOrEmpty(record.AdminCode)
+                ? $"{record.CountryName}|{record.CityName}".ToUpper()
+                : record.AdminCode;
+
+        var adminName = string.IsNullOrEmpty(record.AdminName)
+                ? record.CityName.ToUpper()
+                : record.AdminName;
+
+        if (adminCodeToGeoId.ContainsKey(adminCode))
         {
             return;
         }
@@ -293,8 +301,8 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         var newRecord = new GeoOutputFormat()
         {
             Id = ContentfulIdGenerator.NewId(),
-            Key = record.AdminCode,
-            Title = $"{record.CountryName} | {record.AdminName}",
+            Key = adminCode,
+            Title = $"{record.CountryName} | {adminName}",
             Name = record.AdminName,
             DataGeoParent = countryToToGeoId[record.CountryIso2],
             GeoType = "state-or-province",
@@ -307,7 +315,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
         csvWriter.NextRecord();
 
-        adminCodeToGeoId.Add(record.AdminCode, newRecord.Id);
+        adminCodeToGeoId.Add(adminCode, newRecord.Id);
     }
 
     public sealed class SimplemapsGeoMap : ClassMap<SimplemapsGeoInput>
