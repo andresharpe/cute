@@ -325,7 +325,7 @@ public class HttpDataAdapter
         {
             ResultsFormat.Json => JsonConvert.DeserializeObject(endpointContent),
 
-            ResultsFormat.ZippedCsv or ResultsFormat.ZippedCsv => new CsvStringInputAdapter(endpointContent).GetRecords().ToList(),
+            ResultsFormat.ZippedCsv or ResultsFormat.ZippedCsv => GetCsvAsJarray(endpointContent),
 
             _ => throw new NotImplementedException(),
         };
@@ -338,6 +338,21 @@ public class HttpDataAdapter
                 .AsEnumerable()
                 .ToDictionary(kv => kv.Key, kv => kv.Value.FirstOrDefault()),
         };
+    }
+
+    private static JArray? GetCsvAsJarray(string endpointContent)
+    {
+        var arr = new JArray();
+        foreach (var record in new CsvStringInputAdapter(endpointContent).GetRecords())
+        {
+            var obj = new JObject();
+            foreach (var (key, value) in record)
+            {
+                obj[key] = value?.ToString();
+            }
+            arr.Add(obj);
+        }
+        return arr;
     }
 
     private static Dictionary<string, string> CompileValuesWithEnvironment(Dictionary<string, string> headers, ScriptObject scriptObject)
