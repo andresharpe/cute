@@ -112,6 +112,8 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             return 0;
         }
 
+        DisplaySchedule();
+
         foreach (var getDataEntry in _cronTasks.Values)
         {
             await ProcessGetDataEntry(getDataEntry, settings);
@@ -276,7 +278,7 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             var cronSchedule = frequency?.ToCronExpression().ToString();
 
-            _console.WriteNormal("Get data '{getDataId}' scheduled to run on schedule '{frequency} ({cronSchedule})'",
+            _console.WriteNormal("Get data '{getDataId}' usually scheduled to run on schedule '{frequency} ({cronSchedule})'",
                 getDataId, frequency, cronSchedule);
         }
     }
@@ -439,12 +441,17 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             var newContentfulRecord = contentSerializer.CreateNewFlatEntry();
 
-            var newLanguageId = newContentfulRecord["sys.Id"]?.ToString() ?? "(error)";
-
             foreach (var (fieldName, value) in newRecord)
             {
+                if (fieldName == "sys.Id" && string.IsNullOrEmpty(value))
+                {
+                    continue;
+                }
+
                 newContentfulRecord[fieldName] = value;
             }
+
+            var newId = newContentfulRecord["sys.Id"]?.ToString() ?? "(error)";
 
             var newEntry = contentSerializer.DeserializeEntry(newContentfulRecord);
 
@@ -453,7 +460,7 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
 
             entriesUpdated.Add(newEntry);
 
-            entriesProcessed.Add(newRecord[contentKeyField], newLanguageId);
+            entriesProcessed.Add(newRecord[contentKeyField], newId);
         }
 
         await UpdateEntries(contentTypeId, entriesUpdated);

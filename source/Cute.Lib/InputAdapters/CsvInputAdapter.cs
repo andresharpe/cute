@@ -6,11 +6,9 @@ namespace Cute.Lib.InputAdapters;
 
 internal class CsvInputAdapter : InputAdapterBase
 {
-    private StreamReader _reader;
+    private readonly StreamReader _reader;
 
-    private CsvReader _csv;
-
-    private readonly List<string> _columns = [];
+    private readonly CsvReader _csv;
 
     public CsvInputAdapter(string contentName, string? fileName, string delimeter = ",")
         : base(fileName ?? contentName + (delimeter == "\t" ? ".tsv" : ".csv"))
