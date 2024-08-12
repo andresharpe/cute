@@ -1,5 +1,4 @@
 ﻿using Contentful.Core.Models;
-using Cute.Lib.Cache;
 using Cute.Lib.Exceptions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -11,18 +10,18 @@ namespace Cute.Lib.Contentful.BulkActions;
 
 public class BulkActionExecutor
 {
-    private int _publishChunkSize = 100;
+    private int _publishChunkSize = 200;
 
     private int _bulkActionCallLimit = 5;
 
-    private int _millisecondsBetweenCalls = 100;
+    private int _millisecondsBetweenCalls = 105;
 
-    private int _concurrentTaskLimit = 25;
+    private int _concurrentTaskLimit = 50;
 
     private readonly ContentfulConnection _contentfulConnection;
 
     private readonly HttpClient _httpClient;
-    private readonly HttpResponseFileCache _httpResponseCache;
+
     private string? _contentType;
 
     private ContentType? _contentTypeDefinition;
@@ -33,11 +32,10 @@ public class BulkActionExecutor
 
     private List<Entry<JObject>>? _withNewEntries;
 
-    public BulkActionExecutor(ContentfulConnection contentfulConnection, HttpClient httpClient, HttpResponseFileCache httpResponseCache)
+    public BulkActionExecutor(ContentfulConnection contentfulConnection, HttpClient httpClient)
     {
         _contentfulConnection = contentfulConnection;
         _httpClient = httpClient;
-        _httpResponseCache = httpResponseCache;
     }
 
     public BulkActionExecutor WithContentType(string contentType)
@@ -103,25 +101,35 @@ public class BulkActionExecutor
             chunkQueue.Enqueue(chunk);
         }
 
+        var whileDelay = 0;
+
         while (!chunkQueue.IsEmpty || bulkActionIds.Count != 0)
         {
+            whileDelay += _millisecondsBetweenCalls;
+
             if (!chunkQueue.TryDequeue(out var chunk)) continue;
 
-            var (BulkRequestId, Response, Items) = await BuildBulkRequest(chunk, bulkAction);
+            var (BulkRequestId, Response, Items) = await BuildBulkRequest(chunk, bulkAction, whileDelay);
 
             bulkActionIds.Add(BulkRequestId, new(Response.Sys.Status, Response, Items));
 
-            if (bulkActionIds.Count < _bulkActionCallLimit && Items.Length == _publishChunkSize)
+            if (bulkActionIds.Count < _bulkActionCallLimit && !chunkQueue.IsEmpty)
             {
-                await Task.Delay(_millisecondsBetweenCalls);
+                whileDelay += _millisecondsBetweenCalls;
                 continue;
             }
 
+            whileDelay = 0;
+
             while (bulkActionIds.Count > 0)
             {
+                var delay = 0;
+
                 foreach (var bulkActionId in bulkActionIds.ToArray())
                 {
-                    var bulkActionStatus = await SendBulkActionStatusRequest(bulkActionId.Key);
+                    delay += _millisecondsBetweenCalls;
+
+                    var bulkActionStatus = await SendBulkActionStatusRequest(bulkActionId.Key, delay);
 
                     var status = bulkActionStatus.Sys.Status;
 
@@ -154,16 +162,15 @@ public class BulkActionExecutor
 
                 if (bulkActionIds.Count < _bulkActionCallLimit && !chunkQueue.IsEmpty)
                 {
-                    await Task.Delay(_millisecondsBetweenCalls * 2);
                     break;
                 }
             }
         }
     }
 
-    private async Task<(string BulkRequestId, BulkActionResponse Response, BulkItem[] Items)> BuildBulkRequest(BulkItem[] chunk, BulkAction bulkAction)
+    private async Task<(string BulkRequestId, BulkActionResponse Response, BulkItem[] Items)> BuildBulkRequest(BulkItem[] chunk, BulkAction bulkAction, int delay)
     {
-        var bulkActionResponse = await SendBulkChangePublishRequest(bulkAction, chunk);
+        var bulkActionResponse = await SendBulkChangePublishRequest(bulkAction, chunk, delay);
 
         var bulkActionResponseId = bulkActionResponse.Sys.Id;
 
@@ -178,9 +185,9 @@ public class BulkActionExecutor
         return new(bulkActionResponseId, bulkActionResponse, chunk);
     }
 
-    private async Task<BulkActionResponse> SendBulkActionStatusRequest(string bulkActionResponseId)
+    private async Task<BulkActionResponse> SendBulkActionStatusRequest(string bulkActionResponseId, int delay)
     {
-        await Task.Delay(_millisecondsBetweenCalls * 2);
+        await Task.Delay(delay);
 
         var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{_contentfulConnection.Options.SpaceId}/environments/{_contentfulConnection.Options.Environment}/bulk_actions/actions/{bulkActionResponseId}");
 
@@ -204,9 +211,9 @@ public class BulkActionExecutor
         return bulkActionResponseCheck;
     }
 
-    private async Task<BulkActionResponse> SendBulkChangePublishRequest(BulkAction bulkAction, IEnumerable<BulkItem> items)
+    private async Task<BulkActionResponse> SendBulkChangePublishRequest(BulkAction bulkAction, IEnumerable<BulkItem> items, int delay)
     {
-        await Task.Delay(_millisecondsBetweenCalls * 2);
+        await Task.Delay(delay);
 
         var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{_contentfulConnection.Options.SpaceId}/environments/{_contentfulConnection.Options.Environment}/bulk_actions/{bulkAction.ToString().ToLower()}");
 
@@ -235,9 +242,9 @@ public class BulkActionExecutor
         return bulkActionResponse;
     }
 
-    private async Task<List<BulkItem>> GetAllEntries(string contentType)
+    private async Task<List<BulkItem>> GetAllEntries(string contentType, int delay)
     {
-        await Task.Delay(_millisecondsBetweenCalls);
+        await Task.Delay(delay);
 
         var allItems = new List<BulkItem>();
 
@@ -279,29 +286,40 @@ public class BulkActionExecutor
         var taskNo = 0;
         var count = allEntries.Count;
         var processed = 0;
+        var delay = 0;
+
+        await Task.Delay(_millisecondsBetweenCalls * 10);
 
         foreach (var item in allEntries)
         {
-            await Task.Delay(_millisecondsBetweenCalls);
-
             var itemId = item.Sys.Id;
             var itemVersion = item.Sys.Version ?? 0;
             var displayFieldValue = item.Sys.DisplayFieldValue;
 
             processed++;
+            delay += _millisecondsBetweenCalls;
 
             _displayAction?.Invoke($"...deleting '{_contentType}' item '{itemId}' ({processed}/{count}) {displayFieldValue}");
 
-            tasks[taskNo++] = _contentfulConnection.ManagementClient.DeleteEntry(itemId, itemVersion);
+            tasks[taskNo++] = DeleteEntry(itemId, itemVersion, delay);
 
             if (taskNo >= tasks.Length)
             {
                 Task.WaitAll(tasks);
                 taskNo = 0;
+                delay = 0;
+                await Task.Delay(_millisecondsBetweenCalls);
             }
         }
 
         Task.WaitAll(tasks.Where(t => t is not null).ToArray());
+    }
+
+    private async Task DeleteEntry(string itemId, int itemVersion, int delayToStart)
+    {
+        await Task.Delay(delayToStart);
+
+        await _contentfulConnection.ManagementClient.DeleteEntry(itemId, itemVersion);
     }
 
     private async Task UpsertRequiredEntries(List<Entry<JObject>> entries)
@@ -314,10 +332,13 @@ public class BulkActionExecutor
         var count = entries.Count;
         var processed = 0;
         var displayField = _contentTypeDefinition?.DisplayField;
+        var delay = 0;
+
+        await Task.Delay(_millisecondsBetweenCalls * 10);
 
         foreach (var newEntry in entries)
         {
-            await Task.Delay(_millisecondsBetweenCalls);
+            delay += _millisecondsBetweenCalls;
 
             var itemId = newEntry.SystemProperties.Id;
             var itemVersion = newEntry.SystemProperties.Version ?? 0;
@@ -329,7 +350,8 @@ public class BulkActionExecutor
 
             _displayAction?.Invoke($"...creating/updating '{_contentType}' item '{itemId}' ({processed}/{count}) {displayFieldValue}");
 
-            tasks[taskNo++] = _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
+            tasks[taskNo++] = CreateOrUpdateEntry(
+                delay,
                 newEntry.Fields,
                 id: newEntry.SystemProperties.Id,
                 version: newEntry.SystemProperties.Version ?? 0,
@@ -339,10 +361,23 @@ public class BulkActionExecutor
             {
                 Task.WaitAll(tasks);
                 taskNo = 0;
+                delay = 0;
             }
         }
 
         Task.WaitAll(tasks.Where(t => t is not null).ToArray());
+    }
+
+    private async Task CreateOrUpdateEntry(int delay, JObject fields, string id, int version, string? contentTypeId)
+    {
+        await Task.Delay(delay);
+
+        await _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
+                fields,
+                id: id,
+                version: version,
+                contentTypeId: contentTypeId
+            );
     }
 
     public async Task Execute(BulkAction bulkAction)
@@ -351,7 +386,7 @@ public class BulkActionExecutor
 
         _contentTypeDefinition = await _contentfulConnection.ManagementClient.GetContentType(_contentType);
 
-        var allEntries = _withEntries ?? await GetAllEntries(_contentType);
+        var allEntries = _withEntries ?? await GetAllEntries(_contentType, _millisecondsBetweenCalls);
 
         if (bulkAction == BulkAction.Publish)
         {
