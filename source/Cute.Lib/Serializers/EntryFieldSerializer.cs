@@ -281,7 +281,7 @@ internal class EntryFieldSerializer
         return null;
     }
 
-    private JObject? ToDocument(object? value)
+    private static JObject? ToDocument(object? value)
     {
         if (value is null) return null;
 

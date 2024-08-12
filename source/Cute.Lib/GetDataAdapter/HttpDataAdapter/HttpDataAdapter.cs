@@ -129,7 +129,7 @@ public class HttpDataAdapter
         return returnVal;
     }
 
-    private ScriptObject CreateScripObject(IReadOnlyDictionary<string, string?> contentfulOptions,
+    private static ScriptObject CreateScripObject(IReadOnlyDictionary<string, string?> contentfulOptions,
         ContentfulManagementClient contentfulManagementClient,
         ContentfulClient contentfulDeliveryClient)
     {

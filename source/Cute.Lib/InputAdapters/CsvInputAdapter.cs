@@ -66,14 +66,12 @@ internal class CsvInputAdapter : InputAdapterBase
     public override int GetRecordCount()
     {
         var lineCounter = 0;
-        using (StreamReader reader = new(FileName, System.Text.Encoding.UTF8))
+        using StreamReader reader = new(FileName, System.Text.Encoding.UTF8);
+        while (reader.ReadLine() != null)
         {
-            while (reader.ReadLine() != null)
-            {
-                lineCounter++;
-            }
-            return lineCounter - 1; // ignore header
+            lineCounter++;
         }
+        return lineCounter - 1; // ignore header
     }
 
     public override IEnumerable<IDictionary<string, object?>> GetRecords(Action<IDictionary<string, object?>, int>? action = null)
