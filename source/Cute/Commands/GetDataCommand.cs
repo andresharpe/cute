@@ -435,34 +435,40 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             }
         }
 
-        foreach (var newRecord in newRecords)
+        if (newRecords.Count > 0)
         {
-            if (entriesProcessed.ContainsKey(newRecord[contentKeyField])) continue;
+            var orderedNewRecords = newRecords.First().ContainsKey(contentDisplayField)
+                ? newRecords.OrderBy(n => n[contentDisplayField])
+                : newRecords.OrderBy(n => n[contentKeyField]);
 
-            var newContentfulRecord = contentSerializer.CreateNewFlatEntry();
-
-            foreach (var (fieldName, value) in newRecord)
+            foreach (var newRecord in orderedNewRecords)
             {
-                if (fieldName == "sys.Id" && string.IsNullOrEmpty(value))
+                if (entriesProcessed.ContainsKey(newRecord[contentKeyField])) continue;
+
+                var newContentfulRecord = contentSerializer.CreateNewFlatEntry();
+
+                foreach (var (fieldName, value) in newRecord)
                 {
-                    continue;
+                    if (fieldName == "sys.Id" && string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    newContentfulRecord[fieldName] = value;
                 }
 
-                newContentfulRecord[fieldName] = value;
+                var newId = newContentfulRecord["sys.Id"]?.ToString() ?? "(error)";
+
+                var newEntry = contentSerializer.DeserializeEntry(newContentfulRecord);
+
+                _console.WriteNormal("Creating {contentTypeId} '{contentKeyField}' - '{contentDisplayField}'",
+                    contentTypeId, newRecord[contentKeyField], newRecord[contentDisplayField]);
+
+                entriesUpdated.Add(newEntry);
+
+                entriesProcessed.Add(newRecord[contentKeyField], newId);
             }
-
-            var newId = newContentfulRecord["sys.Id"]?.ToString() ?? "(error)";
-
-            var newEntry = contentSerializer.DeserializeEntry(newContentfulRecord);
-
-            _console.WriteNormal("Creating {contentTypeId} '{contentKeyField}' - '{contentDisplayField}'",
-                contentTypeId, newRecord[contentKeyField], newRecord[contentDisplayField]);
-
-            entriesUpdated.Add(newEntry);
-
-            entriesProcessed.Add(newRecord[contentKeyField], newId);
         }
-
         await UpdateEntries(contentTypeId, entriesUpdated);
 
         await PublishEntries(contentTypeId, entriesUpdated);
@@ -484,9 +490,6 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
             .WithContentType(contentTypeId)
             .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
             .WithNewEntries(entries)
-            .WithConcurrentTaskLimit(25)
-            .WithPublishChunkSize(100)
-            .WithMillisecondsBetweenCalls(120)
             .Execute(BulkAction.Upsert);
     }
 

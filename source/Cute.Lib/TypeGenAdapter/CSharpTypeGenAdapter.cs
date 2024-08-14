@@ -1,7 +1,6 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Cute.Lib.Extensions;
-using Newtonsoft.Json.Linq;
 using System.Text;
 
 namespace Cute.Lib.TypeGenAdapter;
@@ -33,7 +32,9 @@ public class CSharpTypeGenAdapter : ITypeGenAdapter
             {
                 ts.AppendLine($"   public object {field.Id.CamelToPascalCase()} {{get; set;}} = default!;");
             }
-            else if (field.Type == "Array" && field.Items.Validations[0] is LinkContentTypeValidator validator)
+            else if (field.Type == "Array"
+                && field.Items.Validations.Count > 0
+                && field.Items.Validations[0] is LinkContentTypeValidator validator)
             {
                 ts.AppendLine($"   public List<{validator.ContentTypeIds[0].CamelToPascalCase()}> {field.Id.CamelToPascalCase()} {{ get; set; }} = default!;");
             }

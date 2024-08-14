@@ -188,8 +188,25 @@ public class BulkActionExecutor
 
     private async Task<BulkActionResponse> SendBulkActionStatusRequest(string bulkActionResponseId, int delay)
     {
-        await Task.Delay(delay);
+        var retryAttempt = 0;
 
+        while (true)
+        {
+            try
+            {
+                await Task.Delay(delay);
+                return await SendBulkActionStatusRequestViaHttp(bulkActionResponseId, delay);
+            }
+            catch (Exception)
+            {
+                retryAttempt++;
+                _displayAction?.Invoke($"...waiting. Contentful rate limit exceeded. Retry attempt {retryAttempt}");
+            }
+        }
+    }
+
+    private async Task<BulkActionResponse> SendBulkActionStatusRequestViaHttp(string bulkActionResponseId, int delay)
+    {
         var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{_contentfulConnection.Options.SpaceId}/environments/{_contentfulConnection.Options.Environment}/bulk_actions/actions/{bulkActionResponseId}");
 
         var bulkRequest = new HttpRequestMessage
@@ -214,8 +231,25 @@ public class BulkActionExecutor
 
     private async Task<BulkActionResponse> SendBulkChangePublishRequest(BulkAction bulkAction, IEnumerable<BulkItem> items, int delay)
     {
-        await Task.Delay(delay);
+        var retryAttempt = 0;
 
+        while (true)
+        {
+            try
+            {
+                await Task.Delay(delay);
+                return await SendBulkChangePublishRequestViaHttp(bulkAction, items, delay);
+            }
+            catch (Exception)
+            {
+                retryAttempt++;
+                _displayAction?.Invoke($"...waiting. Contentful rate limit exceeded. Retry attempt {retryAttempt}");
+            }
+        }
+    }
+
+    private async Task<BulkActionResponse> SendBulkChangePublishRequestViaHttp(BulkAction bulkAction, IEnumerable<BulkItem> items, int delay)
+    {
         var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{_contentfulConnection.Options.SpaceId}/environments/{_contentfulConnection.Options.Environment}/bulk_actions/{bulkAction.ToString().ToLower()}");
 
         object bulkObject = bulkAction == BulkAction.Publish
@@ -233,7 +267,7 @@ public class BulkActionExecutor
 
         using var bulkResponse = await _httpClient.SendAsync(bulkRequest);
 
-        // bulkResponse.EnsureSuccessStatusCode();
+        bulkResponse.EnsureSuccessStatusCode();
 
         var responseText = await bulkResponse.Content.ReadAsStringAsync();
 
@@ -315,20 +349,19 @@ public class BulkActionExecutor
         Task.WaitAll(tasks.Where(t => t is not null).ToArray());
     }
 
-    private async Task DeleteEntry(string itemId, int itemVersion, int delayToStart)
+    private async Task DeleteEntry(string itemId, int itemVersion, int delay)
     {
         var retryAttempt = 0;
-        var isSuccess = false;
 
-        while (!isSuccess)
+        while (true)
         {
             try
             {
-                await Task.Delay(delayToStart);
+                await Task.Delay(delay);
 
                 await _contentfulConnection.ManagementClient.DeleteEntry(itemId, itemVersion);
 
-                isSuccess = true;
+                return;
             }
             catch (ContentfulRateLimitException)
             {
@@ -386,14 +419,29 @@ public class BulkActionExecutor
 
     private async Task CreateOrUpdateEntry(int delay, JObject fields, string id, int version, string? contentTypeId)
     {
-        await Task.Delay(delay);
+        var retryAttempt = 0;
 
-        await _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
-                fields,
-                id: id,
-                version: version,
-                contentTypeId: contentTypeId
-            );
+        while (true)
+        {
+            try
+            {
+                await Task.Delay(delay);
+
+                await _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
+                        fields,
+                        id: id,
+                        version: version,
+                        contentTypeId: contentTypeId
+                    );
+
+                return;
+            }
+            catch (ContentfulRateLimitException)
+            {
+                retryAttempt++;
+                _displayAction?.Invoke($"...waiting. Contentful rate limit exceeded. Retry attempt {retryAttempt}");
+            }
+        }
     }
 
     public async Task Execute(BulkAction bulkAction)

@@ -21,7 +21,9 @@ public class TypeScriptTypeGenAdapter : ITypeGenAdapter
         ts.AppendLine();
         foreach (var field in contentType.Fields)
         {
-            if (field.Type == "Array" && field.Items.Validations[0] is LinkContentTypeValidator validator)
+            if (field.Type == "Array"
+                && field.Items.Validations.Count > 0
+                && field.Items.Validations[0] is LinkContentTypeValidator validator)
             {
                 var importType = validator.ContentTypeIds[0];
                 ts.AppendLine($"import type {{ {importType.CamelToPascalCase()} }} from \"./{importType}\";");
@@ -37,7 +39,7 @@ public class TypeScriptTypeGenAdapter : ITypeGenAdapter
             {
                 ts.AppendLine($"      {field.Id}: EntryFieldTypes.{field.LinkType}{field.Type},");
             }
-            else if (field.Type == "Array" && field.Items.Validations[0] is LinkContentTypeValidator validator)
+            else if (field.Type == "Array" && field.Items.Validations.Count > 0 && field.Items.Validations[0] is LinkContentTypeValidator validator)
             {
                 ts.AppendLine($"      {field.Id}: EntryFieldTypes.{field.Items.LinkType}{field.Items.Type}<{validator.ContentTypeIds[0].CamelToPascalCase()}>,");
             }

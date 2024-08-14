@@ -668,9 +668,12 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
     private async Task RemoveSingleLeafHeirarchies()
     {
-        var adminCodeToGeoId = JsonConvert.DeserializeObject<Dictionary<string, GeoInfo>>(File.ReadAllText(_extractedFile + ".heirarchy.json"));
+        var adminCodeToGeoIdOld = JsonConvert.DeserializeObject<Dictionary<string, GeoInfo>>(File.ReadAllText(_extractedFile + ".heirarchy.json"));
 
-        if (adminCodeToGeoId == null) return;
+        if (adminCodeToGeoIdOld == null) return;
+
+        var adminCodeToGeoId = adminCodeToGeoIdOld
+            .ToDictionary(kv => kv.Value.GeoId, kv => kv.Value);
 
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
@@ -725,7 +728,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
             if (record.GeoType == "state-or-province")
             {
-                if (adminCodeToGeoId[record.Key].Count > 1)
+                if (adminCodeToGeoId[record.Id!].Count > 1)
                 {
                     csvWriter.WriteRecord(record);
 
@@ -738,7 +741,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
                 // supress this - don't write
 
-                rewriteLinks.Add(record.Key, record.DataGeoParent!);
+                rewriteLinks.Add(record.Id!, record.DataGeoParent!);
 
                 continue;
             }
