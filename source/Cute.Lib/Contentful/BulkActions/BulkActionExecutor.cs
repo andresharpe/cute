@@ -1,4 +1,5 @@
-﻿using Contentful.Core.Models;
+﻿using Contentful.Core.Errors;
+using Contentful.Core.Models;
 using Cute.Lib.Exceptions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -14,9 +15,9 @@ public class BulkActionExecutor
 
     private int _bulkActionCallLimit = 5;
 
-    private int _millisecondsBetweenCalls = 105;
+    private int _millisecondsBetweenCalls = 100;
 
-    private int _concurrentTaskLimit = 50;
+    private int _concurrentTaskLimit = 100;
 
     private readonly ContentfulConnection _contentfulConnection;
 
@@ -101,7 +102,7 @@ public class BulkActionExecutor
             chunkQueue.Enqueue(chunk);
         }
 
-        var whileDelay = 0;
+        var whileDelay = _millisecondsBetweenCalls;
 
         while (!chunkQueue.IsEmpty || bulkActionIds.Count != 0)
         {
@@ -286,7 +287,7 @@ public class BulkActionExecutor
         var taskNo = 0;
         var count = allEntries.Count;
         var processed = 0;
-        var delay = 0;
+        var delay = _millisecondsBetweenCalls;
 
         await Task.Delay(_millisecondsBetweenCalls * 10);
 
@@ -307,8 +308,7 @@ public class BulkActionExecutor
             {
                 Task.WaitAll(tasks);
                 taskNo = 0;
-                delay = 0;
-                await Task.Delay(_millisecondsBetweenCalls);
+                delay = _millisecondsBetweenCalls;
             }
         }
 
@@ -317,9 +317,25 @@ public class BulkActionExecutor
 
     private async Task DeleteEntry(string itemId, int itemVersion, int delayToStart)
     {
-        await Task.Delay(delayToStart);
+        var retryAttempt = 0;
+        var isSuccess = false;
 
-        await _contentfulConnection.ManagementClient.DeleteEntry(itemId, itemVersion);
+        while (!isSuccess)
+        {
+            try
+            {
+                await Task.Delay(delayToStart);
+
+                await _contentfulConnection.ManagementClient.DeleteEntry(itemId, itemVersion);
+
+                isSuccess = true;
+            }
+            catch (ContentfulRateLimitException)
+            {
+                retryAttempt++;
+                _displayAction?.Invoke($"...waiting. Contentful rate limit exceeded. Retry attempt {retryAttempt}");
+            }
+        }
     }
 
     private async Task UpsertRequiredEntries(List<Entry<JObject>> entries)

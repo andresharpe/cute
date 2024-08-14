@@ -15,9 +15,6 @@ internal class CsvStringInputAdapter : InputAdapterBase
     public CsvStringInputAdapter(string content, string delimeter = ",")
         : base("__memory.csv")
     {
-        // 1124001997,CA,Wellington North,,43.9,-80.57,CA-ON,province,,22.6,11914,11914,America/Toronto // 4368009
-        // 1124001704,CA,Hanover,,49.4433,-96.8492,CA-MB,province,,21.2,15733,15733,America/Winnipeg
-
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             Delimiter = delimeter,
