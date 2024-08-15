@@ -1,6 +1,7 @@
 ﻿using Cute.Constants;
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -50,7 +51,22 @@ public partial class ConsoleWriter : IConsoleWriter
         foreach (Match m in matches)
         {
             if (i > args.Length - 1) break;
-            sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{args[i++]?.ToString()}[/]");
+
+            var span = m.ValueSpan[1..^1];
+            var formatPos = span.IndexOf(':');
+            if (formatPos == -1)
+            {
+                sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{args[i]?.ToString()}[/]");
+            }
+            else
+            {
+                var format = span[(formatPos + 1)..].ToString();
+                if (args[i] is IFormattable formattableArg)
+                    sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{formattableArg.ToString(format, CultureInfo.CurrentCulture)}[/]");
+                else
+                    sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{args[i]}[/]");
+            }
+            i++;
         }
         sb.Insert(0, $"[{style.Foreground}]");
         sb.Append("[/]");
@@ -152,6 +168,6 @@ public partial class ConsoleWriter : IConsoleWriter
         Logger?.LogError(ex, "An error occured.");
     }
 
-    [GeneratedRegex(@"\{(?<parameter>\w+)\}")]
+    [GeneratedRegex(@"\{(?<parameter>[\w:.#,]+)\}")]
     private static partial Regex ParameterMatch();
 }
