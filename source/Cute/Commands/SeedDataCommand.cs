@@ -1,13 +1,14 @@
-﻿using CsvHelper;
+﻿using Contentful.Core.Models;
+using CsvHelper;
 using CsvHelper.Configuration;
 using CsvHelper.Configuration.Attributes;
 using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
-using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
 using Cute.Lib.Utilities;
 using Cute.Services;
+using Cute.UiComponents;
 using DocumentFormat.OpenXml.Wordprocessing;
 using ICSharpCode.SharpZipLib.Zip;
 using Newtonsoft.Json;
@@ -16,6 +17,7 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Globalization;
+using File = System.IO.File;
 
 namespace Cute.Commands;
 
@@ -108,6 +110,17 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         return 0;
     }
 
+    public static int CsvRecordCount(string fileName)
+    {
+        var lineCounter = 0;
+        using StreamReader reader = new(fileName, System.Text.Encoding.UTF8);
+        while (reader.ReadLine() != null)
+        {
+            lineCounter++;
+        }
+        return lineCounter - 1; // ignore header
+    }
+
     private async Task<string> ZipExtractedGeos(Settings settings)
     {
         var zipFile = Path.GetDirectoryName(_extractedFile) + @"\" + Path.GetFileNameWithoutExtension(_extractedFile) + ".zip";
@@ -155,6 +168,16 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
     private async Task FilterAndExtractGeos(Settings settings)
     {
+        _console.WriteRuler();
+
+        _console.WriteBlankLine();
+
+        _console.WriteNormalWithHighlights($"Counting geo universe records in {settings.InputFile}...", Globals.StyleHeading);
+
+        var inputEntriesCount = CsvRecordCount(settings.InputFile);
+
+        _console.WriteNormalWithHighlights($"Found {inputEntriesCount:N0} entries...", Globals.StyleHeading);
+
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             Delimiter = ",",
@@ -166,7 +189,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
         using var csvReader = new CsvReader(reader, config);
 
-        using var writer = new StreamWriter(_extractedFile + ".tmp1", false, System.Text.Encoding.UTF8);
+        using var writer = new StreamWriter(_extractedFile + ".tmp1.csv", false, System.Text.Encoding.UTF8);
 
         using var csvWriter = new CsvWriter(writer, CultureInfo.InvariantCulture);
 
@@ -185,11 +208,12 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         var recordsRead = 0;
         var recordsWritten = 0;
         var outputEvery = 100000;
+        var animateEvery = 25000;
         var nextOutput = outputEvery;
 
-        _console.WriteNormal("Reading existing locations...");
+        _console.WriteNormalWithHighlights($"Checking Contentful data in {_appSettings.ContentfulDefaultEnvironment}", Globals.StyleHeading);
 
-        var dataLocations = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, settings.ContentType)
+        var dataLocations = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, "dataLocation")
             .ToBlockingEnumerable()
             .Select(e => new
             {
@@ -200,133 +224,150 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
             .Where(i => i.CountryCode is not null)
             .ToList();
 
-        _console.WriteNormal("Reading country codes with locations...");
+        _console.WriteNormalWithHighlights($"...{dataLocations.Count:N0} locations found.", Globals.StyleHeading);
 
         var dataCountryCode = dataLocations.Select(o => o.CountryCode).ToHashSet();
 
-        var countryToGeoId = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, "dataGeo",
+        _console.WriteNormalWithHighlights($"...{dataCountryCode.Count:N0} related countries found.", Globals.StyleHeading);
+
+        var countryToGeoId = ContentfulEntryEnumerator.DeliveryEntries<GeoInfo>(ContentfulClient, "dataGeo",
                 queryConfigurator: q => q.FieldEquals("fields.geoType", "country"))
             .ToBlockingEnumerable()
             .Select(x => x.Entry)
-            .Select(e => new GeoInfo
-            {
-                Key = e["key"]?.ToString() ?? throw new CliException($"Invalid key value '{e["key"]}'"),
-                GeoId = e["$id"]?.ToString() ?? throw new CliException($"Invalid geo identifier '{e["$id"]}'"),
-                Name = e["name"]?.ToString() ?? throw new CliException($"Invalid name value for geo identifier '{e["$id"]}'"),
-            })
             .Where(e => dataCountryCode.Contains(e.Key))
             .ToDictionary(o => o.Key);
 
-        _console.WriteNormal("Reading existing geos for states and provinces...");
+        _console.WriteNormalWithHighlights($"...{countryToGeoId.Count:N0} existing country Geos found.", Globals.StyleHeading);
 
-        var adminCodeToGeoId = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, "dataGeo",
+        var adminCodeToGeoId = ContentfulEntryEnumerator.DeliveryEntries<GeoInfo>(ContentfulClient, "dataGeo",
                 queryConfigurator: q => q.FieldEquals("fields.geoType", "state-or-province"))
             .ToBlockingEnumerable()
             .Select(x => x.Entry)
-            .Select(e => new GeoInfo
-            {
-                Key = e["key"]?.ToString() ?? throw new CliException($"Invalid key value for Geo '{e["$id"]}'"),
-                GeoId = e["$id"]?.ToString() ?? throw new CliException($"Invalid id for geo identifier '{e["$id"]}'"),
-                GeoParentId = e["dataGeoParent"]?["sys"]?["id"]?.ToString() ?? throw new CliException($"Invalid parent id for geo identifier '{e["$id"]}'"),
-                Name = e["name"]?.ToString() ?? throw new CliException($"Invalid name value for geo identifier '{e["$id"]}'"),
-            })
-            .Where(e => e.GeoId is not null)
             .ToDictionary(o => o.Key);
 
-        _console.WriteNormal("Reading existing country names...");
+        _console.WriteNormalWithHighlights($"...{adminCodeToGeoId.Count:N0} existing state and province Geos found.", Globals.StyleHeading);
 
-        var countryCodeToName = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, "dataCountry")
+        var countryCodeToInfo = ContentfulEntryEnumerator.DeliveryEntries<GeoInfo>(ContentfulClient, "dataCountry")
              .ToBlockingEnumerable()
             .Select(x => x.Entry)
-            .Select(e => new
-            {
-                Key = e["key"]?.ToString() ?? throw new CliException($"Invalid key value '{e["key"]}'"),
-                Name = e["name"]?.ToString() ?? throw new CliException($"Invalid geo name for entry '{e["$id"]}'"),
-            })
             .Where(e => dataCountryCode.Contains(e.Key))
-            .ToDictionary(o => o.Key, o => o.Name);
+            .ToDictionary(o => o.Key, o => o);
 
-        _console.WriteNormalWithHighlights($"Creating missing country geos..", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"...{countryToGeoId.Count:N0} country names read.", Globals.StyleHeading);
+
+        _console.WriteBlankLine();
+        _console.WriteRuler();
+        _console.WriteBlankLine();
+
+        _console.WriteNormalWithHighlights($"Exporting country geos..", Globals.StyleHeading);
 
         foreach (var countryCode in dataCountryCode)
         {
-            WriteCountryEntryIfMissing(countryCode!, csvWriter, countryToGeoId, countryCodeToName);
+            WriteCountryEntryIfMissing(countryCode!, csvWriter, countryToGeoId, countryCodeToInfo);
         }
 
-        _console.WriteNormalWithHighlights($"Reading '{inputFile}'...", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"Extracting from geo universe..", Globals.StyleHeading);
 
-        while (await csvReader.ReadAsync().ConfigureAwait(false))
+        List<string> animation = [
+            Emoji.Known.GlobeShowingAsiaAustralia,
+            Emoji.Known.GlobeShowingEuropeAfrica,
+            Emoji.Known.GlobeShowingAmericas
+        ];
+
+        var animationFrame = 0;
+
+        await ProgressBars.Instance().StartAsync(async ctx =>
         {
-            var record = csvReader.GetRecord<SimplemapsGeoInput>();
+            var taskExtract = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{animation[animationFrame++]} Extracting data..[/]");
 
-            recordsRead++;
+            taskExtract.MaxValue = inputEntriesCount;
 
-            if (record.SameName) continue;
-
-            if (!dataCountryCode.Contains(record.CountryIso2)) continue;
-
-            if (record.Ranking > 2 && (record.Population is null || record.Population < settings.HugePopulation))
+            while (await csvReader.ReadAsync().ConfigureAwait(false))
             {
-                continue;
+                var record = csvReader.GetRecord<SimplemapsGeoInput>();
+
+                recordsRead++;
+                taskExtract.Increment(1);
+                if (--animateEvery < 1)
+                {
+                    animateEvery = 25000;
+                    taskExtract.Description = $"[{Globals.StyleNormal.Foreground}]{animation[animationFrame++]} Extracting data..[/]";
+                    if (animationFrame >= animation.Count) animationFrame = 0;
+                }
+
+                if (record.SameName) continue;
+
+                if (!dataCountryCode.Contains(record.CountryIso2)) continue;
+
+                if (record.Ranking > 2 && (record.Population is null || record.Population < settings.HugePopulation))
+                {
+                    continue;
+                }
+
+                var boundingBoxNear = Haversine.GetBoundingBox(record.Lon, record.Lat, settings.LargeKilometerRadius);
+
+                var nearLocations = dataLocations
+                    .Any(l => boundingBoxNear.Contains(l.Lon, l.Lat));
+
+                if (!nearLocations) continue;
+
+                if (record.Population is null || record.Population < settings.LargePopulation)
+                {
+                    var boundingBoxVeryNear = Haversine.GetBoundingBox(record.Lon, record.Lat, settings.SmallKilometerRadius);
+
+                    var veryNearLocations = dataLocations
+                        .Any(l => boundingBoxVeryNear.Contains(l.Lon, l.Lat));
+
+                    if (!veryNearLocations) continue;
+                }
+
+                var adminCode = WriteStateOrProvinveEntryIfMissing(record, csvWriter, countryToGeoId, adminCodeToGeoId);
+
+                var (tzStandardOffset, tzDaylightSavingOffset) = record.Timezone.ToTimeZoneOffsets();
+
+                var newRecord = new GeoOutputFormat()
+                {
+                    Id = null,
+                    Key = record.Id,
+                    Title = $"{record.CountryName} | {record.AdminName} | {record.CityName}",
+                    Name = record.CityName,
+                    AlternateNames = record.CityAlternateName.Replace(',', '\u2E32').Replace('|', ','),
+                    DataGeoParent = adminCodeToGeoId[adminCode].Sys.Id,
+                    GeoType = "city-or-town",
+                    GeoSubType = string.IsNullOrEmpty(record.Capital)
+                        ? (record.PopulationProper > 10000 ? "city" : "town")
+                        : $"city:capital:{record.Capital}",
+                    Lat = record.Lat,
+                    Lon = record.Lon,
+                    Ranking = record.Ranking,
+                    Population = record.Population,
+                    Density = record.Density,
+                    TimeZoneStandardOffset = tzStandardOffset,
+                    TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
+                };
+
+                csvWriter.WriteRecord(newRecord);
+
+                csvWriter.NextRecord();
+
+                recordsWritten++;
+
+                if (recordsRead > nextOutput)
+                {
+                    _console.WriteNormalWithHighlights($"...records extracted: {recordsWritten:N0} from {recordsRead:N0}", Globals.StyleHeading);
+                    nextOutput = recordsRead + outputEvery;
+                    await csvWriter.FlushAsync().ConfigureAwait(false);
+                }
+
+                taskExtract.StopTask();
             }
+        });
 
-            var boundingBoxNear = Haversine.GetBoundingBox(record.Lon, record.Lat, settings.LargeKilometerRadius);
+        _console.WriteNormalWithHighlights($"Read {recordsRead:N0} and extracted {recordsWritten:N0} records...", Globals.StyleHeading);
 
-            var nearLocations = dataLocations
-                .Any(l => boundingBoxNear.Contains(l.Lon, l.Lat));
+        _console.WriteBlankLine();
 
-            if (!nearLocations) continue;
-
-            if (record.Population is null || record.Population < settings.LargePopulation)
-            {
-                var boundingBoxVeryNear = Haversine.GetBoundingBox(record.Lon, record.Lat, settings.SmallKilometerRadius);
-
-                var veryNearLocations = dataLocations
-                    .Any(l => boundingBoxVeryNear.Contains(l.Lon, l.Lat));
-
-                if (!veryNearLocations) continue;
-            }
-
-            var adminCode = WriteStateOrProvinveEntryIfMissing(record, csvWriter, countryToGeoId, adminCodeToGeoId);
-
-            var (tzStandardOffset, tzDaylightSavingOffset) = record.Timezone.ToTimeZoneOffsets();
-
-            var newRecord = new GeoOutputFormat()
-            {
-                Id = null,
-                Key = record.Id,
-                Title = $"{record.CountryName} | {record.AdminName} | {record.CityName}",
-                Name = record.CityName,
-                AlternateNames = record.CityAlternateName.Replace(',', '\u2E32').Replace('|', ','),
-                DataGeoParent = adminCodeToGeoId[adminCode].GeoId,
-                GeoType = "city-or-town",
-                GeoSubType = string.IsNullOrEmpty(record.Capital)
-                    ? (record.PopulationProper > 10000 ? "city" : "town")
-                    : $"city:capital:{record.Capital}",
-                Lat = record.Lat,
-                Lon = record.Lon,
-                Ranking = record.Ranking,
-                Population = record.Population,
-                Density = record.Density,
-                TimeZoneStandardOffset = tzStandardOffset,
-                TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
-            };
-
-            csvWriter.WriteRecord(newRecord);
-
-            csvWriter.NextRecord();
-
-            recordsWritten++;
-
-            if (recordsRead > nextOutput)
-            {
-                _console.WriteNormalWithHighlights($"Read {recordsRead} and wrote {recordsWritten} records...", Globals.StyleHeading);
-                nextOutput = recordsRead + outputEvery;
-                await csvWriter.FlushAsync().ConfigureAwait(false);
-            }
-        }
-
-        _console.WriteNormalWithHighlights($"Read {recordsRead} and wrote {recordsWritten} records...", Globals.StyleHeading);
+        _console.WriteRuler();
 
         _console.WriteBlankLine();
 
@@ -334,7 +375,19 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
         _console.WriteBlankLine();
 
-        File.WriteAllText(_extractedFile + ".heirarchy.json", JsonConvert.SerializeObject(adminCodeToGeoId));
+        _console.WriteRuler();
+
+        File.WriteAllText(_extractedFile + ".heirarchy.json", JsonConvert.SerializeObject(adminCodeToGeoId
+            .Select(g => g.Value)
+            .Select(g => new GeoInfoCompact
+            {
+                Id = g.Sys.Id,
+                Name = g.Name,
+                ParentId = g.DataGeoParent.Sys.Id,
+                ParentName = g.DataGeoParent.Name,
+                Count = g.Count,
+            })
+        ));
 
         return;
     }
@@ -342,31 +395,37 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
     private static string WriteCountryEntryIfMissing(string countryCode,
         CsvWriter csvWriter,
         Dictionary<string, GeoInfo> countryGeoInfo,
-        Dictionary<string, string> countryNames)
+        Dictionary<string, GeoInfo> countryInfoList)
     {
-        if (countryGeoInfo.TryGetValue(countryCode, out GeoInfo? value))
+        if (countryGeoInfo.TryGetValue(countryCode, out GeoInfo? existingEntry))
         {
-            value.Count++;
-            return countryCode;
+            existingEntry.Count++;
         }
 
-        var countryName = countryNames[countryCode];
+        var countryInfo = countryInfoList[countryCode];
 
         var newRecord = new GeoOutputFormat()
         {
-            Id = ContentfulIdGenerator.NewId(),
+            Id = existingEntry?.Sys.Id ?? ContentfulIdGenerator.NewId(),
             Key = countryCode,
-            Title = countryName ?? "(unknown)",
-            Name = countryName ?? "(unknown)",
-            // DataGeoParent = "todo"" // will be "Americas", "Asiapac" etc. can probably be setup manually
+            Title = existingEntry?.Name ?? $"{countryCode} | {countryInfo.Name}",
+            Name = existingEntry?.Name ?? $"{countryInfo.Name}",
             GeoType = "country",
+            Population = countryInfo.Population,
+            // DataGeoParent = "todo"" // will be "Americas", "Asiapac" etc. can probably be setup manually
         };
 
-        csvWriter.WriteRecord(newRecord);
+        if (existingEntry is null)
+        {
+            existingEntry = new() { Key = countryCode, Sys = new() { Id = newRecord.Id }, Count = 1 };
+            countryGeoInfo.Add(countryCode, existingEntry);
+        }
 
-        csvWriter.NextRecord();
-
-        countryGeoInfo.Add(countryCode, new() { Key = countryCode, GeoId = newRecord.Id, Count = 1 });
+        if (existingEntry.Count == 1)
+        {
+            csvWriter.WriteRecord(newRecord);
+            csvWriter.NextRecord();
+        }
 
         return countryCode;
     }
@@ -388,37 +447,47 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
                 ? record.CityName.ToUpper()
                 : record.AdminName;
 
-        if (adminCodeToGeoId.TryGetValue(adminCode, out GeoInfo? value))
+        if (adminCodeToGeoId.TryGetValue(adminCode, out GeoInfo? existingEntry))
         {
-            value.Count++;
-            return adminCode;
+            existingEntry.Count++;
         }
 
         var newRecord = new GeoOutputFormat()
         {
-            Id = ContentfulIdGenerator.NewId(),
-            Key = adminCode,
-            Title = $"{record.CountryName} | {adminName}",
-            Name = record.AdminName,
-            DataGeoParent = countryToToGeoId[record.CountryIso2].GeoId,
+            Id = existingEntry?.Sys.Id ?? ContentfulIdGenerator.NewId(),
+            Key = existingEntry?.Key ?? adminCode,
+            Title = existingEntry?.Title ?? $"{record.CountryName} | {adminName}",
+            Name = existingEntry?.Name ?? record.AdminName,
+            DataGeoParent = existingEntry?.DataGeoParent.Sys.Id ?? countryToToGeoId[record.CountryIso2].Sys.Id,
             GeoType = "state-or-province",
             GeoSubType = record.AdminType,
             Lat = record.Lat,
             Lon = record.Lon,
         };
 
-        csvWriter.WriteRecord(newRecord);
-
-        csvWriter.NextRecord();
-
-        adminCodeToGeoId.Add(adminCode, new()
+        if (existingEntry is null)
         {
-            Key = newRecord.Key,
-            GeoId = newRecord.Id,
-            Name = newRecord.Name,
-            Count = 1,
-            GeoParentId = countryToToGeoId[record.CountryIso2].GeoId
-        });
+            existingEntry = new()
+            {
+                Key = newRecord.Key,
+                Sys = new() { Id = newRecord.Id },
+                Title = newRecord.Title,
+                Name = newRecord.Name,
+                Count = 1,
+                DataGeoParent = new()
+                {
+                    Sys = new() { Id = countryToToGeoId[record.CountryIso2].Sys.Id }
+                }
+            };
+
+            adminCodeToGeoId.Add(adminCode, existingEntry);
+        }
+
+        if (existingEntry.Count == 1)
+        {
+            csvWriter.WriteRecord(newRecord);
+            csvWriter.NextRecord();
+        }
 
         return adminCode;
     }
@@ -538,10 +607,22 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
     public class GeoInfo()
     {
+        public SystemProperties Sys { get; set; } = default!;
         public string Key { get; set; } = default!;
-        public string GeoId { get; set; } = default!;
-        public string GeoParentId { get; set; } = default!;
-        public string? Name { get; set; } = default!;
+        public string Title { get; set; } = default!;
+        public string Name { get; set; } = default!;
+        public GeoInfo DataGeoParent { get; set; } = default!;
+        public Location LatLon { get; set; } = default!;
+        public int Population { get; set; } = 0;
+        public int Count { get; set; } = 0;
+    }
+
+    public class GeoInfoCompact
+    {
+        public string Id { get; set; } = default!;
+        public string Name { get; set; } = default!;
+        public string ParentId { get; set; } = default!;
+        public string ParentName { get; set; } = default!;
         public int Count { get; set; } = 0;
     }
 
@@ -668,19 +749,21 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
     private async Task RemoveSingleLeafHeirarchies()
     {
-        var adminCodeToGeoIdOld = JsonConvert.DeserializeObject<Dictionary<string, GeoInfo>>(File.ReadAllText(_extractedFile + ".heirarchy.json"));
+        var stateAndProvinceCount = JsonConvert.DeserializeObject<List<GeoInfoCompact>>(
+            File.ReadAllText(_extractedFile + ".heirarchy.json")
+        );
 
-        if (adminCodeToGeoIdOld == null) return;
+        if (stateAndProvinceCount == null) return;
 
-        var adminCodeToGeoId = adminCodeToGeoIdOld
-            .ToDictionary(kv => kv.Value.GeoId, kv => kv.Value);
+        var adminCodeToGeoId = stateAndProvinceCount
+            .ToDictionary(g => g.Id, g => g);
 
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
             Delimiter = ",",
         };
 
-        using var reader = new StreamReader(_extractedFile + ".tmp1", System.Text.Encoding.UTF8);
+        using var reader = new StreamReader(_extractedFile + ".tmp1.csv", System.Text.Encoding.UTF8);
 
         using var csvReader = new CsvReader(reader, config);
 
@@ -711,7 +794,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
 
             if (recordsRead > nextOutput)
             {
-                _console.WriteNormalWithHighlights($"Read and relinked heirarchies for {recordsRead} entries...", Globals.StyleHeading);
+                _console.WriteNormalWithHighlights($"Read and relinked heirarchies for {recordsRead:N0} entries...", Globals.StyleHeading);
                 nextOutput = recordsRead + outputEvery;
             }
 
@@ -761,5 +844,9 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         }
 
         _console.WriteNormalWithHighlights($"{recordsWritten}/{recordsRead} records were re-linked and written.", Globals.StyleHeading);
+
+        _console.WriteBlankLine();
+
+        _console.WriteRuler();
     }
 }
