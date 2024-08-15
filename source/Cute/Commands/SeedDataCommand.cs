@@ -458,7 +458,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         {
             Id = existingEntry?.Sys.Id ?? ContentfulIdGenerator.NewId(),
             Key = existingEntry?.Key ?? adminCode,
-            Title = existingEntry?.Title ?? $"{record.CountryName} | {adminName}",
+            Title = existingEntry?.Title ?? $"{record.CountryName} | {adminName} ({adminCode})",
             Name = existingEntry?.Name ?? record.AdminName,
             DataGeoParent = existingEntry?.DataGeoParent.Sys.Id ?? countryToToGeoId[record.CountryIso2].Sys.Id,
             GeoType = "state-or-province",
