@@ -408,8 +408,10 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
         {
             Id = existingEntry?.Sys.Id ?? ContentfulIdGenerator.NewId(),
             Key = countryCode,
-            Title = existingEntry?.Name ?? $"{countryCode} | {countryInfo.Name}",
-            Name = existingEntry?.Name ?? $"{countryInfo.Name}",
+            Title = countryInfo.Name,
+            Name = countryInfo.Name,
+            Lat = countryInfo.LatLon.Lat,
+            Lon = countryInfo.LatLon.Lon,
             GeoType = "country",
             Population = countryInfo.Population,
             // DataGeoParent = "todo"" // will be "Americas", "Asiapac" etc. can probably be setup manually
