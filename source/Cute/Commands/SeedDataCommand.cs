@@ -253,7 +253,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
             .Where(e => dataCountryCode.Contains(e.Key))
             .ToDictionary(o => o.Key, o => o);
 
-        _console.WriteNormalWithHighlights($"...{countryToGeoId.Count:N0} country names read.", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"...{countryCodeToInfo.Count:N0} country names read.", Globals.StyleHeading);
 
         _console.WriteBlankLine();
         _console.WriteRuler();
@@ -340,7 +340,7 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
                     Lat = record.Lat,
                     Lon = record.Lon,
                     Ranking = record.Ranking,
-                    Population = record.Population,
+                    Population = record.Population ?? 0,
                     Density = record.Density,
                     TimeZoneStandardOffset = tzStandardOffset,
                     TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
@@ -412,8 +412,8 @@ public sealed class SeedDataCommand : LoggedInCommand<SeedDataCommand.Settings>
             Name = countryInfo.Name,
             Lat = countryInfo.LatLon.Lat,
             Lon = countryInfo.LatLon.Lon,
-            GeoType = "country",
             Population = countryInfo.Population,
+            GeoType = "country",
             // DataGeoParent = "todo"" // will be "Americas", "Asiapac" etc. can probably be setup manually
         };
 

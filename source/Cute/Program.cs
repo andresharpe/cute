@@ -5,6 +5,8 @@ using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
+using Cute.Lib.GraphQL;
+using Cute.Lib.SiteGen;
 using Cute.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Serilog;
@@ -86,12 +88,15 @@ services.AddTransient<AzureTranslator>();
 services.AddTransient<ContentfulConnection>();
 services.AddTransient<BulkActionExecutor>();
 services.AddTransient<HttpResponseFileCache>();
+services.AddTransient<ContentfulGraphQlClient>();
+services.AddTransient<SiteGenerator>();
 
 services.AddHttpClient<AzureTranslator>();
 services.AddHttpClient<ContentfulConnection>();
 services.AddHttpClient<GetDataCommand>();
 services.AddHttpClient<BulkActionExecutor>();
 services.AddHttpClient<EvaluateCommand>();
+services.AddHttpClient<ContentfulGraphQlClient>();
 
 services.AddLogging(builder => builder.ClearProviders().AddSerilog());
 
@@ -129,6 +134,9 @@ app.Configure(config =>
 
     config.AddCommand<GenerateCommand>("generate")
         .WithDescription("Use generative AI to help build drafts of your content.");
+
+    config.AddCommand<SiteGenCommand>("sitegen")
+        .WithDescription("Generate static site pages from conentfuil ui definitions.");
 
     config.AddCommand<JoinCommand>("join")
         .WithDescription("Join and generate content entries from multiple content types.");
