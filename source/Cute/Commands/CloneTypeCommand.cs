@@ -54,7 +54,7 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
         public string? Environment { get; set; } = default!;
 
         [CommandOption("-p|--publish")]
-        [Description("Whether to publish the created content or not")]
+        [Description("Whether to publish the created content or not. Useful if njo circular references exist.")]
         public bool Publish { get; set; } = false;
     }
 
