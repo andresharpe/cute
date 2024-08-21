@@ -52,6 +52,10 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
         [CommandOption("-e|--environment")]
         [Description("The optional namespace for the generated type")]
         public string? Environment { get; set; } = default!;
+
+        [CommandOption("-p|--publish")]
+        [Description("Whether to publish the created content or not")]
+        public bool Publish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -176,10 +180,13 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
             .WithMillisecondsBetweenCalls(120)
             .Execute(BulkAction.Upsert);
 
-        await _bulkActionExecutor
-            .WithContentType(contentTypeId)
-            .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
-            .Execute(BulkAction.Publish);
+        if (settings.Publish)
+        {
+            await _bulkActionExecutor
+                .WithContentType(contentTypeId)
+                .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+                .Execute(BulkAction.Publish);
+        }
 
         _console.WriteBlankLine();
         _console.WriteAlert("Done!");
@@ -191,7 +198,9 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
     {
         if (contentTypesEnv is null) return;
 
-        contentTypesEnv.Name = contentTypesEnv.Name.RemoveEmojis().Trim();
+        contentTypesEnv.Name = contentTypesEnv.Name
+            .RemoveEmojis()
+            .Trim();
 
         await ContentfulManagementClient.CreateOrUpdateContentType(contentTypesEnv);
 
