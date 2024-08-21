@@ -167,6 +167,9 @@ app.Configure(config =>
 
     config.AddCommand<DiffCommand>("diff")
         .WithDescription("Compare content types against another environment on the same space.");
+
+    config.AddCommand<CloneTypeCommand>("clone")
+        .WithDescription("Clone content types from another environment on the same space.");
 });
 
 try
