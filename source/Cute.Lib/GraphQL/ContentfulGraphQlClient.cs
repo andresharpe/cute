@@ -28,34 +28,56 @@ public class ContentfulGraphQlClient
             new AuthenticationHeaderValue("Bearer", apiKey);
     }
 
-    public async Task<JArray?> GetData(string query, string jsonResultsPath, string locale)
+    public async Task<JArray?> GetData(string query, string jsonResultsPath, string locale,
+        int? limit = null)
     {
-        var postBody = JsonConvert.SerializeObject(new
+        var postBody = new
         {
             query,
             variables = new Dictionary<string, object>()
             {
                 ["preview"] = false,
                 ["locale"] = locale,
+                ["skip"] = 0,
+                ["limit"] = limit ?? 1000,
             }
-        });
-
-        var request = new HttpRequestMessage()
-        {
-            Method = HttpMethod.Post,
-            Content = new StringContent(postBody, Encoding.UTF8, "application/json")
         };
 
-        var response = await _httpClient.SendAsync(request);
+        JArray records = [];
 
-        response.EnsureSuccessStatusCode();
+        while (true)
+        {
+            var request = new HttpRequestMessage()
+            {
+                Method = HttpMethod.Post,
+                Content = new StringContent(JsonConvert.SerializeObject(postBody), Encoding.UTF8, "application/json")
+            };
 
-        var responseString = await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.SendAsync(request);
 
-        var responseObject = JsonConvert.DeserializeObject<JObject>(responseString);
+            response.EnsureSuccessStatusCode();
 
-        if (responseObject is null) return null;
+            var responseString = await response.Content.ReadAsStringAsync();
 
-        return responseObject.SelectToken(jsonResultsPath) as JArray;
+            var responseObject = JsonConvert.DeserializeObject<JObject>(responseString);
+
+            if (responseObject is null) return null;
+
+            if (responseObject.SelectToken(jsonResultsPath) is not JArray newRecords) return records;
+
+            if (newRecords.Count == 0) break;
+
+            records.Merge(newRecords);
+
+            if (limit is not null && records.Count >= limit) break;
+
+            if (newRecords.Count < (int)postBody.variables["limit"]) break;
+
+            postBody.variables["skip"] = (int)postBody.variables["skip"] + (int)postBody.variables["limit"];
+
+            await Task.Delay(100);
+        }
+
+        return records;
     }
 }

@@ -10,7 +10,7 @@ namespace Cute.Lib.Contentful.BulkActions;
 
 public class BulkActionExecutor
 {
-    private int _publishChunkSize = 200;
+    private int _publishChunkSize = 50;
 
     private int _bulkActionCallLimit = 5;
 

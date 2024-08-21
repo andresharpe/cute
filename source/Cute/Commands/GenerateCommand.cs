@@ -1,14 +1,13 @@
-﻿using Azure;
-using Azure.AI.OpenAI;
-using Contentful.Core;
+﻿using Contentful.Core;
 using Contentful.Core.Models;
-using Contentful.Core.Models.Management;
-using Contentful.Core.Search;
 using Cute.Config;
 using Cute.Constants;
+using Cute.Lib.CommandRunners;
 using Cute.Lib.Contentful;
+using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Services;
+using Cute.UiComponents;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
 using Scriban;
@@ -25,67 +24,30 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
     private readonly ILogger<GenerateCommand> _logger;
     private readonly AzureTranslator _translator;
+    private readonly GenerateCommandRunner _generateCommandRunner;
 
     public GenerateCommand(IConsoleWriter console, ILogger<GenerateCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings, AzureTranslator translator)
+        ContentfulConnection contentfulConnection, AppSettings appSettings, AzureTranslator translator,
+        GenerateCommandRunner generateCommandRunner)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
         _translator = translator;
+        _generateCommandRunner = generateCommandRunner;
     }
 
     public class Settings : CommandSettings
     {
-        [CommandOption("-c|--prompt-content-type")]
-        [Description("The id of the content type containing prompts. Default is 'metaPrompts'.")]
-        public string PromptContentType { get; set; } = "metaPrompt";
-
-        [CommandOption("-f|--prompt-id-field")]
-        [Description("The id of the field that contains the prompt key/title/id. Default is 'key'.")]
-        public string PromptIdField { get; set; } = "key";
-
         [CommandOption("-i|--prompt-id")]
         [Description("The id of the Contentful prompt entry to generate prompts from.")]
         public string PromptId { get; set; } = default!;
 
-        [CommandOption("-o|--output-content-type-field")]
-        [Description("The field containing the id of the Contentful content type to generate content for.")]
-        public string OutputContentType { get; set; } = "promptOutputContentType";
-
-        [CommandOption("-t|--output-content-field")]
-        [Description("The target field of the Contentful content type to generate content for.")]
-        public string OutputContentField { get; set; } = "promptOutputContentField";
-
-        [CommandOption("-s|--system-message-field")]
-        [Description("The field containing the system prompt for the LLM.")]
-        public string SystemMessageField { get; set; } = "systemMessage";
-
-        [CommandOption("-p|--prompt-field")]
-        [Description("The field containing the prompt template for the LLM.")]
-        public string PromptField { get; set; } = "prompt";
-
-        [CommandOption("-m|--temperature-field")]
-        [Description("The field containing temperature setting for the LLM.")]
-        public string TemperatureField { get; set; } = "temperature";
-
-        [CommandOption("-a|--frequency-penalty-field")]
-        [Description("The field containing frequency penalty setting for the LLM.")]
-        public string FrequencyPenaltyField { get; set; } = "frequencyPenalty";
-
-        [CommandOption("-g|--generator-language-field")]
-        [Description("The field containing language target for generated content.")]
-        public string GeneratorLanguageField { get; set; } = "generatorTargetLanguage";
-
-        [CommandOption("-n|--translator-language-field")]
-        [Description("The field containing language targets for translated content.")]
-        public string TranslatorLanguagesField { get; set; } = "translatorTargetLanguages";
-
         [CommandOption("-e|--entry-id")]
-        [Description("The field containing language targets for translated content.")]
+        [Description("The entry id to process.")]
         public string? EntryId { get; set; } = null;
 
         [CommandOption("-r|--related-entry-id")]
-        [Description("The field containing language targets for translated content.")]
+        [Description("The related entry id to process.")]
         public string? RelatedEntryId { get; set; } = null;
 
         [CommandOption("--use-azure-translator")]
@@ -107,11 +69,6 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        if (string.IsNullOrEmpty(settings.PromptId))
-        {
-            return ValidationResult.Error($"No prompt identifier (--prompt-id) specified.");
-        }
-
         return base.Validate(context, settings);
     }
 
@@ -121,48 +78,40 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var allLocaleCodes = Locales.Select(locales => locales.Code).ToHashSet();
 
-        var promptQuery = new QueryBuilder<Dictionary<string, object?>>()
-             .ContentTypeIs(settings.PromptContentType)
-             .Limit(1)
-             .FieldEquals($"fields.{settings.PromptIdField}", settings.PromptId)
-             .Build();
-
-        var promptEntries = await ContentfulManagementClient.GetEntriesCollection<Entry<JObject>>(promptQuery);
-
-        if (!promptEntries.Any())
+        var displayActions = new CommandRunnerDisplayActions()
         {
-            throw new CliException($"No prompt with title '{settings.PromptId}' found.");
-        }
+            DisplayAction = _console.WriteNormal,
+            DisplayFormattedAction = f => _console.WriteNormalWithHighlights(f, Globals.StyleHeading),
+            DisplayAlertAction = _console.WriteAlert,
+            DisplayDimAction = _console.WriteDim,
+            DisplayRuler = _console.WriteRuler,
+            DisplayBlankLine = _console.WriteBlankLine,
+        };
 
-        var promptEntry = promptEntries.First();
+        await ProgressBars.Instance().StartAsync(async ctx =>
+        {
+            var taskGenerate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Generating[/]");
 
-        var promptContentTypeId = GetString(promptEntry, settings.OutputContentType)
-            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentTypeId");
+            var runnerResult = await _generateCommandRunner.GenerateContent(settings.PromptId,
+                (step, steps) =>
+                {
+                    taskGenerate.MaxValue = steps;
+                    taskGenerate.Value = step;
+                },
+                displayActions
+            );
 
-        var promptContentFieldId = GetString(promptEntry, settings.OutputContentField)
-            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid contentFieldId");
+            if (runnerResult.Result == RunnerResult.Error)
+            {
+                throw new CliException(runnerResult.Message);
+            }
 
-        var promptSystemMessage = GetString(promptEntry, settings.SystemMessageField)
-            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid systemMessage");
+            taskGenerate.StopTask();
+        });
 
-        var promptMainPrompt = GetString(promptEntry, settings.PromptField)
-            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid prompt");
+        return 0;
 
-        var promptTemperature = GetFloat(promptEntry, settings.TemperatureField)
-            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid temperature");
-
-        var promptFrequencyPenalty = GetFloat(promptEntry, settings.FrequencyPenaltyField)
-            ?? throw new CliException($"Prompt '{settings.PromptId}' does not contain a valid frequency penalty");
-
-        var generatorLanguage = GetObject<Reference>(promptEntry, settings.GeneratorLanguageField)
-            ?? throw new CliException($"Prompt '{settings.GeneratorLanguageField}' does not contain a valid language reference");
-
-        var translatorLanguages = GetObject<Reference[]>(promptEntry, settings.TranslatorLanguagesField) ?? [];
-
-        var contentType = await ContentfulManagementClient.GetContentType(promptContentTypeId);
-
-        var contentTargetField = (contentType.Fields.FirstOrDefault(f => f.Id.Equals(promptContentFieldId)))
-            ?? throw new CliException($"'{promptContentFieldId}' does not exist in content type '{contentType.SystemProperties.Id}'");
+        /*
 
         // Generator language settings
 
@@ -357,6 +306,7 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         }
 
         return 0;
+        */
     }
 
     private async Task GenerateContent(string promptContentFieldId, string promptSystemMessage,

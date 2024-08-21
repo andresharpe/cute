@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Spectre.Console.Cli;
+﻿using Spectre.Console.Cli;
 
 namespace Cute.Services;
 
@@ -29,12 +28,14 @@ public sealed class TypeRegistrar : ITypeRegistrar
 
     public void RegisterLazy(Type service, Func<object> func)
     {
-        if (func is null)
+        if (func is not null)
+        {
+            _builder.AddSingleton(service, (provider) => func());
+        }
+        else
         {
             throw new ArgumentNullException(nameof(func));
         }
-
-        _builder.AddSingleton(service, (provider) => func());
     }
 }
 

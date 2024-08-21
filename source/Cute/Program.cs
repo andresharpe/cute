@@ -1,7 +1,9 @@
 ﻿using Contentful.Core.Errors;
 using Cute.Commands;
 using Cute.Constants;
+using Cute.Lib.AiModels;
 using Cute.Lib.Cache;
+using Cute.Lib.CommandRunners;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Exceptions;
@@ -83,13 +85,16 @@ services.AddSingleton<IConsoleWriter, ConsoleWriter>();
 services.AddSingleton<IPersistedTokenCache, PersistedTokenCache>();
 services.AddSingleton(dataProtectionProvider);
 services.AddSingleton(appSettings);
+services.AddSingleton(appSettings.GetSettings());
 services.AddSingleton<IContentfulOptionsProvider>(appSettings);
+services.AddSingleton<IAzureOpenAiOptionsProvider>(appSettings);
 services.AddTransient<AzureTranslator>();
 services.AddTransient<ContentfulConnection>();
 services.AddTransient<BulkActionExecutor>();
 services.AddTransient<HttpResponseFileCache>();
 services.AddTransient<ContentfulGraphQlClient>();
 services.AddTransient<SiteGenerator>();
+services.AddTransient<GenerateCommandRunner>();
 
 services.AddHttpClient<AzureTranslator>();
 services.AddHttpClient<ContentfulConnection>();
@@ -159,6 +164,9 @@ app.Configure(config =>
 
     config.AddCommand<EvaluateCommand>("evaluate")
         .WithDescription("Evaluate AI generated content, translations, and SEO quality using a set of metrics.");
+
+    config.AddCommand<DiffCommand>("diff")
+        .WithDescription("Compare content types against another environment on the same space.");
 });
 
 try

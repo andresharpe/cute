@@ -1,4 +1,5 @@
-﻿using Contentful.Core.Models;
+﻿using Contentful.Core.Configuration;
+using Contentful.Core.Models;
 using Cute.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Enums;
@@ -14,12 +15,16 @@ namespace Cute.Commands;
 public sealed class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
 {
     private readonly ILogger<TypeGenCommand> _logger;
+    private readonly HttpClient _httpClient;
 
     public TypeGenCommand(IConsoleWriter console, ILogger<TypeGenCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        ContentfulConnection contentfulConnection, AppSettings appSettings,
+        HttpClient httpClient)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
+
+        _httpClient = httpClient;
     }
 
     public class Settings : CommandSettings
@@ -39,6 +44,10 @@ public sealed class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
         [CommandOption("-n|--namespace")]
         [Description("The optional namespace for the generated type")]
         public string? Namespace { get; set; } = default!;
+
+        [CommandOption("-e|--environment")]
+        [Description("The optional namespace for the generated type")]
+        public string? Environment { get; set; } = default!;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -62,6 +71,8 @@ public sealed class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
 
         settings.ContentType ??= "*";
 
+        settings.Environment ??= ContentfulEnvironmentId;
+
         return base.Validate(context, settings);
     }
 
@@ -69,9 +80,13 @@ public sealed class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
     {
         var result = await base.ExecuteAsync(context, settings);
 
+        var envOptions = new OptionsForEnvironmentProvider(_appSettings, settings.Environment!);
+
+        var envClient = new ContentfulConnection(_httpClient, envOptions);
+
         List<ContentType> contentTypes = settings.ContentType == "*"
-            ? (await ContentfulManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
-            : [await ContentfulManagementClient.GetContentType(settings.ContentType)];
+            ? (await envClient.ManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
+            : [await envClient.ManagementClient.GetContentType(settings.ContentType)];
 
         ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language);
 

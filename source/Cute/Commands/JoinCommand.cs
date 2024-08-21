@@ -64,7 +64,7 @@ public sealed class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 
         [CommandOption("-l|--limit")]
         [Description("The total number of entries to generate content for before stopping. Default is 100.")]
-        public int Limit { get; set; } = 100;
+        public int Limit { get; set; } = 100000;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)

@@ -42,7 +42,7 @@ public class SiteGenerator
 
     public async Task Generate(string appPlatformKey, IReadOnlyDictionary<string, string?> appSettings)
     {
-        var scriptObject = CreateScripObject(appSettings);
+        var scriptObject = CreateScriptObject(appSettings);
 
         var appPlatform = ContentfulEntryEnumerator.DeliveryEntries<UiAppPlatform>(_contentfulConnection.DeliveryClient,
             "uiAppPlatform",
@@ -63,7 +63,7 @@ public class SiteGenerator
         return;
     }
 
-    private ScriptObject CreateScripObject(IReadOnlyDictionary<string, string?> contentfulOptions)
+    private ScriptObject CreateScriptObject(IReadOnlyDictionary<string, string?> contentfulOptions)
     {
         ScriptObject? scriptObject = [];
 

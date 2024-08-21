@@ -1,5 +1,6 @@
 ﻿using Contentful.Core.Configuration;
 using Cute.Constants;
+using Cute.Lib.AiModels;
 using Cute.Lib.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Extensions;
@@ -7,7 +8,7 @@ using System.Runtime.Serialization;
 
 namespace Cute.Config;
 
-public class AppSettings : IContentfulOptionsProvider
+public class AppSettings : IContentfulOptionsProvider, IAzureOpenAiOptionsProvider
 {
     public string ContentfulDefaultSpace { get; set; } = default!;
     public string ContentfulDefaultEnvironment { get; set; } = default!;
@@ -76,6 +77,16 @@ public class AppSettings : IContentfulOptionsProvider
             PreviewApiKey = ContentfulPreviewApiKey,
             Environment = ContentfulDefaultEnvironment,
             ResolveEntriesSelectively = true,
+        };
+    }
+
+    public AzureOpenAiOptions GetAzureOpenAIClientOptions()
+    {
+        return new AzureOpenAiOptions()
+        {
+            Endpoint = OpenAiEndpoint,
+            ApiKey = OpenAiApiKey,
+            DeploymentName = OpenAiDeploymentName,
         };
     }
 }
