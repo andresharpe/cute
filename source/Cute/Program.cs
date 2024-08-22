@@ -170,6 +170,9 @@ app.Configure(config =>
 
     config.AddCommand<CloneTypeCommand>("clone")
         .WithDescription("Clone content types from another environment on the same space.");
+
+    config.AddCommand<RenameTypeCommand>("rename")
+        .WithDescription("Rename content type in the current environment.");
 });
 
 try

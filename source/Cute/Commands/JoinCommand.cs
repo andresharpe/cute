@@ -158,15 +158,15 @@ public sealed class JoinCommand : LoggedInCommand<JoinCommand.Settings>
 
         var targetData = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinTargetContentTypeId, targetContentType.DisplayField, queryConfigurator: queryConfigTarget)
             .ToBlockingEnumerable()
-            .ToDictionary(e => e.Item1["key"]!, e => new { Key = e.Item1["key"], Title = e.Item1["title"], Name = e.Item1["name"] });
+            .ToDictionary(e => e.Entry["key"]!, e => new { Key = e.Entry["key"], Title = e.Entry["title"], Name = e.Entry["name"] });
 
         var source1Data = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, joinSource1ContentTypeId, source1ContentType.DisplayField)
             .ToBlockingEnumerable()
-            .Where(e => source1AllKeys || source1Keys.Contains(e.Item1["key"]?.Value<string>()));
+            .Where(e => source1AllKeys || source1Keys.Contains(e.Entry["key"]?.Value<string>()));
 
         var source2Data = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinSource2ContentTypeId, source2ContentType.DisplayField, queryConfigurator: queryConfigSource2)
             .ToBlockingEnumerable()
-            .Where(e => source2AllKeys || source2Keys.Contains(e.Item1["key"]?.Value<string>()));
+            .Where(e => source2AllKeys || source2Keys.Contains(e.Entry["key"]?.Value<string>()));
 
         // Start Join
 

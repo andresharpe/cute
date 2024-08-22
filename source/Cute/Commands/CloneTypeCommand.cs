@@ -3,9 +3,7 @@ using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
-using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
-using Cute.Lib.Extensions;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
@@ -37,46 +35,17 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
         [Description("Specifies the content type to generate types for. Default is all.")]
         public string? ContentType { get; set; } = null!;
 
-        [CommandOption("-o|--output")]
-        [Description("The local path to output the generated types to")]
-        public string OutputPath { get; set; } = default!;
-
-        [CommandOption("-l|--language")]
-        [Description("The language to generate types for (TypeScript/CSharp)")]
-        public GenTypeLanguage Language { get; set; } = GenTypeLanguage.TypeScript!;
-
-        [CommandOption("-n|--namespace")]
-        [Description("The optional namespace for the generated type")]
-        public string? Namespace { get; set; } = default!;
-
         [CommandOption("-e|--environment")]
         [Description("The optional namespace for the generated type")]
         public string? Environment { get; set; } = default!;
 
         [CommandOption("-p|--publish")]
-        [Description("Whether to publish the created content or not. Useful if njo circular references exist.")]
+        [Description("Whether to publish the created content or not. Useful if no circular references exist.")]
         public bool Publish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        if (settings.OutputPath is null)
-        {
-            settings.OutputPath = Directory.GetCurrentDirectory();
-        }
-        else if (settings.OutputPath is not null)
-        {
-            if (Directory.Exists(settings.OutputPath))
-            {
-                var dir = new DirectoryInfo(settings.OutputPath);
-                settings.OutputPath = dir.FullName;
-            }
-            else
-            {
-                throw new CliException($"Path {Path.GetFullPath(settings.OutputPath)} does not exist.");
-            }
-        }
-
         settings.ContentType ??= "*";
 
         settings.Environment ??= ContentfulEnvironmentId;
@@ -109,6 +78,11 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
             return -1;
         }
 
+        if (settings.Environment == ContentfulEnvironmentId)
+        {
+            throw new CliException("You can not clone a content type in the same environment because content id's will clash.");
+        }
+
         var envOptions = new OptionsForEnvironmentProvider(_appSettings, settings.Environment!);
 
         var envClient = new ContentfulConnection(_httpClient, envOptions);
@@ -116,11 +90,11 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
         _console.WriteNormalWithHighlights($"Comparing content types between environments: {ContentfulEnvironmentId} <--> {settings.Environment}", Globals.StyleHeading);
 
         ContentType? contentTypesMain = null;
-        ContentType? contentTypesEnv = null;
+        ContentType? contentTypeEnv = null;
 
         try
         {
-            contentTypesEnv = await envClient.ManagementClient.GetContentType(contentTypeId);
+            contentTypeEnv = await envClient.ManagementClient.GetContentType(contentTypeId);
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights($"{contentTypeId} found in environment {settings.Environment}", Globals.StyleHeading);
         }
@@ -144,7 +118,7 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
 
         if (contentTypesMain is null)
         {
-            await CreateContentType(contentTypeId, contentTypesEnv);
+            await contentTypeEnv.CreateWithId(ContentfulManagementClient, contentTypeId);
 
             _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
         }
@@ -161,7 +135,7 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
 
             _console.WriteNormalWithHighlights($"Deleted {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
 
-            await CreateContentType(contentTypeId, contentTypesEnv);
+            await contentTypeEnv.CreateWithId(ContentfulManagementClient, contentTypeId);
 
             _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
         }
@@ -192,18 +166,5 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
         _console.WriteAlert("Done!");
 
         return 0;
-    }
-
-    private async Task CreateContentType(string contentTypeId, ContentType? contentTypesEnv)
-    {
-        if (contentTypesEnv is null) return;
-
-        contentTypesEnv.Name = contentTypesEnv.Name
-            .RemoveEmojis()
-            .Trim();
-
-        await ContentfulManagementClient.CreateOrUpdateContentType(contentTypesEnv);
-
-        await ContentfulManagementClient.ActivateContentType(contentTypeId, 1);
     }
 }
