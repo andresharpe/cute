@@ -402,6 +402,12 @@ public class BulkActionExecutor
 
     private async Task UpsertRequiredEntries(List<Entry<JObject>> entries)
     {
+        if (_contentType == null)
+        {
+            _displayAction?.Invoke($"Error: The content type needs to be specified!");
+            return;
+        }
+
         if (entries.Count == 0) return;
 
         var tasks = new Task[_concurrentTaskLimit];
@@ -446,7 +452,7 @@ public class BulkActionExecutor
         Task.WaitAll(tasks.Where(t => t is not null).ToArray());
     }
 
-    private async Task CreateOrUpdateEntry(int delay, JObject fields, string id, int version, string? contentTypeId)
+    private async Task CreateOrUpdateEntry(int delay, JObject fields, string id, int version, string contentTypeId)
     {
         var retryAttempt = 0;
 
@@ -456,13 +462,21 @@ public class BulkActionExecutor
             {
                 await Task.Delay(delay);
 
+                /*
                 await _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
                         fields,
                         id: id,
                         version: version,
                         contentTypeId: contentTypeId
                     );
+                */
 
+                await CreateOrUpdateEntryRequestViaHttp(
+                      fields,
+                      id: id,
+                      version: version,
+                      contentTypeId: contentTypeId
+                );
                 return;
             }
             catch (Exception ex)
@@ -474,10 +488,46 @@ public class BulkActionExecutor
                 }
 
                 retryAttempt++;
-                _displayAction?.Invoke($"...waiting. Contentful rate limit exceeded. Retry attempt {retryAttempt}");
+                _displayAction?.Invoke($"...waiting. Error! Retry attempt {retryAttempt}");
                 _displayAction?.Invoke($"...{ex.Message}");
             }
         }
+    }
+
+    private async Task CreateOrUpdateEntryRequestViaHttp(JObject fields, string id, int version, string contentTypeId)
+    {
+        var endpoint = new Uri($"https://api.contentful.com/spaces/{_contentfulConnection.Options.SpaceId}/environments/{_contentfulConnection.Options.Environment}/entries/{id}");
+
+        var body = JsonConvert.SerializeObject(new
+        {
+            fields,
+        });
+
+        var request = new HttpRequestMessage
+        {
+            RequestUri = endpoint,
+            Method = HttpMethod.Put,
+            Content = new StringContent(body, Encoding.UTF8, "application/vnd.contentful.management.v1+json"),
+        };
+
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.Options.ManagementApiKey);
+        request.Headers.Add("X-Contentful-Content-Type", contentTypeId);
+
+        var guid = Guid.NewGuid();
+        // _displayAction?.Invoke($"{guid}: Submitting... '{id}' at {DateTime.UtcNow}...");
+        using var response = await _httpClient.SendAsync(request);
+        //_displayAction?.Invoke($"{guid}: Submitted! '{id}' at {DateTime.UtcNow}...");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseString = await response.Content.ReadAsStringAsync();
+            _displayAction?.Invoke($"{responseString}");
+            throw new CliException($"Http response error: {response.StatusCode} ({(int)response.StatusCode}) : Entry Id = '{id}'...");
+        }
+
+        // _displayAction?.Invoke($"...Remaining calls: {response.Headers.GetValues("X-Contentful-RateLimit-Second-Remaining").First()}");
+
+        return;
     }
 
     public async Task Execute(BulkAction bulkAction)

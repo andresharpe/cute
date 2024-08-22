@@ -42,6 +42,10 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
         [CommandOption("-p|--publish")]
         [Description("Whether to publish the created content or not. Useful if no circular references exist.")]
         public bool Publish { get; set; } = false;
+
+        [CommandOption("-b|--entries-per-batch")]
+        [Description("Whether to publish the created content or not. Useful if no circular references exist.")]
+        public int EntriesPerBatch { get; set; } = 5;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -127,6 +131,7 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
             await _bulkActionExecutor
                 .WithContentType(contentTypeId)
                 .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+                .WithConcurrentTaskLimit(settings.EntriesPerBatch)
                 .Execute(BulkAction.Delete);
 
             await ContentfulManagementClient.DeactivateContentType(contentTypeId);
@@ -140,16 +145,22 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
             _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
         }
 
+        _console.WriteNormalWithHighlights($"Reading entries {contentTypeId} in {settings.Environment}", Globals.StyleHeading);
+
         var createEntries = ContentfulEntryEnumerator.Entries<Entry<JObject>>(envClient.ManagementClient, contentTypeId)
             .ToBlockingEnumerable()
             .Select(e => e.Entry)
             .ToList();
 
+        _console.WriteNormalWithHighlights($"{createEntries.Count} entries found...", Globals.StyleHeading);
+
+        await Task.Delay(2000);
+
         await _bulkActionExecutor
             .WithContentType(contentTypeId)
             .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
             .WithNewEntries(createEntries)
-            .WithConcurrentTaskLimit(25)
+            .WithConcurrentTaskLimit(settings.EntriesPerBatch)
             .WithPublishChunkSize(100)
             .WithMillisecondsBetweenCalls(120)
             .Execute(BulkAction.Upsert);
@@ -159,6 +170,7 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
             await _bulkActionExecutor
                 .WithContentType(contentTypeId)
                 .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+                .WithConcurrentTaskLimit(settings.EntriesPerBatch)
                 .Execute(BulkAction.Publish);
         }
 

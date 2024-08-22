@@ -33,6 +33,8 @@ public sealed class InfoCommand : LoggedInCommand<InfoCommand.Settings>
         topTable.AddColumn(new TableColumn(new Text("Space", Globals.StyleSubHeading)));
         topTable.AddColumn(new TableColumn(new Text("Id", Globals.StyleSubHeading)));
         topTable.AddColumn(new TableColumn(new Text("Environment", Globals.StyleSubHeading)));
+        topTable.AddColumn(new TableColumn(new Text("User Id", Globals.StyleSubHeading)));
+        topTable.AddColumn(new TableColumn(new Text("User Name", Globals.StyleSubHeading)));
 
         var mainTable = new Table()
             .RoundedBorder()
@@ -90,7 +92,9 @@ public sealed class InfoCommand : LoggedInCommand<InfoCommand.Settings>
                 topTable.AddRow(
                     new Markup(space.Name, Globals.StyleAlert),
                     new Markup(ContentfulSpaceId, Globals.StyleNormal),
-                    new Markup(ContentfulEnvironmentId, Globals.StyleNormal)
+                    new Markup(ContentfulEnvironmentId, Globals.StyleNormal),
+                    new Markup(ContentfulUser.SystemProperties.Id, Globals.StyleNormal),
+                    new Markup(ContentfulUser.Email, Globals.StyleNormal)
                 );
 
                 mainTable.AddRow(
