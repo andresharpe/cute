@@ -3,6 +3,7 @@ using Azure.AI.OpenAI;
 using Contentful.Core.Extensions;
 using Contentful.Core.Search;
 using Cute.Lib.AiModels;
+using Cute.Lib.CommandRunners.Filters;
 using Cute.Lib.CommandRunners.Models;
 using Cute.Lib.Contentful;
 using Cute.Lib.Enums;
@@ -39,12 +40,15 @@ public class GenerateCommandRunner
     }
 
     public async Task<CommandRunnerResult> GenerateContent(string metaPromptKey,
-        Action<int, int> progressUpdater,
-        CommandRunnerDisplayActions displayActions)
+        CommandRunnerDisplayActions displayActions,
+        Action<int, int>? progressUpdater = null,
+        bool testOnly = false,
+        DataFilter? dataFilter = null,
+        string[]? modelNames = null)
     {
         displayActions.DisplayRuler?.Invoke();
         displayActions.DisplayBlankLine?.Invoke();
-        displayActions.DisplayFormattedAction?.Invoke($"Reading prompt entry {metaPromptKey}...");
+        displayActions.DisplayFormatted?.Invoke($"Reading prompt entry {metaPromptKey}...");
         displayActions.DisplayBlankLine?.Invoke();
 
         var metaPrompt = await GetMetaPromptEntry(metaPromptKey);
@@ -52,7 +56,7 @@ public class GenerateCommandRunner
         if (metaPrompt == null) return new CommandRunnerResult(RunnerResult.Error,
             $"No metaPrompt entry with key '{metaPromptKey}' found.");
 
-        displayActions.DisplayFormattedAction?.Invoke($"Executing query {metaPrompt.UiDataQueryEntry.Key}...");
+        displayActions.DisplayFormatted?.Invoke($"Executing query {metaPrompt.UiDataQueryEntry.Key}...");
         displayActions.DisplayBlankLine?.Invoke();
 
         var queryResult = await GetQueryData(metaPrompt);
@@ -60,29 +64,86 @@ public class GenerateCommandRunner
         if (queryResult == null) return new CommandRunnerResult(RunnerResult.Error,
             $"No data found to process. Is your query valid and tested?");
 
+        if (dataFilter is not null)
+        {
+            displayActions.DisplayFormatted?.Invoke($"Applying filter...");
+            displayActions.DisplayBlankLine?.Invoke();
+
+            var filteredResult = new JArray();
+            foreach (var obj in queryResult.Cast<JObject>())
+            {
+                if (dataFilter.Compare(obj))
+                {
+                    filteredResult.Add(obj);
+                }
+            }
+            queryResult = filteredResult;
+        }
+
+        displayActions.DisplayFormatted?.Invoke($"Found {queryResult.Count} entries...");
+        displayActions.DisplayBlankLine?.Invoke();
+
         displayActions.DisplayRuler?.Invoke();
         displayActions.DisplayBlankLine?.Invoke();
 
-        progressUpdater.Invoke(0, queryResult.Count);
+        progressUpdater?.Invoke(0, queryResult.Count);
 
-        await ProcessQueryResults(metaPrompt, queryResult, progressUpdater, displayActions);
+        if (modelNames == null || modelNames.Length == 0)
+        {
+            await ProcessQueryResults(metaPrompt, queryResult, displayActions, progressUpdater, testOnly);
+        }
+        else
+        {
+            await ProcessQueryResultsForModels(metaPrompt, queryResult, displayActions, progressUpdater, testOnly, modelNames);
+        }
 
         return new CommandRunnerResult(RunnerResult.Success);
     }
 
+    private async Task ProcessQueryResultsForModels(MetaPrompt metaPrompt, JArray queryResult,
+        CommandRunnerDisplayActions displayActions,
+        Action<int, int>? progressUpdater,
+        bool testOnly,
+        string[] modelNames)
+    {
+        var first = true;
+
+        foreach (var modelName in modelNames)
+        {
+            await ProcessQueryResults(metaPrompt, queryResult, displayActions, progressUpdater, testOnly, modelName, first);
+
+            first = false;
+        }
+    }
+
     private async Task ProcessQueryResults(MetaPrompt metaPrompt, JArray queryResult,
-        Action<int, int> progressUpdater, CommandRunnerDisplayActions displayActions)
+        CommandRunnerDisplayActions displayActions,
+        Action<int, int>? progressUpdater,
+        bool testOnly,
+        string? modelName = null,
+        bool displaySystemMessageAndPrompt = true)
     {
         var scriptObject = CreateScriptObject();
 
-        var chatClient = CreateChatClient();
+        var chatClient = CreateChatClient(modelName, displayActions);
 
         var chatCompletionOptions = new ChatCompletionOptions()
         {
+            MaxTokens = metaPrompt.MaxTokenLimit,
             Temperature = (float)metaPrompt.Temperature,
             FrequencyPenalty = (float)metaPrompt.FrequencyPenalty,
-            PresencePenalty = 0,
+            PresencePenalty = (float)metaPrompt.PresencePenalty,
+            TopP = (float)metaPrompt.TopP
         };
+
+        if (modelName is null)
+        {
+            modelName = metaPrompt.DeploymentModel;
+            if (string.IsNullOrWhiteSpace(modelName))
+            {
+                modelName = null;
+            }
+        }
 
         var promptTemplate = Template.Parse(metaPrompt.Prompt);
 
@@ -95,19 +156,21 @@ public class GenerateCommandRunner
 
         foreach (var entry in queryResult.Cast<JObject>())
         {
-            progressUpdater.Invoke(recordNum++, recordTotal);
+            progressUpdater?.Invoke(recordNum++, recordTotal);
 
-            if (EntryHasExistingContent(metaPrompt, entry))
+            if (EntryHasExistingContent(metaPrompt, entry) && !testOnly)
             {
                 continue;
             }
 
-            var title = entry["title"]?.Value<string>()
-                ?? entry["name"]?.Value<string>()
-                ?? entry["key"]?.Value<string>()
-                ?? "(unknown entry)";
+            var entryKey = entry["key"]?.Value<string>()
+                ?? "(unknown entry key)";
 
-            displayActions.DisplayAlertAction?.Invoke($"[{title}]");
+            var entryTitle = entry["title"]?.Value<string>()
+                ?? entry["name"]?.Value<string>()
+                ?? "(unknown entry title)";
+
+            displayActions.DisplayAlert?.Invoke($"[{entryKey}] : [{entryTitle}]");
             displayActions.DisplayBlankLine?.Invoke();
 
             scriptObject.SetValue(variableName, entry, true);
@@ -118,27 +181,41 @@ public class GenerateCommandRunner
 
             displayActions.DisplayRuler?.Invoke();
 
-            foreach (var s in SplitAndFormatString(systemMessage))
+            if (displaySystemMessageAndPrompt)
             {
-                displayActions.DisplayDimAction?.Invoke(s);
+                displayActions.DisplayHeading?.Invoke("System Message:");
+
+                foreach (var s in SplitAndFormatString(systemMessage))
+                {
+                    displayActions.DisplayDim?.Invoke(s);
+                }
+
+                displayActions.DisplayBlankLine?.Invoke();
+
+                displayActions.DisplayHeading?.Invoke("Prompt:");
+
+                foreach (var s in SplitAndFormatString(prompt))
+                {
+                    displayActions.DisplayDim?.Invoke(s);
+                }
             }
 
             displayActions.DisplayBlankLine?.Invoke();
 
-            foreach (var s in SplitAndFormatString(prompt))
-            {
-                displayActions.DisplayDimAction?.Invoke(s);
-            }
+            var modelNameAsString = modelName == null ? string.Empty : $"[{modelName}] ";
 
-            displayActions.DisplayBlankLine?.Invoke();
+            displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
 
             var promptResult = FixFormatting(await SendPromptToModel(chatClient, chatCompletionOptions, systemMessage, prompt));
 
-            displayActions.DisplayAction?.Invoke(promptResult);
+            displayActions.DisplayNormal?.Invoke(promptResult);
 
             displayActions.DisplayBlankLine?.Invoke();
 
-            await UpdateContentfulEntry(metaPrompt, entry, promptResult, displayActions);
+            if (!testOnly)
+            {
+                await UpdateContentfulEntry(metaPrompt, entry, promptResult, displayActions);
+            }
 
             scriptObject.Remove(variableName);
         }
@@ -186,18 +263,18 @@ public class GenerateCommandRunner
         {
             oldValueRef = new JObject()
             {
-                [metaPrompt.GeneratorTargetLanguage.Iso2code] = null
+                [metaPrompt.GeneratorTargetDataLanguageEntry.Iso2code] = null
             };
             fields[metaPrompt.PromptOutputContentField] = oldValueRef;
         }
 
-        var oldValue = oldValueRef![metaPrompt.GeneratorTargetLanguage.Iso2code];
+        var oldValue = oldValueRef![metaPrompt.GeneratorTargetDataLanguageEntry.Iso2code];
 
         if (!oldValue.IsNull()) return;
 
         if (!string.IsNullOrWhiteSpace(oldValue?.ToString())) return;
 
-        oldValueRef[metaPrompt.GeneratorTargetLanguage.Iso2code] = promptResult;
+        oldValueRef[metaPrompt.GeneratorTargetDataLanguageEntry.Iso2code] = promptResult;
 
         var isCreated = false;
 
@@ -210,7 +287,7 @@ public class GenerateCommandRunner
             }
             catch (Exception ex)
             {
-                displayActions.DisplayAlertAction?.Invoke(ex.Message);
+                displayActions.DisplayAlert?.Invoke(ex.Message);
                 await Task.Delay(100);
             }
         }
@@ -226,7 +303,7 @@ public class GenerateCommandRunner
             }
             catch (Exception ex)
             {
-                displayActions.DisplayAlertAction?.Invoke(ex.Message);
+                displayActions.DisplayAlert?.Invoke(ex.Message);
                 await Task.Delay(100);
             }
         }
@@ -276,16 +353,23 @@ public class GenerateCommandRunner
         return scriptObject;
     }
 
-    private ChatClient CreateChatClient()
+    private ChatClient CreateChatClient(string? deploymentName = null, CommandRunnerDisplayActions? displayActions = null)
     {
         var options = _azureOpenAiOptionsProvider.GetAzureOpenAIClientOptions();
+
+        if (deploymentName == null)
+        {
+            deploymentName = options.DeploymentName;
+            displayActions?.DisplayFormatted?.Invoke($"Model deployment: {deploymentName}");
+            displayActions?.DisplayBlankLine?.Invoke();
+        }
 
         AzureOpenAIClient client = new(
             new Uri(options.Endpoint),
             new AzureKeyCredential(options.ApiKey)
         );
 
-        return client.GetChatClient(options.DeploymentName);
+        return client.GetChatClient(deploymentName);
     }
 
     private async Task<MetaPrompt?> GetMetaPromptEntry(string metaPromptKey)
@@ -308,7 +392,7 @@ public class GenerateCommandRunner
         return await _graphQlClient.GetData(
             metaPrompt.UiDataQueryEntry.Query,
             metaPrompt.UiDataQueryEntry.JsonSelector,
-            metaPrompt.GeneratorTargetLanguage.Iso2code);
+            metaPrompt.GeneratorTargetDataLanguageEntry.Iso2code);
     }
 
     private static string RenderTemplate(ScriptObject scriptObject, Template template)

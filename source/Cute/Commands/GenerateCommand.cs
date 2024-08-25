@@ -80,10 +80,11 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         var displayActions = new CommandRunnerDisplayActions()
         {
-            DisplayAction = _console.WriteNormal,
-            DisplayFormattedAction = f => _console.WriteNormalWithHighlights(f, Globals.StyleHeading),
-            DisplayAlertAction = _console.WriteAlert,
-            DisplayDimAction = _console.WriteDim,
+            DisplayNormal = _console.WriteNormal,
+            DisplayFormatted = f => _console.WriteNormalWithHighlights(f, Globals.StyleHeading),
+            DisplayAlert = _console.WriteAlert,
+            DisplayDim = _console.WriteDim,
+            DisplayHeading = _console.WriteHeading,
             DisplayRuler = _console.WriteRuler,
             DisplayBlankLine = _console.WriteBlankLine,
         };
@@ -93,12 +94,12 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
             var taskGenerate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Generating[/]");
 
             var runnerResult = await _generateCommandRunner.GenerateContent(settings.PromptId,
+                displayActions,
                 (step, steps) =>
                 {
                     taskGenerate.MaxValue = steps;
                     taskGenerate.Value = step;
-                },
-                displayActions
+                }
             );
 
             if (runnerResult.Result == RunnerResult.Error)

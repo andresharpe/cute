@@ -14,7 +14,6 @@ namespace Cute.Commands;
 
 public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings>
 {
-    private readonly ILogger<TypeGenCommand> _logger;
     private readonly HttpClient _httpClient;
     private readonly BulkActionExecutor _bulkActionExecutor;
 
@@ -23,8 +22,6 @@ public sealed class CloneTypeCommand : LoggedInCommand<CloneTypeCommand.Settings
         HttpClient httpClient, BulkActionExecutor bulkActionExecutor)
         : base(console, logger, contentfulConnection, appSettings)
     {
-        _logger = logger;
-
         _httpClient = httpClient;
         _bulkActionExecutor = bulkActionExecutor;
     }

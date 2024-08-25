@@ -140,6 +140,9 @@ app.Configure(config =>
     config.AddCommand<GenerateCommand>("generate")
         .WithDescription("Use generative AI to help build drafts of your content.");
 
+    config.AddCommand<TestGenerateCommand>("test-generate")
+        .WithDescription("Test the generative AI output to help to refine the prompts.");
+
     config.AddCommand<SiteGenCommand>("sitegen")
         .WithDescription("Generate static site pages from conentfuil ui definitions.");
 

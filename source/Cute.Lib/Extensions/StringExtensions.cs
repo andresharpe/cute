@@ -9,6 +9,11 @@ public static partial class StringExtensions
         return Char.ToUpperInvariant(value[0]) + value[1..];
     }
 
+    public static string[] SplitCamelCase(this string input)
+    {
+        return UpperCaseRegex().Replace(input, ";$1").Trim().Split(';');
+    }
+
     public static string ToSlug(this string phrase)
     {
         string str = phrase.RemoveAccent().ToLower();
@@ -658,4 +663,7 @@ public static partial class StringExtensions
             ["W-SU"] = new("+03:00", "+03:00"),
             ["Zulu"] = new("+00:00", "+00:00"),
         };
+
+    [GeneratedRegex("([A-Z])", RegexOptions.Compiled)]
+    private static partial Regex UpperCaseRegex();
 }
