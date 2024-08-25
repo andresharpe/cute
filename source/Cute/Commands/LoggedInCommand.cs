@@ -127,11 +127,18 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
         foreach (var (option, value) in options)
         {
-            _logger.LogInformation("Command option: {option} = {value}", option, value);
+            var displayValue = value;
+
+            if (value is string[] stringArray)
+            {
+                displayValue = string.Join(',', stringArray.Select(e => $"'{e}'"));
+            }
+
+            _logger.LogInformation("Command option: {option} = {value}", option, displayValue);
             table.AddRow(
                 new Markup($"--{option}", Globals.StyleDim),
                 new Markup($"=", Globals.StyleDim),
-                new Markup($"{value}", Globals.StyleNormal)
+                new Markup($"{displayValue}", Globals.StyleNormal)
             );
             showTable = true;
         }

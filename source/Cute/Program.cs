@@ -137,6 +137,9 @@ app.Configure(config =>
     config.AddCommand<UploadCommand>("upload")
         .WithDescription("Uploads local content to the default or specified space.");
 
+    config.AddCommand<EditCommand>("edit")
+        .WithDescription("Performs bulk field edits on a content type.");
+
     config.AddCommand<GenerateCommand>("generate")
         .WithDescription("Use generative AI to help build drafts of your content.");
 

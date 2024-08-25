@@ -462,21 +462,22 @@ public class BulkActionExecutor
             {
                 await Task.Delay(delay);
 
-                /*
                 await _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
                         fields,
                         id: id,
                         version: version,
                         contentTypeId: contentTypeId
                     );
-                */
 
+                /*
                 await CreateOrUpdateEntryRequestViaHttp(
                       fields,
                       id: id,
                       version: version,
                       contentTypeId: contentTypeId
                 );
+
+                */
                 return;
             }
             catch (Exception ex)
@@ -536,7 +537,12 @@ public class BulkActionExecutor
 
         _contentTypeDefinition = await _contentfulConnection.ManagementClient.GetContentType(_contentType);
 
-        var allEntries = _withEntries ?? await GetAllEntries(_contentType, _millisecondsBetweenCalls);
+        List<BulkItem> allEntries = new();
+
+        if (bulkAction != BulkAction.Upsert)
+        {
+            allEntries = _withEntries ?? await GetAllEntries(_contentType, _millisecondsBetweenCalls);
+        }
 
         if (bulkAction == BulkAction.Publish)
         {
@@ -549,8 +555,7 @@ public class BulkActionExecutor
         if (bulkAction == BulkAction.Upsert)
         {
             if (_withNewEntries is null) throw new CliException("No entries that requires create or update specified");
-            var entries = allEntries.ToList();
-            var count = entries.Count;
+            var count = _withNewEntries.Count;
             _displayAction?.Invoke($"{count} results to create/update...");
             await UpsertRequiredEntries(_withNewEntries);
         }

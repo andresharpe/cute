@@ -158,7 +158,7 @@ public class UploadCommandRunner
                 {
                     updatedLocalEntries++;
                 }
-                else if (ValuesDiffer(newEntry, cloudEntry))
+                else if (ValuesDiffer(newEntry, cloudEntry, serializer))
                 {
                     mismatchedValues++;
                 }
@@ -204,12 +204,14 @@ public class UploadCommandRunner
         return result;
     }
 
-    private static bool ValuesDiffer(Entry<JObject> newEntry, Entry<JObject> cloudEntry)
+    private static bool ValuesDiffer(Entry<JObject> newEntry, Entry<JObject> cloudEntry, EntrySerializer serializer)
     {
         var versionLocal = newEntry.SystemProperties.Version;
         var versionCloud = cloudEntry.SystemProperties.Version;
 
-        return versionLocal != versionCloud;
+        if (versionLocal != versionCloud) return false;
+
+        return true;
     }
 }
 

@@ -355,8 +355,9 @@ public sealed class GetDataCommand : WebCommand<GetDataCommand.Settings>
         }
     }
 
-    private async Task<Dictionary<string, string>> CompareAndUpdateResults(List<Dictionary<string, string>> newRecords, EntrySerializer contentSerializer,
-         string contentTypeId, string contentKeyField, string contentDisplayField, HashSet<string> ignoreFields)
+    private async Task<Dictionary<string, string>> CompareAndUpdateResults(List<Dictionary<string, string>> newRecords,
+        EntrySerializer contentSerializer,
+        string contentTypeId, string contentKeyField, string contentDisplayField, HashSet<string> ignoreFields)
     {
         if (ContentfulManagementClient is null) return [];
 
