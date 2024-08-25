@@ -537,7 +537,7 @@ public class BulkActionExecutor
 
         _contentTypeDefinition = await _contentfulConnection.ManagementClient.GetContentType(_contentType);
 
-        List<BulkItem> allEntries = new();
+        List<BulkItem> allEntries = [];
 
         if (bulkAction != BulkAction.Upsert)
         {

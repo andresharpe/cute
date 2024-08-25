@@ -34,23 +34,23 @@ public sealed class EditCommand : LoggedInCommand<EditCommand.Settings>
     public class Settings : CommandSettings
     {
         [CommandOption("-c|--content-type")]
-        [Description("Specifies the content type to download data for")]
+        [Description("Specifies the content type to bulk edit.")]
         public string ContentType { get; set; } = null!;
 
         [CommandOption("-f|--field")]
-        [Description("The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)")]
+        [Description("The field to update.")]
         public string[] Fields { get; set; } = null!;
 
         [CommandOption("-v|--value")]
-        [Description("The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)")]
+        [Description("The format value to update it with. Can contain an expression.")]
         public string[] Values { get; set; } = null!;
 
         [CommandOption("-l|--locale")]
-        [Description("The locale to update if appliacable.")]
+        [Description("The locale to update if applicable.")]
         public string Locale { get; set; } = null!;
 
         [CommandOption("-a|--apply")]
-        [Description("Apply and publish all the calculated changes. The default behaviour is to only list the detected changes.")]
+        [Description("Apply and publish all the required edits. The default behaviour is to only list the detected changes.")]
         public bool Apply { get; set; } = false;
     }
 
