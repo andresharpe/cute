@@ -18,6 +18,16 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cute.Lib", "source\Cute.Lib
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Cute.PythonServer", "source\Cute.PythonServer\Cute.PythonServer.pyproj", "{A55BBF14-8A1F-49FA-8B5A-A478694F42E1}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{15E6A00B-B758-4F7F-BE14-49B64F386125}"
+	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
+		.gitattributes = .gitattributes
+		.gitignore = .gitignore
+		GitVersion.yml = GitVersion.yml
+		LICENSE.txt = LICENSE.txt
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
