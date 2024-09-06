@@ -1,3 +1,5 @@
+[![Nuget][version-shield]][version-url][![contributors][contributors-shield]][contributors-url][![issues][issues-shield]][issues-url][![stars][stars-shield]][stars-url][![build][build-shield]][build-url][![forks][forks-shield]][forks-url]
+
 # Contentful Update Tool & Extractor
 
 ![image](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-logo.png)
@@ -6,8 +8,8 @@
 
 ***cute*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing, AI generation and uploads to and from a Contentful space and supports the following :-
 
-- **CSV** - Contentful -> Comma delimeted files -> Contentful
-- **TSV** - Contentful -> Tab delimeted files -> Contentful
+- **CSV** - Contentful -> Comma delimited files -> Contentful
+- **TSV** - Contentful -> Tab delimited files -> Contentful
 - **Excel** - Contentful -> Excel xlsx workbook -> Contentful
 - **Json** - Contentful -> Json -> Contentful
 - **Yaml** - Contentful -> Yaml -> Contentful
@@ -31,7 +33,7 @@ sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0
 ```
 
 ### Then:
-On windows you may have to close and re-open the command line propt (or Windows Terminal).
+On windows you may have to close and re-open the command line prompt (or Windows Terminal).
 
 Install the ***cute*** cli by typing.
 ```
@@ -67,17 +69,17 @@ cute info
 ![cut info screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/info.png)
 
 ## Downloading data
-The default format is 'excel' so the following is equivelent.
+The default format is 'excel' so the following is equivalent.
 ```
 cute download --content-type <contentType> 
 
 cute download --content-type <contentType> --format excel
 ```
-For comma seperated values:
+For comma separated values:
 ```
 cute download --content-type <contentType> --format csv
 ```
-For tab seperated values:
+For tab separated values:
 ```
 cute download --content-type <contentType> --format tsv
 ```
@@ -109,7 +111,7 @@ You can upload content from a local file to contentful. The local file can be a 
 
 ![cute upload progress screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload-progress.png)
 
-Changes are only applied to Contentful if `--apply` is specified. By default no changes will be applied so it works a bit like a "what-if" powershel switch without `--apply`.
+Changes are only applied to Contentful if `--apply` is specified. By default no changes will be applied so it works a bit like a "what-if" powershell switch without `--apply`.
 
 ![cute upload screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload.png)
 
@@ -122,14 +124,14 @@ USAGE:
 OPTIONS:
     -h, --help            Prints help information
     -c, --content-type    Specifies the content type to download data for
-    -p, --path            The local path to the file containg the data to sync
+    -p, --path            The local path to the file containing the data to sync
     -f, --format          The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)
     -a, --apply           Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
 ```
 
 ## For generating strong Javascript or Dotnet types
 
-You can generate stronly typed classes for both c# and TypeScript usinh `cute`.
+You can generate strongly typed classes for both c# and TypeScript using `cute`.
 
 ```
 USAGE:
@@ -174,7 +176,7 @@ OPTIONS:
 
 ## New: Proposed Command Structure for v2.0
 
-`cute` has rapidly grown in features and needs a little refactoring to make the commands more consistent, memorable, intuative and future-proof.
+`cute` has rapidly grown in features and needs a little refactoring to make the commands more consistent, memorable, intuitive and future-proof.
 
 Here is the new proposed command structure for v2.0:-
 
@@ -209,7 +211,7 @@ Except for login/logout (verb commands) that is used infrequently (mainly once),
 ||--space-id \<space-id>|Specify the space to operate on|
 ||--environment-id \<environment-id>|Specify the environment to operate onm|
 ||--profile \<name>|Use a specific profile by name|
-||--preview|Specify whether unpublished entries will be icluded in the download|
+||--preview|Specify whether unpublished entries will be included in the download|
 ||--apply|By default all create/update/delete commands will only show changes that could change Contentful data (i.e. "what-if" or "safe" mode). This switch applies the changes! (be careful)|
 ||--publish|By default all applied create/update/delete commands will only be hanged and not published. This switch will publish after a change. 
 ||--help|Shows help|
@@ -315,4 +317,28 @@ Except for login/logout (verb commands) that is used infrequently (mainly once),
 ||--port \<port-number>|Specify the port number for the http interface to the web server|
 |cute server webhooks||Services Contentful webhooks to automatically invoke the appropriate generation and translation services.|
 ||- --port \<port-number>|Specify the port number for the web server!
-|cute version||Shows the cuttent version of cute without a banner|
+|cute version||Shows the current version of cute without a banner|
+
+[version-shield]: https://img.shields.io/nuget/v/cute.svg?style=for-the-badge
+
+[version-url]: https://www.nuget.org/packages/cute
+
+[build-shield]: https://img.shields.io/github/actions/workflow/status/andresharpe/cute/cute-cd.yaml?branch=main&event=push&label=Build&style=for-the-badge
+
+[build-url]: https://github.com/andresharpe/cute/actions/workflows/cute-cd.yaml?query=branch%3Amain
+
+[contributors-shield]: https://img.shields.io/github/contributors/andresharpe/cute.svg?style=for-the-badge
+
+[contributors-url]: https://github.com/andresharpe/cute/graphs/contributors
+
+[forks-shield]: https://img.shields.io/github/forks/andresharpe/cute.svg?style=for-the-badge
+
+[forks-url]: https://github.com/andresharpe/cute/network/members
+
+[stars-shield]: https://img.shields.io/github/stars/andresharpe/cute.svg?style=for-the-badge
+
+[stars-url]: https://github.com/andresharpe/cute/stargazers
+
+[issues-shield]: https://img.shields.io/github/issues/andresharpe/cute.svg?style=for-the-badge
+
+[issues-url]: https://github.com/andresharpe/cute/issues
