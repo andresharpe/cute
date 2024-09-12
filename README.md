@@ -1,24 +1,41 @@
-# Contentful Update Tool & Extractor
+[![Nuget][version-shield]][version-url][![contributors][contributors-shield]][contributors-url][![issues][issues-shield]][issues-url][![stars][stars-shield]][stars-url][![build][build-shield]][build-url][![forks][forks-shield]][forks-url]
 
-![image](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-logo.png)
+<br /><div align="center"><a href="https://github.com/andresharpe/cute"><img src="https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-logo.png" alt="Logo" width="500"></a></div>
 
-## Introduction 
+<p align="center">A Contentful Update Tool & Extractor</p>
 
-***cute*** is a stand-alone  cross-platform command line interface (CLI) that allows bulk downloads, editing, AI generation and uploads to and from a Contentful space and supports the following :-
+<div align="center"><a href="https://github.com/andresharpe/cute/tree/master/source">View the Source Code</a> · <a href="https://www.nuget.org/packages/cute">Download @ Nuget</a></div><br />
 
-- **CSV** - Contentful -> Comma delimeted files -> Contentful
-- **TSV** - Contentful -> Tab delimeted files -> Contentful
-- **Excel** - Contentful -> Excel xlsx workbook -> Contentful
-- **Json** - Contentful -> Json -> Contentful
-- **Yaml** - Contentful -> Yaml -> Contentful
+# Introduction
 
-You can also generate types for JavaScript or dotnet to keep your project in sync with your content space.
+***cute*** is a cross-platform CLI tool that brings several advanced features and capabilities to working with your content hosted on [Contentful](https://www.contentful.com).
 
-[Contentful](https://www.contentful.com/) is a headless content management system (CMS) that allows teams to store, manage and retrieve content for websites and apps.
+<br /><div align="center"><img src="https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-overview-graphic.png" alt="cute help screenshot" width="70%"><br /></div>
 
-## Installation
+## Key Features
 
-### Firstly, make sure you have the Dotnet SDK 8.0 package installed.
+- Bulk processing capabilities lets you download, modify and upload data in most popular formats including Comma delimited files (CSV), Tab delimited files (TSV), MS-Excel workbooks (XLSX), Javascript Object Notation (JSON) and YAML.
+- Input data can be sourced and synced from many external sources including flat files, databases, webAPIs or other popular sources like [WikiData](https://www.wikidata.org/).
+- Content can be enriched or even generated using popular technologies like [OpenAI](https://openai.com/) and [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator).
+- Deploy ***cute*** as a Web Server with [OpenTelemetry](https://opentelemetry.io/) compliant logging and a service terminal to reflect health, configuration and scheduled tasks.
+- Support for structural subtyping through the `typegen` command option which exports TypeScript (TS) interface declarations. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
+- ***cute*** auto-magically "learns" your Contentful space and generates required configuration nodes to enable process automation.
+
+## Why Contentful?
+
+[Contentful](https://www.contentful.com) is a content infrastructure platform that lets you create, manage and distribute content to any platform.
+
+Contentful bills itself as a Content Infrastructure Platform rather than a traditional Content Management System (CMS) that is often no more than a simple web publishing tool.
+
+It aims to transcend traditional Content Management Systems (CMS) by structuring its technology offering around three principals:
+
+- Firstly, by enabling the definition of a content model which is independent from the presentation layer.
+- Secondly, if offers a easy-to-use UI to manage content in a collaborative manner.
+- Finally, content is served in a presentation independent manner.
+
+# Installation
+
+## Firstly, make sure you have the Dotnet SDK 8.0 package installed.
 
 For windows (cmd or powershell):
 ```
@@ -30,15 +47,15 @@ Or, on linux and iOS
 sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0
 ```
 
-### Then:
-On windows you may have to close and re-open the command line propt (or Windows Terminal).
+## Then:
+On windows you may have to close and re-open the command line prompt (or Windows Terminal).
 
 Install the ***cute*** cli by typing.
 ```
 dotnet tool install -g cute
 ```
 
-### To test whether the installation worked
+## To test whether the installation worked
 Simply type
 ```
 cute
@@ -46,38 +63,38 @@ cute
 This will display the 
 cute help. You are ready to go! 🚀
 
-## Getting Help
+# Getting Help
 
 ```
 cute --help
 ```
 ![cute help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/help.png)
 
-## Logging into Contentful
+# Logging into Contentful
 ```
 cute login
 ```
 
 ![cut auth screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/login.png)
 
-## Display space summary
+# Display space summary
 ``` 
 cute info
 ```
 ![cut info screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/info.png)
 
-## Downloading data
-The default format is 'excel' so the following is equivelent.
+# Downloading data
+The default format is 'excel' so the following is equivalent.
 ```
 cute download --content-type <contentType> 
 
 cute download --content-type <contentType> --format excel
 ```
-For comma seperated values:
+For comma separated values:
 ```
 cute download --content-type <contentType> --format csv
 ```
-For tab seperated values:
+For tab separated values:
 ```
 cute download --content-type <contentType> --format tsv
 ```
@@ -103,13 +120,13 @@ OPTIONS:
     -f, --format          The output format for the download operation (Excel/Csv/Tsv/Json/Yaml)
 ```
 
-## Uploading/synchronizing data
+# Uploading/synchronizing data
 
 You can upload content from a local file to contentful. The local file can be a previously downloaded and updated excel, sdv, tsv, json or yaml file.
 
 ![cute upload progress screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload-progress.png)
 
-Changes are only applied to Contentful if `--apply` is specified. By default no changes will be applied so it works a bit like a "what-if" powershel switch without `--apply`.
+Changes are only applied to Contentful if `--apply` is specified. By default no changes will be applied so it works a bit like a "what-if" powershell switch without `--apply`.
 
 ![cute upload screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload.png)
 
@@ -122,14 +139,14 @@ USAGE:
 OPTIONS:
     -h, --help            Prints help information
     -c, --content-type    Specifies the content type to download data for
-    -p, --path            The local path to the file containg the data to sync
+    -p, --path            The local path to the file containing the data to sync
     -f, --format          The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)
     -a, --apply           Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
 ```
 
-## For generating strong Javascript or Dotnet types
+# For generating strong Javascript or Dotnet types
 
-You can generate stronly typed classes for both c# and TypeScript usinh `cute`.
+You can generate strongly typed classes for both c# and TypeScript using `cute`.
 
 ```
 USAGE:
@@ -143,7 +160,7 @@ OPTIONS:
     -n, --namespace       The optional namespace for the generated type
 ```
 
-## Content generation using OpenAI
+# Content generation using OpenAI
 
 You can generate content using OpenAI in bulk. Prompts are retrieved from your Contentful space. A typical prompt entry has an id, a system message, a prompt, points to a content type and field.  Something like :-
 
@@ -172,20 +189,20 @@ OPTIONS:
 ```
 
 
-## New: Proposed Command Structure for v2.0
+# New: Proposed Command Structure for v2.0
 
-`cute` has rapidly grown in features and needs a little refactoring to make the commands more consistent, memorable, intuative and future-proof.
+`cute` has rapidly grown in features and needs a little refactoring to make the commands more consistent, memorable, intuitive and future-proof.
 
 Here is the new proposed command structure for v2.0:-
 
-### Main Commands
+## Main Commands
 
-#### Verb Commands
+### Verb Commands
 ```
 cute login ...
 cute logout ...
 ```
-#### Noun Commands
+### Noun Commands
 ```
 cute info
 cute profile ...
@@ -209,7 +226,7 @@ Except for login/logout (verb commands) that is used infrequently (mainly once),
 ||--space-id \<space-id>|Specify the space to operate on|
 ||--environment-id \<environment-id>|Specify the environment to operate onm|
 ||--profile \<name>|Use a specific profile by name|
-||--preview|Specify whether unpublished entries will be icluded in the download|
+||--preview|Specify whether unpublished entries will be included in the download|
 ||--apply|By default all create/update/delete commands will only show changes that could change Contentful data (i.e. "what-if" or "safe" mode). This switch applies the changes! (be careful)|
 ||--publish|By default all applied create/update/delete commands will only be hanged and not published. This switch will publish after a change. 
 ||--help|Shows help|
@@ -315,4 +332,28 @@ Except for login/logout (verb commands) that is used infrequently (mainly once),
 ||--port \<port-number>|Specify the port number for the http interface to the web server|
 |cute server webhooks||Services Contentful webhooks to automatically invoke the appropriate generation and translation services.|
 ||- --port \<port-number>|Specify the port number for the web server!
-|cute version||Shows the cuttent version of cute without a banner|
+|cute version||Shows the current version of cute without a banner|
+
+[version-shield]: https://img.shields.io/nuget/v/cute.svg?style=for-the-badge
+
+[version-url]: https://www.nuget.org/packages/cute
+
+[build-shield]: https://img.shields.io/github/actions/workflow/status/andresharpe/cute/cute-cd.yaml?branch=main&event=push&label=Build&style=for-the-badge
+
+[build-url]: https://github.com/andresharpe/cute/actions/workflows/cute-cd.yaml?query=branch%3Amain
+
+[contributors-shield]: https://img.shields.io/github/contributors/andresharpe/cute.svg?style=for-the-badge
+
+[contributors-url]: https://github.com/andresharpe/cute/graphs/contributors
+
+[forks-shield]: https://img.shields.io/github/forks/andresharpe/cute.svg?style=for-the-badge
+
+[forks-url]: https://github.com/andresharpe/cute/network/members
+
+[stars-shield]: https://img.shields.io/github/stars/andresharpe/cute.svg?style=for-the-badge
+
+[stars-url]: https://github.com/andresharpe/cute/stargazers
+
+[issues-shield]: https://img.shields.io/github/issues/andresharpe/cute.svg?style=for-the-badge
+
+[issues-url]: https://github.com/andresharpe/cute/issues
