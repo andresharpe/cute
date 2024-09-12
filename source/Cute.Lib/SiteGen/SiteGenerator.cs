@@ -1,6 +1,6 @@
 ﻿using Contentful.Core.Search;
 using Cute.Lib.Contentful;
-using Cute.Lib.GraphQL;
+using Cute.Lib.Contentful.GraphQL;
 using Cute.Lib.Scriban;
 using Cute.Lib.SiteGen.Models;
 using Newtonsoft.Json.Linq;

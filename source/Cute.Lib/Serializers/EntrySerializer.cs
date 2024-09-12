@@ -1,5 +1,5 @@
 ﻿using Contentful.Core.Models;
-using Contentful.Core.Models.Management;
+using Cute.Lib.Contentful;
 using Cute.Lib.Extensions;
 using Newtonsoft.Json.Linq;
 
@@ -9,32 +9,30 @@ public class EntrySerializer
 {
     private readonly ContentType _contentType;
 
-    private readonly IEnumerable<Locale> _locales;
-
     private readonly Dictionary<string, EntryFieldSerializer> _fieldSerializers;
 
     private readonly Dictionary<string, EntryFieldSerializer> _fields;
 
-    public IEnumerable<string> Locales => _locales.Select(l => l.Code);
-
-    public string DefaultLocale => _locales.First(l => l.Default).Code;
+    private readonly string[] _locales;
 
     public IEnumerable<string> ColumnFieldNames => _sysFields.Concat(_fieldSerializers.Keys);
 
-    public EntrySerializer(ContentType contentType, IEnumerable<Locale> locales)
+    public EntrySerializer(ContentType contentType, ContentLocales contentLocales)
     {
         _contentType = contentType;
-        _locales = locales;
-
+        _locales = contentLocales.GetAllLocales();
         _fieldSerializers = [];
         _fields = [];
 
-        var allLocaleCodes = Locales.ToArray();
-        var defaultLocaleCodes = new string[] { this.DefaultLocale };
+        var allLocaleCodes = _locales;
+
+        string[] defaultLocaleCodes = [contentLocales.DefaultLocale];
 
         foreach (var field in _contentType.Fields)
         {
-            var localesToProcess = field.Localized ? allLocaleCodes : defaultLocaleCodes;
+            var localesToProcess = field.Localized
+                ? allLocaleCodes
+                : defaultLocaleCodes;
 
             foreach (var localeCode in localesToProcess)
             {
@@ -86,6 +84,16 @@ public class EntrySerializer
         };
     }
 
+    public IDictionary<string, object?> CreateNewFlatEntry(IDictionary<string, string> flatEntryDefaults)
+    {
+        var flatEntry = CreateNewFlatEntry();
+        foreach (var (key, value) in flatEntryDefaults)
+        {
+            flatEntry[key] = value;
+        }
+        return SerializeEntry(DeserializeEntry(flatEntry)).Where(o => o.Key.StartsWith("sys.") || o.Value is not null).ToDictionary();
+    }
+
     public IDictionary<string, object?> SerializeEntry(Entry<JObject> entry)
     {
         var leanEntry = new Dictionary<string, object?>
@@ -134,20 +142,31 @@ public class EntrySerializer
             Metadata = new()
         };
 
-        if (flatEntry["sys.Id"] is not null) entry.SystemProperties.Id = (string)flatEntry["sys.Id"]!;
-        if (flatEntry["sys.Type"] is not null) entry.SystemProperties.Type = (string)flatEntry["sys.Type"]!;
-        if (flatEntry["sys.UpdatedAt"] is not null) entry.SystemProperties.UpdatedAt = ObjectExtensions.FromInvariantDateTime(flatEntry["sys.UpdatedAt"]!);
-        if (flatEntry["sys.Version"] is not null) entry.SystemProperties.Version = Convert.ToInt32(flatEntry["sys.Version"]!);
-        if (flatEntry["sys.PublishedVersion"] is not null) entry.SystemProperties.PublishedVersion = Convert.ToInt32(flatEntry["sys.PublishedVersion"]!);
-        if (flatEntry["sys.PublishedCounter"] is not null) entry.SystemProperties.PublishCounter = Convert.ToInt32(flatEntry["sys.PublishedCounter"]!);
-        if (flatEntry["sys.PublishedAt"] is not null) entry.SystemProperties.PublishedAt = ObjectExtensions.FromInvariantDateTime(flatEntry["sys.PublishedAt"]!);
-        if (flatEntry["sys.FirstPublishedAt"] is not null) entry.SystemProperties.FirstPublishedAt = ObjectExtensions.FromInvariantDateTime(flatEntry["sys.FirstPublishedAt"]!);
-        if (flatEntry["sys.ContentType"] is not null) entry.SystemProperties.ContentType.SystemProperties.Id = (string)flatEntry["sys.ContentType"]!;
-        if (flatEntry["sys.Space"] is not null) entry.SystemProperties.Space.SystemProperties.Id = (string)flatEntry["sys.Space"]!;
-        if (flatEntry["sys.Environment"] is not null) entry.SystemProperties.Environment.SystemProperties.Id = (string)flatEntry["sys.Environment"]!;
+        if (flatEntry.TryGetValue("sys.Id",
+            out var obj) && obj is not null) entry.SystemProperties.Id = (string)obj;
+        if (flatEntry.TryGetValue("sys.Type",
+            out obj) && obj is not null) entry.SystemProperties.Type = (string)obj;
+        if (flatEntry.TryGetValue("sys.UpdatedAt",
+            out obj) && obj is not null) entry.SystemProperties.UpdatedAt = ObjectExtensions.FromInvariantDateTime(obj);
+        if (flatEntry.TryGetValue("sys.Version",
+            out obj) && obj is not null) entry.SystemProperties.Version = Convert.ToInt32(obj);
+        if (flatEntry.TryGetValue("sys.PublishedVersion",
+            out obj) && obj is not null) entry.SystemProperties.PublishedVersion = Convert.ToInt32(obj);
+        if (flatEntry.TryGetValue("sys.PublishedCounter",
+            out obj) && obj is not null) entry.SystemProperties.PublishCounter = Convert.ToInt32(obj);
+        if (flatEntry.TryGetValue("sys.PublishedAt",
+            out obj) && obj is not null) entry.SystemProperties.PublishedAt = ObjectExtensions.FromInvariantDateTime(obj);
+        if (flatEntry.TryGetValue("sys.FirstPublishedAt",
+            out obj) && obj is not null) entry.SystemProperties.FirstPublishedAt = ObjectExtensions.FromInvariantDateTime(obj);
+        if (flatEntry.TryGetValue("sys.ContentType",
+            out obj) && obj is not null) entry.SystemProperties.ContentType.SystemProperties.Id = (string)obj;
+        if (flatEntry.TryGetValue("sys.Space",
+            out obj) && obj is not null) entry.SystemProperties.Space.SystemProperties.Id = (string)obj;
+        if (flatEntry.TryGetValue("sys.Environment",
+            out obj) && obj is not null) entry.SystemProperties.Environment.SystemProperties.Id = (string)obj;
 
-        var allLocaleCodes = Locales.ToArray();
-        var defaultLocaleCodes = new string[] { this.DefaultLocale };
+        var allLocaleCodes = _locales;
+        var defaultLocaleCodes = _locales[0..1];
 
         foreach (var field in _contentType.Fields)
         {

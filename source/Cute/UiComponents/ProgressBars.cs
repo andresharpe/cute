@@ -13,10 +13,6 @@ internal static class ProgressBars
             .AutoClear(true)
             .Columns(
                 [
-                    new TaskDescriptionColumn()
-                    {
-                        Alignment = Justify.Left
-                    },
                     new ProgressBarColumn()
                     {
                         CompletedStyle = Globals.StyleAlertAccent,
@@ -32,6 +28,10 @@ internal static class ProgressBars
                     new SpinnerColumn()
                     {
                         Style = Globals.StyleSubHeading,
+                    },
+                    new TaskDescriptionColumn()
+                    {
+                        Alignment = Justify.Left
                     },
                 ]
             );

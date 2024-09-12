@@ -6,21 +6,16 @@ using Newtonsoft.Json;
 
 namespace Cute.Services;
 
-public class PersistedTokenCache : IPersistedTokenCache
+public class PersistedTokenCache(
+    IDataProtectionProvider provider) : IPersistedTokenCache
 {
-    private readonly IDataProtectionProvider _provider;
+    private readonly IDataProtectionProvider _provider = provider;
 
-    private const string ProtectorPurpose = $"{Globals.AppName}-settings";
-
-    public PersistedTokenCache(
-        IDataProtectionProvider provider)
-    {
-        _provider = provider;
-    }
+    private const string _protectorPurpose = $"{Globals.AppName}-settings";
 
     public Task SaveAsync(string tokenName, AppSettings settings)
     {
-        var protector = _provider.CreateProtector(ProtectorPurpose);
+        var protector = _provider.CreateProtector(_protectorPurpose);
         var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), $".{tokenName}");
         var content = JsonConvert.SerializeObject(settings);
         return File.WriteAllTextAsync(path, protector.Protect(content));
@@ -28,7 +23,7 @@ public class PersistedTokenCache : IPersistedTokenCache
 
     public async Task<AppSettings?> LoadAsync(string tokenName)
     {
-        var protector = _provider.CreateProtector(ProtectorPurpose);
+        var protector = _provider.CreateProtector(_protectorPurpose);
         var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), $".{tokenName}");
         if (!File.Exists(path)) return TryLoadFromEnvironment();
         var content = await File.ReadAllTextAsync(path);
@@ -41,6 +36,15 @@ public class PersistedTokenCache : IPersistedTokenCache
         {
             throw new CliException($"The secure store may be corrupt. ({path})");
         }
+    }
+
+    public void Clear(string tokenName)
+    {
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), $".{tokenName}");
+
+        if (!File.Exists(path)) return;
+
+        File.Delete(path);
     }
 
     private static AppSettings? TryLoadFromEnvironment()

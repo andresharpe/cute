@@ -18,7 +18,7 @@ internal class CsvOutputAdapter : OutputAdapterBase, IOutputAdapter
             Delimiter = delimeter,
         };
 
-        _writer = new(FileName, false, System.Text.Encoding.UTF8);
+        _writer = new(FileSource, false, System.Text.Encoding.UTF8);
 
         _csv = new CsvWriter(_writer, config);
     }

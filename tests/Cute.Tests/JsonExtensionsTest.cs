@@ -469,7 +469,7 @@ public class JsonExtensionsTest
             }
             """).ToObject<ContentType>() ?? new();
 
-        var cutSerializer = new EntrySerializer(contentType, locales);
+        var cutSerializer = new EntrySerializer(contentType, new Lib.Contentful.ContentLocales([], "en"));
 
         var flatEntry = cutSerializer.SerializeEntry(entry);
 

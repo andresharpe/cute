@@ -20,12 +20,12 @@ public class ContentfulConnection
 
         if (string.IsNullOrEmpty(_contentfulOptions.ManagementApiKey))
         {
-            throw new CliException($"Invalid management api key. Use 'login' command to connect to contentful first.");
+            throw new CliException($"Invalid management API key. Use 'login' command to connect to Contentful first.");
         }
 
         if (string.IsNullOrEmpty(_contentfulOptions.DeliveryApiKey))
         {
-            throw new CliException($"Invalid delivery api key. Use 'login' command to connect to contentful first.");
+            throw new CliException($"Invalid delivery API key. Use 'login' command to connect to Contentful first.");
         }
 
         _contentfulClient = new ContentfulClient(httpClient, _contentfulOptions);

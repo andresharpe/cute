@@ -6,7 +6,7 @@ internal abstract class OutputAdapterBase : IOutputAdapter
 {
     private readonly string _fileName;
 
-    public string FileName => new FileInfo(_fileName).FullName;
+    public string FileSource => new FileInfo(_fileName).FullName;
 
     public OutputAdapterBase(string fileName)
     {

@@ -14,6 +14,15 @@ public static partial class StringExtensions
         return UpperCaseRegex().Replace(input, ";$1").Trim().Split(';');
     }
 
+    public static string RemoveFromEnd(this string original, string toRemove)
+    {
+        if (original.EndsWith(toRemove))
+        {
+            return original[..^toRemove.Length];
+        }
+        return original;
+    }
+
     public static string ToSlug(this string phrase)
     {
         string str = phrase.RemoveAccent().ToLower();

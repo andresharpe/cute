@@ -1,6 +1,7 @@
 ﻿using Contentful.Core;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
+using Cute.Lib.RateLimiters;
 using System.Text;
 
 namespace Cute.Lib.Contentful;
@@ -40,7 +41,8 @@ public static class ContentfulEntryEnumerator
                 fullQueryString.Append(queryString);
             }
 
-            var entries = await client.GetEntriesCollection<T>(fullQueryString.ToString());
+            var entries = await RateLimiter.SendRequestAsync(() => client.GetEntriesCollection<T>(fullQueryString.ToString())
+                );
 
             if (!entries.Any()) break;
 
@@ -78,7 +80,7 @@ public static class ContentfulEntryEnumerator
                 queryConfigurator(queryBuilder);
             }
 
-            var entries = await client.GetEntries(queryBuilder);
+            var entries = await RateLimiter.SendRequestAsync(() => client.GetEntries(queryBuilder));
 
             if (!entries.Any()) break;
 

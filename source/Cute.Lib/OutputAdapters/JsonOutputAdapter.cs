@@ -12,7 +12,7 @@ internal class JsonOutputAdapter : OutputAdapterBase, IOutputAdapter
 
     public JsonOutputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".json")
     {
-        _writer = new(FileName, false, System.Text.Encoding.UTF8);
+        _writer = new(FileSource, false, System.Text.Encoding.UTF8);
 
         _json = new JsonTextWriter(_writer)
         {

@@ -1,4 +1,6 @@
-﻿using Cute.Constants;
+﻿#pragma warning disable CA2254 // Template should be a static expression
+
+using Cute.Constants;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using System.Globalization;
@@ -41,36 +43,6 @@ public partial class ConsoleWriter : IConsoleWriter
     {
         Console?.MarkupLine(Format(text.Format, Globals.StyleHeading, highlightStyle, text.GetArguments()));
         Logger?.LogInformation(text.Format, text.GetArguments());
-    }
-
-    private static string Format(string textTemplate, Style style, Style highlightStyle, params object?[] args)
-    {
-        var matches = ParameterMatch().Matches(textTemplate);
-        var sb = new StringBuilder(textTemplate);
-        var i = 0;
-        foreach (Match m in matches)
-        {
-            if (i > args.Length - 1) break;
-
-            var span = m.ValueSpan[1..^1];
-            var formatPos = span.IndexOf(':');
-            if (formatPos == -1)
-            {
-                sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{args[i]?.ToString()}[/]");
-            }
-            else
-            {
-                var format = span[(formatPos + 1)..].ToString();
-                if (args[i] is IFormattable formattableArg)
-                    sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{formattableArg.ToString(format, CultureInfo.CurrentCulture)}[/]");
-                else
-                    sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{args[i]}[/]");
-            }
-            i++;
-        }
-        sb.Insert(0, $"[{style.Foreground}]");
-        sb.Append("[/]");
-        return sb.ToString();
     }
 
     public void WriteSubHeading(string text)
@@ -144,6 +116,46 @@ public partial class ConsoleWriter : IConsoleWriter
     {
         Console?.WriteLine(text, style);
         Logger?.LogInformation(message: text);
+    }
+
+    public string FormatToMarkup(FormattableString text, Style? normalStyle = null, Style? highlightStyle = null)
+    {
+        normalStyle ??= Globals.StyleNormal;
+
+        highlightStyle ??= Globals.StyleHeading;
+
+        return Format(text.Format, normalStyle, highlightStyle, text.GetArguments());
+    }
+
+    private static string Format(string textTemplate, Style style, Style highlightStyle, params object?[] args)
+    {
+        var matches = ParameterMatch().Matches(textTemplate);
+        var sb = new StringBuilder(textTemplate);
+        var i = 0;
+
+        foreach (Match m in matches)
+        {
+            if (i > args.Length - 1) break;
+
+            var span = m.ValueSpan[1..^1];
+            var formatPos = span.IndexOf(':');
+            if (formatPos == -1)
+            {
+                sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{Markup.Escape(args[i]?.ToString() ?? string.Empty)}[/]");
+            }
+            else
+            {
+                var format = span[(formatPos + 1)..].ToString();
+                if (args[i] is IFormattable formattableArg)
+                    sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{Markup.Escape(formattableArg.ToString(format, CultureInfo.CurrentCulture))}[/]");
+                else
+                    sb.Replace(m.Value, $"[{highlightStyle.Foreground}]{Markup.Escape(args[i]?.ToString() ?? string.Empty)}[/]");
+            }
+            i++;
+        }
+        sb.Insert(0, $"[{style.Foreground}]");
+        sb.Append("[/]");
+        return sb.ToString();
     }
 
     public void WriteException(Exception ex)

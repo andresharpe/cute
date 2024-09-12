@@ -7,7 +7,7 @@ internal static class Globals
 {
     public const string AppName = "cute";
     public const string AppLongName = "Contentful Update Tool & Extractor";
-    public const string AppDescription = "Upload and download Contentful content to Excel/Csv/Tsv/Yaml/Json/REST. Content generator and translator (LLM).";
+    public const string AppDescription = "Bulk download/upload/edit/publish/unpublish and delete Contentful content from and to Excel/Csv/Tsv/Yaml/Json/REST. A.I. content generator and translator.";
     public const string AppMoreInfo = "https://github.com/andresharpe/cute";
     public static readonly string AppVersion = VersionChecker.GetInstalledCliVersion();
 

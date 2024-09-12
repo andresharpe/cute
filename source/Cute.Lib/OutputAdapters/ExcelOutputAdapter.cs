@@ -88,6 +88,6 @@ internal class ExcelOutputAdapter : OutputAdapterBase
     public override void Save()
     {
         _sheet.Columns().AdjustToContents();
-        _workbook.SaveAs(FileName);
+        _workbook.SaveAs(FileSource);
     }
 }

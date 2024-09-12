@@ -1,10 +1,8 @@
-﻿using System.Data;
-
-namespace Cute.Lib.OutputAdapters;
+﻿namespace Cute.Lib.OutputAdapters;
 
 public interface IOutputAdapter : IDisposable
 {
-    string FileName { get; }
+    string FileSource { get; }
 
     void AddHeadings(IEnumerable<string> headings);
 

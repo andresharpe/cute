@@ -205,7 +205,18 @@ internal class EntryFieldSerializer
 
         if (date == DateTime.MinValue) return null;
 
-        return date;
+        // Contentful doesn't support milliseconds although it states it is ISO 8601 compliant :(
+        var dateTimeWithoutMilliseconds = new DateTime(
+            date.Year,
+            date.Month,
+            date.Day,
+            date.Hour,
+            date.Minute,
+            date.Second,
+            date.Kind
+        );
+
+        return dateTimeWithoutMilliseconds;
     }
 
     private static string? ToObjectString(object? value)

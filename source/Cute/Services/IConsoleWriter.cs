@@ -40,4 +40,5 @@ public interface IConsoleWriter
     void WriteNormalWithHighlights(FormattableString text, Style highlightStyle);
 
     void WriteHeadingWithHighlights(FormattableString text, Style highlightStyle);
+    string FormatToMarkup(FormattableString text, Style? normalStyle = null, Style? highlightStyle = null);
 }
