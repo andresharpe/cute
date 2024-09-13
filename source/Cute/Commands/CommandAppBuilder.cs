@@ -135,6 +135,9 @@ public class CommandAppBuilder
                 branchConfig.AddCommand<ContentGenerateCommand>("generate")
                     .WithDescription("Generate content using a Large Language Model (LLM).");
 
+                branchConfig.AddCommand<ContentGenerateTestCommand>("generate-test")
+                    .WithDescription("Test generation of content using a Large Language Model (LLM).");
+
                 branchConfig.AddCommand<ContentTranslateCommand>("translate")
                     .WithDescription("Translate content using an LLM or Translation Service.");
 

@@ -450,7 +450,7 @@ public class GenerateBulkAction(
         );
     }
 
-    private JArray ToArray(string promptResult, Schema items, string fieldId, Field fieldDefinition)
+    private static JArray ToArray(string promptResult, Schema items, string fieldId, Field fieldDefinition)
     {
         return items.Type switch
         {
@@ -459,7 +459,7 @@ public class GenerateBulkAction(
         };
     }
 
-    private JArray ToFormattedStringArray(string promptResult)
+    private static JArray ToFormattedStringArray(string promptResult)
     {
         var elements = promptResult
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
@@ -558,8 +558,11 @@ public class GenerateBulkAction(
 
     private async Task<JArray?> GetQueryData(CuteContentGenerate metaPrompt)
     {
+        // Add the target field to the query if it doesn't exist...
+        var query = GraphQLValidator.EnsureFieldExistsOrAdd(metaPrompt.CuteDataQueryEntry.Query, metaPrompt.PromptOutputContentField);
+
         return await _graphQlClient.GetData(
-            metaPrompt.CuteDataQueryEntry.Query,
+            query,
             metaPrompt.CuteDataQueryEntry.JsonSelector,
             metaPrompt.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en");
     }

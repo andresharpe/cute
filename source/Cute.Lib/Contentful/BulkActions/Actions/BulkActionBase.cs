@@ -425,7 +425,7 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
     {
         progressUpdater?.Invoke(new(0, 1, $"Reading Contentful entries for '{_contentTypeId}'.", null));
 
-        _withEntries = _withEntries ?? await GetAllEntries(progressUpdater);
+        _withEntries ??= await GetAllEntries(progressUpdater);
 
         var count = Math.Max(_withEntries.Count, 1);
 

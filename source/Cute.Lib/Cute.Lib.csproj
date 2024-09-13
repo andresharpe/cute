@@ -16,6 +16,7 @@
     <PackageReference Include="dotenv.net" Version="3.2.0" />
     <PackageReference Include="FluentScheduler" Version="5.5.1" />
     <PackageReference Include="FuzzySharp" Version="2.0.2" />
+    <PackageReference Include="GraphQL-Parser" Version="9.5.0" />
     <PackageReference Include="Html2Markdown" Version="7.0.0.8" />
     <PackageReference Include="NCrontab.Scheduler.AspNetCore" Version="1.2.10" />
     <PackageReference Include="Nox.Cron" Version="8.0.5" />
