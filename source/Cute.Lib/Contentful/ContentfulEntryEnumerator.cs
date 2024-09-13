@@ -1,4 +1,5 @@
 ﻿using Contentful.Core;
+using Contentful.Core.Errors;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Cute.Lib.RateLimiters;
@@ -41,8 +42,26 @@ public static class ContentfulEntryEnumerator
                 fullQueryString.Append(queryString);
             }
 
-            var entries = await RateLimiter.SendRequestAsync(() => client.GetEntriesCollection<T>(fullQueryString.ToString())
-                );
+            ContentfulCollection<T>? entries = null;
+            try
+            {
+                entries = await RateLimiter.SendRequestAsync(() => client.GetEntriesCollection<T>(fullQueryString.ToString()));
+            }
+            catch (Exception ex)
+            {
+                //TODO: Handle this better
+                if (ex.InnerException is ContentfulException ce)
+                {
+                    if (ce.Message.StartsWith("Response size too big. Maximum allowed response size:"))
+                    {
+                        pageSize /= 2;
+                        continue;
+                    }
+                }
+                throw;
+            }
+
+            if (entries is null) break;
 
             if (!entries.Any()) break;
 
@@ -80,7 +99,26 @@ public static class ContentfulEntryEnumerator
                 queryConfigurator(queryBuilder);
             }
 
-            var entries = await RateLimiter.SendRequestAsync(() => client.GetEntries(queryBuilder));
+            ContentfulCollection<T>? entries = null;
+            try
+            {
+                entries = entries = await RateLimiter.SendRequestAsync(() => client.GetEntries(queryBuilder));
+            }
+            catch (Exception ex)
+            {
+                //TODO: Handle this better
+                if (ex.InnerException is ContentfulException ce)
+                {
+                    if (ce.Message.StartsWith("Response size too big. Maximum allowed response size:"))
+                    {
+                        pageSize /= 2;
+                        continue;
+                    }
+                }
+                throw;
+            }
+
+            if (entries is null) break;
 
             if (!entries.Any()) break;
 

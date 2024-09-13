@@ -69,7 +69,7 @@ public static class RateLimiter
                 if (retryAttempt > _retryLimit)
                 {
                     errorNotifier?.Invoke($"Too many retries. {ex.Message}.");
-                    throw new CliException($"Too many retries. {ex.Message}");
+                    throw new CliException($"Too many retries. {ex.Message}",ex);
                 }
 
                 retryAttempt++;

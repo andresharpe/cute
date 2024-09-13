@@ -59,6 +59,8 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
+        var x = ContentTypes.Select(ct => ct.Name);
+
         settings.ContentTypeId = ResolveContentTypeId(settings.ContentTypeId) ??
             throw new CliException("You need to specify a content type to download.");
 
