@@ -1,11 +1,12 @@
-﻿using Spectre.Console;
+﻿using Cute.Constants;
+using Spectre.Console;
 using System.Reflection;
 
 namespace Cute.Services;
 
 public static class VersionChecker
 {
-    private const string _projectReleasePage = "https://github.com/andresharpe/cut/releases/latest";
+    private const string _projectReleasePage = $"https://github.com/andresharpe/{Globals.AppName}/releases/latest";
 
     public static async Task CheckForLatestVersion()
     {
@@ -60,9 +61,9 @@ public static class VersionChecker
 
                 cw.WriteDim("");
                 cw.WriteBlankLine();
-                cw.WriteAlert($"This version of 'cut' ({installedVersion}) is older than that of the latest version ({latestVersion}). Update the tool for the latest features and bug fixes:");
+                cw.WriteAlert($"This version of '{Globals.AppName}' ({installedVersion}) is older than that of the latest version ({latestVersion}). Update the tool for the latest features and bug fixes:");
                 cw.WriteBlankLine();
-                cw.WriteAlertAccent("dotnet tool update -g cut");
+                cw.WriteAlertAccent($"dotnet tool update -g {Globals.AppName}");
                 cw.WriteBlankLine();
             }
         }
