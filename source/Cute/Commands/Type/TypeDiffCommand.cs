@@ -1,18 +1,19 @@
-﻿using Contentful.Core.Models;
-using Cute.Commands.BaseCommands;
+﻿using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Services;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 using Spectre.Console.Cli;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Text;
+using Contentful.Core.Models;
 using File = System.IO.File;
+using System.Diagnostics;
+using System.ComponentModel;
+using System.Net.Http;
 
 namespace Cute.Commands.Type;
 
@@ -57,8 +58,8 @@ public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
         _console.WriteNormalWithHighlights($"{contentTypesEnv.Count} found in environment {settings.SourceEnvironment}", Globals.StyleHeading);
 
         List<ContentType> contentTypesMain = string.IsNullOrEmpty(settings.ContentTypeId)
-            ? (await ContentfulManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
-            : [await ContentfulManagementClient.GetContentType(settings.ContentTypeId)];
+            ? ContentTypes.OrderBy(ct => ct.Name).ToList()
+            : [ContentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == settings.ContentTypeId)];
 
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"{contentTypesMain.Count} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
