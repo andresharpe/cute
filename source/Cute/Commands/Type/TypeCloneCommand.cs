@@ -71,7 +71,7 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
             throw new CliException(ex.Message);
         }
 
-        targetContentType = ContentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == contentTypeId);
+        targetContentType = GetContentTypeOrThrowError(contentTypeId);
 
         if (targetContentType is null)
         {
