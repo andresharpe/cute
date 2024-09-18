@@ -49,7 +49,7 @@ public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> lo
 
         List<ContentType> targetEnvContentTypes = string.IsNullOrEmpty(settings.ContentTypeId)
             ? ContentTypes.OrderBy(ct => ct.Name).ToList()
-            : [ContentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == settings.ContentTypeId)];
+            : [GetContentTypeOrThrowError(settings.ContentTypeId)];
 
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"{targetEnvContentTypes.Count} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
