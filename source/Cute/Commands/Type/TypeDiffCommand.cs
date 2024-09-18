@@ -1,25 +1,25 @@
-﻿using Cute.Commands.BaseCommands;
+﻿using Contentful.Core.Models;
+using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Services;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Spectre.Console.Cli;
-using System.Text;
-using Contentful.Core.Models;
-using File = System.IO.File;
-using System.Diagnostics;
 using System.ComponentModel;
-using System.Net.Http;
+using System.Diagnostics;
+using System.Text;
+using File = System.IO.File;
 
 namespace Cute.Commands.Type;
 
-public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
+public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> logger, ContentfulConnection contentfulConnection,
+    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeDiffCommand.Settings>(console, logger, contentfulConnection, appSettings)
 {
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient _httpClient = httpClient;
 
     public class Settings : LoggedInSettings
     {
@@ -27,54 +27,44 @@ public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
         [Description("Specifies the content type id to generate types for. Default is all.")]
         public string? ContentTypeId { get; set; } = null!;
 
-        [CommandOption("-o|--output")]
-        [Description("The local path to output the generated types to")]
-        public string OutputPath { get; set; } = default!;
-
         [CommandOption("--source-environment-id")]
-        [Description("The optional namespace for the generated type")]
-        public string? SourceEnvironment { get; set; } = default!;
-    }
-
-    public TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings, HttpClient httpClient) : base(console, logger, contentfulConnection, appSettings)
-    {
-        _httpClient = httpClient;
+        [Description("Specifies the source environment id to do comparison against")]
+        public string? SourceEnvironmentId { get; set; } = default!;
     }
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var envOptions = new OptionsForEnvironmentProvider(_appSettings, settings.SourceEnvironment!);
+        var sourceEnvOptions = new OptionsForEnvironmentProvider(_appSettings, settings.SourceEnvironmentId!);
 
-        var envClient = new ContentfulConnection(_httpClient, envOptions);
+        var sourceEnvClient = new ContentfulConnection(_httpClient, sourceEnvOptions);
 
-        _console.WriteNormalWithHighlights($"Comparing content types between environments: {ContentfulEnvironmentId} <--> {settings.SourceEnvironment}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"Comparing content types between environments: {ContentfulEnvironmentId} <--> {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
-        List<ContentType> contentTypesEnv = string.IsNullOrEmpty(settings.ContentTypeId)
-            ? (await envClient.ManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
-            : [await envClient.ManagementClient.GetContentType(settings.ContentTypeId)];
+        List<ContentType> sourceEnvContentTypes = string.IsNullOrEmpty(settings.ContentTypeId)
+            ? (await sourceEnvClient.ManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
+            : [await sourceEnvClient.ManagementClient.GetContentType(settings.ContentTypeId)];
 
         _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"{contentTypesEnv.Count} found in environment {settings.SourceEnvironment}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"{sourceEnvContentTypes.Count} found in environment {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
-        List<ContentType> contentTypesMain = string.IsNullOrEmpty(settings.ContentTypeId)
+        List<ContentType> targetEnvContentTypes = string.IsNullOrEmpty(settings.ContentTypeId)
             ? ContentTypes.OrderBy(ct => ct.Name).ToList()
             : [ContentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == settings.ContentTypeId)];
 
         _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"{contentTypesMain.Count} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"{targetEnvContentTypes.Count} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
 
-        await CompareContentTypes(contentTypesMain, contentTypesEnv, settings.SourceEnvironment!);
+        await CompareContentTypes(targetEnvContentTypes, sourceEnvContentTypes, settings.SourceEnvironmentId!);
 
         return 0;
     }
 
-    private async Task CompareContentTypes(List<ContentType> contentTypesMain, List<ContentType> contentTypesEnv, string otherEnv)
+    private async Task CompareContentTypes(List<ContentType> targetEnvContentTypes, List<ContentType> sourceEnvContentTypes, string otherEnv)
     {
-        var tmpMain = Path.GetTempFileName() + ".cute-diff.json";
-        var tmpEnv = Path.GetTempFileName() + ".cute-diff.json";
+        var tmpTarget = Path.GetTempFileName() + ".cute-diff.json";
+        var tmpSource = Path.GetTempFileName() + ".cute-diff.json";
 
-        var tmpPath = Path.GetDirectoryName(tmpMain);
+        var tmpPath = Path.GetDirectoryName(tmpTarget);
         var oldFiles = Directory.GetFiles(tmpPath!, "*.cute-diff.json");
         foreach (var file in oldFiles)
         {
@@ -83,37 +73,37 @@ public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
 
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"Extracting compare values from {ContentfulEnvironmentId}...", Globals.StyleHeading);
-        var mainObj = contentTypesMain.Select(ExtractTypeInfo).ToList();
+        var targetObj = targetEnvContentTypes.Select(ExtractTypeInfo).ToList();
 
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"Extracting compare values from {otherEnv}...", Globals.StyleHeading);
-        var envObj = contentTypesEnv.Select(ExtractTypeInfo).ToList();
+        var sourceObj = sourceEnvContentTypes.Select(ExtractTypeInfo).ToList();
 
         var now = DateTime.Now;
 
-        var mainWrapper = new
+        var targetWrapper = new
         {
             Environment = ContentfulEnvironmentId,
             RunDate = now,
-            FileName = tmpMain,
-            Results = mainObj
+            FileName = tmpTarget,
+            Results = targetObj
         };
 
-        File.WriteAllText(tmpMain,
-            JsonConvert.SerializeObject(mainWrapper, Formatting.Indented),
+        File.WriteAllText(tmpTarget,
+            JsonConvert.SerializeObject(targetWrapper, Formatting.Indented),
             Encoding.UTF8
         );
 
-        var envWrapper = new
+        var sourceWrapper = new
         {
             Environment = otherEnv,
             RunDate = now,
-            FileName = tmpEnv,
-            Results = envObj
+            FileName = tmpSource,
+            Results = sourceObj
         };
 
-        File.WriteAllText(tmpEnv,
-            JsonConvert.SerializeObject(envWrapper, Formatting.Indented),
+        File.WriteAllText(tmpSource,
+            JsonConvert.SerializeObject(sourceWrapper, Formatting.Indented),
             Encoding.UTF8
         );
 
@@ -121,7 +111,7 @@ public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"Found VS Code at {exeFileName}...", Globals.StyleHeading);
 
-        string arguments = $"--diff \"{tmpMain}\" \"{tmpEnv}\"";
+        string arguments = $"--diff \"{tmpTarget}\" \"{tmpSource}\"";
 
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"Launching: {"code " + arguments}...", Globals.StyleHeading);
@@ -177,7 +167,7 @@ public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
     {
         var obj = JToken.FromObject(c);
 
-        HashSet<string> propertyNames = [
+        HashSet<string> propertyNamesToRemove = [
           "Version",
           "Revision",
           "CreatedAt",
@@ -203,24 +193,24 @@ public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
           "UsagePeriod",
         ];
 
-        RemovePropertyRecursively(obj, propertyNames);
+        RemovePropertyRecursively(obj, propertyNamesToRemove);
 
         return obj;
     }
 
-    private static void RemovePropertyRecursively(JToken token, HashSet<string> propertyNames)
+    private static void RemovePropertyRecursively(JToken token, HashSet<string> propertyNamesToRemove)
     {
         if (token.Type == JTokenType.Object)
         {
             var obj = (JObject)token;
-            foreach (var propertyName in propertyNames)
+            foreach (var propertyName in propertyNamesToRemove)
             {
                 obj.Remove(propertyName);
             }
 
             foreach (var child in obj.Properties())
             {
-                RemovePropertyRecursively(child.Value, propertyNames);
+                RemovePropertyRecursively(child.Value, propertyNamesToRemove);
             }
         }
         else if (token.Type == JTokenType.Array)
@@ -228,7 +218,7 @@ public class TypeDiffCommand : BaseLoggedInCommand<TypeDiffCommand.Settings>
             var array = (JArray)token;
             foreach (var item in array)
             {
-                RemovePropertyRecursively(item, propertyNames);
+                RemovePropertyRecursively(item, propertyNamesToRemove);
             }
         }
     }
