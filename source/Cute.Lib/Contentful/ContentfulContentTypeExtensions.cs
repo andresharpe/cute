@@ -1,10 +1,14 @@
 ﻿using Contentful.Core;
+using Contentful.Core.Configuration;
+using Contentful.Core.Extensions;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Cute.Lib.Extensions;
 using Cute.Lib.RateLimiters;
 using FuzzySharp;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace Cute.Lib.Contentful;
 
@@ -19,10 +23,13 @@ public static class ContentfulContentTypeExtensions
             .First().Id;
     }
 
-    public static async Task CreateWithId(this ContentType contentType,
+    public static async Task<ContentType> CreateWithId(this ContentType contentType,
         ContentfulManagementClient client, string contentTypeId)
     {
-        if (contentType is null) return;
+        if (contentType is null)
+        {
+            return await Task.FromResult(new ContentType());
+        }
 
         contentType.Name = contentType.Name
             .RemoveEmojis()
@@ -40,9 +47,53 @@ public static class ContentfulContentTypeExtensions
 
         // end: hack
 
-        await client.CreateOrUpdateContentType(contentType);
+        contentType = await client.CreateOrUpdateContentType(contentType);
 
         await client.ActivateContentType(contentTypeId, 1);
+
+        return contentType;
+    }
+
+    public static async Task<ContentType> CloneWithId(this ContentType contentType,
+        ContentfulManagementClient client, string contentTypeId)
+    {
+        if (contentType is null)
+        {
+            return await Task.FromResult(new ContentType());
+        }
+
+        var contentTypeJson = contentType.ConvertObjectToJsonString();
+
+        CamelCasePropertyNamesContractResolver camelCasePropertyNamesContractResolver = new CamelCasePropertyNamesContractResolver();
+        camelCasePropertyNamesContractResolver.NamingStrategy!.OverrideSpecifiedNames = false;
+        JsonSerializerSettings jsonSerializerSettings = new JsonSerializerSettings
+        {
+            ContractResolver = camelCasePropertyNamesContractResolver
+        };
+        jsonSerializerSettings.Converters.Add(new ExtensionJsonConverter());
+        var clonedContentType = JsonConvert.DeserializeObject<ContentType>(contentTypeJson, jsonSerializerSettings);
+
+        clonedContentType!.Name = clonedContentType.Name
+            .RemoveEmojis()
+            .Trim();
+
+        if (clonedContentType.SystemProperties.Id != contentTypeId)
+        {
+            clonedContentType.SystemProperties.Id = contentTypeId;
+            clonedContentType.Name = contentTypeId.CamelToPascalCase();
+        }
+
+        // Temp hack: Contentful API does not yet understand Taxonomy Tags
+
+        clonedContentType.Metadata = null;
+
+        // end: hack
+
+        clonedContentType = await client.CreateOrUpdateContentType(clonedContentType);
+
+        await client.ActivateContentType(contentTypeId, 1);
+
+        return clonedContentType;
     }
 
     public static IDictionary<string, int> TotalEntries(this IEnumerable<ContentType> contentTypes,
