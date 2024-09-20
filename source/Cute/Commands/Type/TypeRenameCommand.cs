@@ -21,6 +21,7 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
     AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeRenameCommand.Settings>(console, logger, contentfulConnection, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
+
     public class Settings : LoggedInSettings
     {
         [CommandOption("-c|--content-type")]
@@ -59,6 +60,7 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
         return base.Validate(context, settings);
     }
+
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
         if (settings.ApplyNamingConvention)
@@ -87,16 +89,9 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
             _console.WriteNormalWithHighlights($"The content type {newContentTypeId} does not exist in {ContentfulEnvironmentId}", Globals.StyleHeading);
         }
 
-        try
-        {
-            contentTypeOld = GetContentTypeOrThrowError(oldContentTypeId);
-            _console.WriteBlankLine();
-            _console.WriteNormalWithHighlights($"{oldContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
-        }
-        catch (Exception ex)
-        {
-            throw new CliException(ex.Message);
-        }
+        contentTypeOld = GetContentTypeOrThrowError(oldContentTypeId);
+        _console.WriteBlankLine();
+        _console.WriteNormalWithHighlights($"{oldContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
 
         _console.WriteBlankLine();
 
@@ -104,7 +99,7 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
         if (contentTypeNew is null)
         {
-            contentTypeNew = await contentTypeOld.CloneWithId(ContentfulManagementClient, newContentTypeId);            
+            contentTypeNew = await contentTypeOld.CloneWithId(ContentfulManagementClient, newContentTypeId);
             _console.WriteNormalWithHighlights($"Success. Created {newContentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
         }
         else

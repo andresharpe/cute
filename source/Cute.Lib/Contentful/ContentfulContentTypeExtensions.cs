@@ -23,23 +23,17 @@ public static class ContentfulContentTypeExtensions
             .First().Id;
     }
 
-    public static async Task<ContentType> CreateWithId(this ContentType contentType,
-        ContentfulManagementClient client, string contentTypeId)
+    public static async Task CreateWithId(this ContentType contentType,
+        ContentfulManagementClient client)
     {
         if (contentType is null)
         {
-            return await Task.FromResult(new ContentType());
+            return;
         }
 
         contentType.Name = contentType.Name
             .RemoveEmojis()
             .Trim();
-
-        if (contentType.SystemProperties.Id != contentTypeId)
-        {
-            contentType.SystemProperties.Id = contentTypeId;
-            contentType.Name = contentTypeId.CamelToPascalCase();
-        }
 
         // Temp hack: Contentful API does not yet understand Taxonomy Tags
 
@@ -49,9 +43,7 @@ public static class ContentfulContentTypeExtensions
 
         contentType = await client.CreateOrUpdateContentType(contentType);
 
-        await client.ActivateContentType(contentTypeId, 1);
-
-        return contentType;
+        await client.ActivateContentType(contentType.SystemProperties.Id, 1);
     }
 
     public static async Task<ContentType> CloneWithId(this ContentType contentType,
@@ -62,6 +54,14 @@ public static class ContentfulContentTypeExtensions
             return await Task.FromResult(new ContentType());
         }
 
+        var clonedContentType = JObject.FromObject(contentType).DeepClone().ToObject<ContentType>();
+
+        if (clonedContentType is null)
+        {
+            throw new ArgumentException("This should not occur. Cloning object using Newtonsoft.Json hack failed.");
+        }
+
+        /*
         var contentTypeJson = contentType.ConvertObjectToJsonString();
 
         CamelCasePropertyNamesContractResolver camelCasePropertyNamesContractResolver = new CamelCasePropertyNamesContractResolver();
@@ -73,7 +73,9 @@ public static class ContentfulContentTypeExtensions
         jsonSerializerSettings.Converters.Add(new ExtensionJsonConverter());
         var clonedContentType = JsonConvert.DeserializeObject<ContentType>(contentTypeJson, jsonSerializerSettings);
 
-        clonedContentType!.Name = clonedContentType.Name
+        */
+
+        clonedContentType.Name = clonedContentType.Name
             .RemoveEmojis()
             .Trim();
 
