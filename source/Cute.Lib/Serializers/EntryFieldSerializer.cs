@@ -15,7 +15,7 @@ namespace Cute.Lib.Serializers;
 
 internal class EntryFieldSerializer
 {
-    private const char _arrayDelimeter = ',';
+    private const char _arrayDelimeter = '|';
 
     private static readonly JsonSerializerSettings _jsonSettings = new() { Converters = [new ContentJsonConverter()] };
 
