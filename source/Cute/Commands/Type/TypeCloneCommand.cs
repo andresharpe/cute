@@ -21,7 +21,7 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
     public class Settings : LoggedInSettings
     {
         [CommandOption("-c|--content-type-id <ID>")]
-        [Description("Specifies the content type id to generate types for. Default is all.")]
+        [Description("Specifies the content type id to generate types for.")]
         public string ContentTypeId { get; set; } = null!;
 
         [CommandOption("--source-environment-id")]
@@ -71,14 +71,18 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
             throw new CliException(ex.Message);
         }
 
-        targetContentType = GetContentTypeOrThrowError(contentTypeId);
+        try
+        {
+            targetContentType = GetContentTypeOrThrowError(contentTypeId);
+        }
+        catch { }
 
         if (targetContentType is null)
         {
             _console.WriteNormalWithHighlights($"The content type {contentTypeId} does not exist in {ContentfulEnvironmentId}", Globals.StyleHeading);
             _console.WriteBlankLine();
 
-            await sourceContentType.CreateWithId(ContentfulManagementClient, contentTypeId);
+            targetContentType = await sourceContentType.CloneWithId(ContentfulManagementClient, contentTypeId);
 
             _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
         }
@@ -103,7 +107,7 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
 
             _console.WriteNormalWithHighlights($"Deleted {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
 
-            await sourceContentType.CreateWithId(ContentfulManagementClient, contentTypeId);
+            targetContentType = await sourceContentType.CloneWithId(ContentfulManagementClient, contentTypeId);
 
             _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
         }

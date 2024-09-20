@@ -20,19 +20,16 @@ public static class ContentfulContentTypeExtensions
     }
 
     public static async Task CreateWithId(this ContentType contentType,
-        ContentfulManagementClient client, string contentTypeId)
+        ContentfulManagementClient client)
     {
-        if (contentType is null) return;
+        if (contentType is null)
+        {
+            return;
+        }
 
         contentType.Name = contentType.Name
             .RemoveEmojis()
             .Trim();
-
-        if (contentType.SystemProperties.Id != contentTypeId)
-        {
-            contentType.SystemProperties.Id = contentTypeId;
-            contentType.Name = contentTypeId.CamelToPascalCase();
-        }
 
         // Temp hack: Contentful API does not yet understand Taxonomy Tags
 
@@ -40,9 +37,47 @@ public static class ContentfulContentTypeExtensions
 
         // end: hack
 
-        await client.CreateOrUpdateContentType(contentType);
+        contentType = await client.CreateOrUpdateContentType(contentType);
+
+        await client.ActivateContentType(contentType.SystemProperties.Id, 1);
+    }
+
+    public static async Task<ContentType> CloneWithId(this ContentType contentType,
+        ContentfulManagementClient client, string contentTypeId)
+    {
+        if (contentType is null)
+        {
+            return await Task.FromResult(new ContentType());
+        }
+
+        var clonedContentType = JObject.FromObject(contentType).DeepClone().ToObject<ContentType>();
+
+        if (clonedContentType is null)
+        {
+            throw new ArgumentException("This should not occur. Cloning object using Newtonsoft.Json hack failed.");
+        }
+
+        clonedContentType.Name = clonedContentType.Name
+            .RemoveEmojis()
+            .Trim();
+
+        if (clonedContentType.SystemProperties.Id != contentTypeId)
+        {
+            clonedContentType.SystemProperties.Id = contentTypeId;
+            clonedContentType.Name = contentTypeId.CamelToPascalCase();
+        }
+
+        // Temp hack: Contentful API does not yet understand Taxonomy Tags
+
+        clonedContentType.Metadata = null;
+
+        // end: hack
+
+        clonedContentType = await client.CreateOrUpdateContentType(clonedContentType);
 
         await client.ActivateContentType(contentTypeId, 1);
+
+        return clonedContentType;
     }
 
     public static IDictionary<string, int> TotalEntries(this IEnumerable<ContentType> contentTypes,
