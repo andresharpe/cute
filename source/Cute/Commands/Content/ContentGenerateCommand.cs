@@ -18,10 +18,11 @@ namespace Cute.Commands.Content;
 
 public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGenerateCommand> logger,
     ContentfulConnection contentfulConnection, AppSettings appSettings,
-    GenerateBulkAction generateBulkAction)
+    GenerateBulkAction generateBulkAction, HttpClient httpClient)
     : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
 {
     private readonly GenerateBulkAction _generBulkAction = generateBulkAction;
+    private readonly HttpClient _httpClient = httpClient;
 
     public class Settings : LoggedInSettings
     {

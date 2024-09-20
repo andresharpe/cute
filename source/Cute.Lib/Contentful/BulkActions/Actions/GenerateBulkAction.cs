@@ -10,6 +10,7 @@ using Cute.Lib.Contentful.GraphQL;
 using Cute.Lib.Exceptions;
 using Cute.Lib.RateLimiters;
 using Cute.Lib.Scriban;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
 using Scriban;
@@ -425,13 +426,20 @@ public class GenerateBulkAction(
 
         if (!string.IsNullOrWhiteSpace(oldValue?.ToString())) return;
 
-        JToken replaceValue = fieldDefinition.Type switch
+        JToken? replaceValue = fieldDefinition.Type switch
         {
             "Symbol" or "Text" => promptResult,
+            "Object" => JsonConvert.DeserializeObject<JToken>(promptResult),
             "RichText" => ToRichText(promptResult),
             "Array" => ToArray(promptResult, fieldDefinition.Items, fieldId, fieldDefinition),
             _ => throw new CliException($"Field '{fieldId}' is of type '{fieldDefinition.Type}' which can't store prompt results."),
         };
+
+        if (replaceValue is null)
+        {
+            _displayAction?.Invoke($"The AI result for entry '{id}' could not be converted to '{fieldDefinition.Type}' for field '{fieldId}'. ('{promptResult}')");
+            return;
+        }
 
         oldValueRef[locale] = replaceValue;
 
@@ -442,12 +450,14 @@ public class GenerateBulkAction(
             (m) => displayActions?.DisplayAlert?.Invoke(m.ToString())
         );
 
+        /*
         await RateLimiter.SendRequestAsync(() =>
             _contentfulConnection.ManagementClient.PublishEntry(id, (int)obj.SystemProperties.Version! + 1),
             null,
             null,
             (m) => displayActions?.DisplayAlert?.Invoke(m.ToString())
         );
+        */
     }
 
     private static JArray ToArray(string promptResult, Schema items, string fieldId, Field fieldDefinition)
@@ -455,6 +465,7 @@ public class GenerateBulkAction(
         return items.Type switch
         {
             "Symbol" or "Text" => ToFormattedStringArray(promptResult),
+            "Object" => ToFormattedStringArray(promptResult),
             _ => throw new CliException($"Field '{fieldId}' is of type '{fieldDefinition.Type}' which can't store prompt results."),
         };
     }
