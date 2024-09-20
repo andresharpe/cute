@@ -1,14 +1,10 @@
 ﻿using Contentful.Core;
-using Contentful.Core.Configuration;
-using Contentful.Core.Extensions;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Cute.Lib.Extensions;
 using Cute.Lib.RateLimiters;
 using FuzzySharp;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Serialization;
 
 namespace Cute.Lib.Contentful;
 
@@ -60,20 +56,6 @@ public static class ContentfulContentTypeExtensions
         {
             throw new ArgumentException("This should not occur. Cloning object using Newtonsoft.Json hack failed.");
         }
-
-        /*
-        var contentTypeJson = contentType.ConvertObjectToJsonString();
-
-        CamelCasePropertyNamesContractResolver camelCasePropertyNamesContractResolver = new CamelCasePropertyNamesContractResolver();
-        camelCasePropertyNamesContractResolver.NamingStrategy!.OverrideSpecifiedNames = false;
-        JsonSerializerSettings jsonSerializerSettings = new JsonSerializerSettings
-        {
-            ContractResolver = camelCasePropertyNamesContractResolver
-        };
-        jsonSerializerSettings.Converters.Add(new ExtensionJsonConverter());
-        var clonedContentType = JsonConvert.DeserializeObject<ContentType>(contentTypeJson, jsonSerializerSettings);
-
-        */
 
         clonedContentType.Name = clonedContentType.Name
             .RemoveEmojis()

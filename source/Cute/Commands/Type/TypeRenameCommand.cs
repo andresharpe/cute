@@ -79,10 +79,6 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
             contentTypeNew = GetContentTypeOrThrowError(newContentTypeId);
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights($"{newContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
-            if (!ConfirmWithPromptChallenge($"potentially destroy all '{oldContentTypeId}' entries in {ContentfulEnvironmentId}"))
-            {
-                return -1;
-            }
         }
         catch
         {
@@ -92,6 +88,11 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
         contentTypeOld = GetContentTypeOrThrowError(oldContentTypeId);
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"{oldContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
+
+        if (!ConfirmWithPromptChallenge($"potentially destroy all '{oldContentTypeId}' entries in {ContentfulEnvironmentId}"))
+        {
+            return -1;
+        }
 
         _console.WriteBlankLine();
 
