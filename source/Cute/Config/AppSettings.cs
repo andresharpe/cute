@@ -25,12 +25,12 @@ public class AppSettings : IContentfulOptionsProvider, IAzureOpenAiOptionsProvid
     public string AzureTranslatorRegion { get; set; } = default!;
 
     [OnDeserialized]
-    internal void SetFromEnvironment(StreamingContext context)
+    internal void GetFromEnvironment(StreamingContext context)
     {
-        SetFromEnvironment();
+        GetFromEnvironment();
     }
 
-    internal AppSettings SetFromEnvironment()
+    internal AppSettings GetFromEnvironment()
     {
         var prefix = $"{Globals.AppName.CamelToPascalCase()}__";
 

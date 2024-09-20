@@ -30,11 +30,15 @@ using File = System.IO.File;
 namespace Cute.Commands.Content;
 
 public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<ContentSeedGeoDataCommand> logger,
-    ContentfulConnection contentfulConnection, AppSettings appSettings, HttpClient httpClient)
+    ContentfulConnection contentfulConnection, AppSettings appSettings,
+    HttpClient httpClient, HttpClient googleClient)
+
     : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
 {
     private string _extractedFile = default!;
     private readonly HttpClient _httpClient = httpClient;
+    private readonly HttpClient _googleClient = googleClient;
+    private string _googleApiKey = string.Empty;
 
     public class Settings : LoggedInSettings
     {
@@ -96,6 +100,11 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
+        if (!_appSettings.GetSettings().TryGetValue("Cute__GoogleApiKey", out _googleApiKey!))
+        {
+            throw new CliException("Google API key not found in environment variables. (Cute__GoogleApiKey)");
+        }
+
         _extractedFile = _extractedFile = Path.GetDirectoryName(settings.InputFile) + @"\" +
             Path.GetFileNameWithoutExtension(settings.InputFile) + ".output" +
             Path.GetExtension(settings.InputFile);
@@ -258,8 +267,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             .Select(e => new
             {
                 CountryCode = e.Entry.SelectToken($"{prefix}CountryEntry.iso2code")?.Value<string>(),
-                Lat = e.Entry.SelectToken("latLong.lat")?.Value<double>() ?? 0.0f,
-                Lon = e.Entry.SelectToken("latLong.lon")?.Value<double>() ?? 0.0f,
+                Lat = e.Entry.SelectToken("latLng.lat")?.Value<double>() ?? 0.0f,
+                Lon = e.Entry.SelectToken("latLng.lon")?.Value<double>() ?? 0.0f,
             })
             .Where(i => i.CountryCode is not null)
             .ToList();
@@ -303,7 +312,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         foreach (var countryCode in dataCountryCode)
         {
-            WriteCountryEntryIfMissing(countryCode!, csvWriter, countryToGeoId, countryCodeToInfo);
+            await WriteCountryEntryIfMissing(countryCode!, csvWriter, countryToGeoId, countryCodeToInfo);
         }
 
         _console.WriteNormalWithHighlights($"Extracting from geo universe..", Globals.StyleHeading);
@@ -363,7 +372,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                     if (!veryNearLocations) continue;
                 }
 
-                var adminCode = WriteStateOrProvinveEntryIfMissing(record, csvWriter, countryToGeoId, adminCodeToGeoId);
+                var adminCode = await WriteStateOrProvinveEntryIfMissing(record, csvWriter, countryToGeoId, adminCodeToGeoId);
 
                 var (tzStandardOffset, tzDaylightSavingOffset) = record.Timezone.ToTimeZoneOffsets();
 
@@ -386,6 +395,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                     Density = record.Density,
                     TimeZoneStandardOffset = tzStandardOffset,
                     TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
+                    GooglePlacesId = await GetGooglePlacesId($"{record.CityName}, {record.AdminName}, {record.CountryName}")
                 };
 
                 csvWriter.WriteRecord(newRecord);
@@ -422,8 +432,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             {
                 Id = g.Sys.Id,
                 Name = g.Name,
-                ParentId = g.TestGeoParent.Sys.Id,
-                ParentName = g.TestGeoParent.Name,
+                ParentId = g.DataGeoParent.Sys.Id,
+                ParentName = g.DataGeoParent.Name,
                 Count = g.Count,
             })
         ));
@@ -431,7 +441,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         return;
     }
 
-    private static string WriteCountryEntryIfMissing(string countryCode,
+    private async Task<string> WriteCountryEntryIfMissing(string countryCode,
         CsvWriter csvWriter,
         Dictionary<string, GeoInfo> countryGeoInfo,
         Dictionary<string, GeoInfo> countryInfoList)
@@ -449,10 +459,11 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             Key = countryCode,
             Title = countryInfo.Name,
             Name = countryInfo.Name,
-            Lat = countryInfo.LatLong.Lat,
-            Lon = countryInfo.LatLong.Lon,
+            Lat = countryInfo.LatLon.Lat,
+            Lon = countryInfo.LatLon.Lon,
             Population = countryInfo.Population,
             GeoType = "country",
+            GooglePlacesId = countryInfo.GooglePlacesId,
             // DataGeoParent = "todo"" // will be "Americas", "Asiapac" etc. can probably be setup manually
         };
 
@@ -464,6 +475,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         if (existingEntry.Count == 1)
         {
+            newRecord.GooglePlacesId ??= await GetGooglePlacesId(countryInfo.Name);
             csvWriter.WriteRecord(newRecord);
             csvWriter.NextRecord();
         }
@@ -471,7 +483,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         return countryCode;
     }
 
-    private static string WriteStateOrProvinveEntryIfMissing(SimplemapsGeoInput record, CsvWriter csvWriter,
+    private async Task<string> WriteStateOrProvinveEntryIfMissing(SimplemapsGeoInput record, CsvWriter csvWriter,
         Dictionary<string, GeoInfo> countryToToGeoId, Dictionary<string, GeoInfo> adminCodeToGeoId)
     {
         if (record.AdminType.StartsWith("London borough"))
@@ -499,11 +511,12 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             Key = existingEntry?.Key ?? adminCode,
             Title = existingEntry?.Title ?? $"{record.CountryName} | {adminName} ({adminCode})",
             Name = existingEntry?.Name ?? record.AdminName,
-            DataGeoParent = existingEntry?.TestGeoParent.Sys.Id ?? countryToToGeoId[record.CountryIso2].Sys.Id,
+            DataGeoParent = existingEntry?.DataGeoParent.Sys.Id ?? countryToToGeoId[record.CountryIso2].Sys.Id,
             GeoType = "state-or-province",
             GeoSubType = record.AdminType,
             Lat = record.Lat,
             Lon = record.Lon,
+            GooglePlacesId = existingEntry?.GooglePlacesId,
         };
 
         if (existingEntry is null)
@@ -515,7 +528,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 Title = newRecord.Title,
                 Name = newRecord.Name,
                 Count = 1,
-                TestGeoParent = new()
+                DataGeoParent = new()
                 {
                     Sys = new() { Id = countryToToGeoId[record.CountryIso2].Sys.Id }
                 }
@@ -526,6 +539,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         if (existingEntry.Count == 1)
         {
+            newRecord.GooglePlacesId ??= await GetGooglePlacesId($"{adminName}, {record.CountryName}");
             csvWriter.WriteRecord(newRecord);
             csvWriter.NextRecord();
         }
@@ -638,7 +652,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         [Name("title.en")]
         public string Title { get; set; } = default!;
 
-        [Name("testGeoParent.en")]
+        [Name("dataGeoParent.en")]
         public string DataGeoParent { get; set; } = default!;
 
         [Name("name.en")]
@@ -673,6 +687,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         [Name("timeZoneDaylightSavingsOffset.en")]
         public string? TimeZoneDaylightSavingsOffset { get; set; } = default!;
+
+        [Name("googlePlacesId.en")]
+        public string? GooglePlacesId { get; set; } = default!;
     }
 
     public class GeoInfo()
@@ -681,9 +698,10 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public string Key { get; set; } = default!;
         public string Title { get; set; } = default!;
         public string Name { get; set; } = default!;
-        public GeoInfo TestGeoParent { get; set; } = default!;
-        public Location LatLong { get; set; } = default!;
+        public GeoInfo DataGeoParent { get; set; } = default!;
+        public Location LatLon { get; set; } = default!;
         public int? Population { get; set; } = 0;
+        public string? GooglePlacesId { get; set; } = default!;
         public int Count { get; set; } = 0;
     }
 
@@ -797,5 +815,46 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         _console.WriteBlankLine();
 
         _console.WriteRuler();
+    }
+
+    private async Task<string?> GetGooglePlacesId(string? placeName)
+    {
+        if (placeName is null) return null;
+
+        var retries = 0;
+        var success = false;
+
+        try
+        {
+            var url = $"https://maps.googleapis.com/maps/api/place/textsearch/json?query={Uri.EscapeDataString(placeName)}&key={_googleApiKey}";
+
+            while (!success)
+            {
+                var response = await _googleClient.GetAsync(url);
+
+                success = response.IsSuccessStatusCode;
+
+                if (!success)
+                {
+                    if (++retries < 4)
+                    {
+                        await Task.Delay(1000);
+                        continue;
+                    }
+                    throw new CliException($"Google Places API request failed with status code {response.StatusCode}");
+                }
+
+                string responseBody = await response.Content.ReadAsStringAsync();
+
+                JObject json = JObject.Parse(responseBody);
+
+                return json["results"]?[0]?["place_id"]?.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            _console.WriteNormalWithHighlights($"Google Places API request failed for '{placeName}': {ex.Message}. {ex.InnerException?.Message}", Globals.StyleHeading);
+        }
+        return null;
     }
 }

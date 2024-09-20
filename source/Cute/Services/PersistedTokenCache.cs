@@ -49,7 +49,7 @@ public class PersistedTokenCache(
 
     private static AppSettings? TryLoadFromEnvironment()
     {
-        var settings = new AppSettings().SetFromEnvironment();
+        var settings = new AppSettings().GetFromEnvironment();
 
         if (string.IsNullOrEmpty(settings.ContentfulManagementApiKey))
         {
