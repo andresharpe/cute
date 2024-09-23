@@ -1,10 +1,5 @@
 ﻿using Contentful.Core.Models;
 using Cute.Lib.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
 {
@@ -21,7 +16,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
         {
 
             var contentTypeBuilder = new ContentTypeBuilder("cuteContentJoin")
-                .WithDescription("Jobs and definitions for synchronising the space with external API's.")
+                .WithDescription("Definitions for joining two source content types into target content type.")
                 .WithDisplayField("title")
                 .WithFields([
 
@@ -37,12 +32,10 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
 
                     new FieldBuilder("targetContentType", FieldType.Symbol)
                     .IsRequired()
-                    .IsUnique()
                     .Build(),
 
                     new FieldBuilder("sourceContentType1", FieldType.Symbol)
                     .IsRequired()
-                    .IsUnique()
                     .Build(),
 
                     new FieldBuilder("sourceKeys1", FieldType.Array)
@@ -55,7 +48,6 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
 
                     new FieldBuilder("sourceContentType2", FieldType.Symbol)
                     .IsRequired()
-                    .IsUnique()
                     .Build(),
 
                     new FieldBuilder("sourceKeys2", FieldType.Array)

@@ -6,6 +6,7 @@ using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
 using Cute.Lib.Contentful;
+using Cute.Lib.Contentful.CommandModels.ContentJoinCommand;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Serializers;
 using Cute.Services;
@@ -21,37 +22,9 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 {
     public class Settings : LoggedInSettings
     {
-        [CommandOption("-c|--join-content-type")]
-        [Description("The id of the content type containing join definitions. Default is 'cuteContentJoin'.")]
-        public string JoinContentType { get; set; } = "cuteContentJoin";
-
-        [CommandOption("-f|--join-id-field")]
-        [Description("The id of the field that contains the join key/title/id. Default is 'key'.")]
-        public string JoinIdField { get; set; } = "key";
-
         [CommandOption("-i|--join-id")]
         [Description("The id of the Contentful join entry to generate content for.")]
         public string JoinId { get; set; } = default!;
-
-        [CommandOption("-t|--target-content-type-field")]
-        [Description("The field containing the id of the Contentful content type to join content for.")]
-        public string TargetContentTypeField { get; set; } = "targetContentType";
-
-        [CommandOption("--source1-content-type-field")]
-        [Description("The field containing the first Contentful content type to join content from.")]
-        public string SourceContentType1Field { get; set; } = "sourceContentType1";
-
-        [CommandOption("--source1-keys-field")]
-        [Description("The field containing the keys of the first Contentful content type to join content from.")]
-        public string SourceKeys1Field { get; set; } = "sourceKeys1";
-
-        [CommandOption("--source2-content-type-field")]
-        [Description("The field containing the second Contentful content type to join content from.")]
-        public string SourceContentType2Field { get; set; } = "sourceContentType2";
-
-        [CommandOption("--source2-keys-field")]
-        [Description("The field containing the keys of the second Contentful content type to join content from.")]
-        public string SourceKeys2Field { get; set; } = "sourceKeys2";
 
         [CommandOption("--entry-id")]
         [Description("Id of source 2 entry to generate content for.")]
@@ -77,59 +50,36 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
             .First(l => l.Default)
             .Code;
 
-        var joinQuery = new QueryBuilder<Dictionary<string, object?>>()
-             .ContentTypeIs(settings.JoinContentType)
-             .Limit(1)
-             .FieldEquals($"fields.{settings.JoinIdField}", settings.JoinId)
-             .Build();
+        var joinEntry = CuteContentJoin.GetByKey(ContentfulClient, settings.JoinId);
 
-        var joinEntries = await ContentfulManagementClient.GetEntriesCollection<Entry<JObject>>(joinQuery);
-
-        if (!joinEntries.Any())
+        if (joinEntry == null)
         {
             throw new CliException($"No join definition with title '{settings.JoinId}' found.");
         }
 
-        var joinEntry = joinEntries.First();
-
-        var joinTargetContentTypeId = joinEntry.Fields[settings.TargetContentTypeField]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Join definition '{settings.JoinId}' does not contain a valid contentTypeId for target");
-
-        var joinSource1ContentTypeId = joinEntry.Fields[settings.SourceContentType1Field]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Join definition '{settings.JoinId}' does not contain a valid contentTypeId for source 1");
-
-        var joinSource1Keys = joinEntry.Fields[settings.SourceKeys1Field]?[defaultLocale]?.ToObject<string[]>()
-            ?? throw new CliException($"Join definition '{settings.JoinId}' does not contain a valid contentTypeId for source keys 1");
-
-        var joinSource2ContentTypeId = joinEntry.Fields[settings.SourceContentType2Field]?[defaultLocale]?.Value<string>()
-            ?? throw new CliException($"Join definition '{settings.JoinId}' does not contain a valid contentTypeId for source 2");
-
-        var joinSource2Keys = joinEntry.Fields[settings.SourceKeys2Field]?[defaultLocale]?.ToObject<string[]>()
-            ?? throw new CliException($"Join definition '{settings.JoinId}' does not contain a valid contentTypeId for source keys 2");
-
         // Load contentId's
 
-        var source1ContentType = GetContentTypeOrThrowError(joinSource1ContentTypeId);
-        var source2ContentType = GetContentTypeOrThrowError(joinSource2ContentTypeId);
-        var targetContentType = GetContentTypeOrThrowError(joinTargetContentTypeId);
+        var source1ContentType = GetContentTypeOrThrowError(joinEntry.SourceContentType1);
+        var source2ContentType = GetContentTypeOrThrowError(joinEntry.SourceContentType2);
+        var targetContentType = GetContentTypeOrThrowError(joinEntry.TargetContentType);
 
         var targetField1 = targetContentType.Fields
-            .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(joinSource1ContentTypeId)))
+            .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(joinEntry.SourceContentType1)))
             .FirstOrDefault()
-            ?? throw new CliException($"No reference field for content type '{joinSource1ContentTypeId}' found in '{joinTargetContentTypeId}'");
+            ?? throw new CliException($"No reference field for content type '{joinEntry.SourceContentType1}' found in '{joinEntry.TargetContentType}'");
 
         var targetField2 = targetContentType.Fields
-            .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(joinSource2ContentTypeId)))
+            .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(joinEntry.SourceContentType2)))
             .FirstOrDefault()
-            ?? throw new CliException($"No reference field for content type '{joinSource2ContentTypeId}' found in '{joinTargetContentTypeId}'");
+            ?? throw new CliException($"No reference field for content type '{joinEntry.SourceContentType2}' found in '{joinEntry.TargetContentType}'");
 
         var targetSerializer = new EntrySerializer(targetContentType, new ContentLocales([], "en"));//locales);
 
         // Load keys
 
-        var source1Keys = joinSource1Keys.Select(k => k?.Trim()).ToHashSet();
+        var source1Keys = joinEntry.SourceKeys1.Select(k => k?.Trim()).ToHashSet();
         var source1AllKeys = source1Keys.Any(k => k == "*");
-        var source2Keys = joinSource2Keys.Select(k => k?.Trim()).ToHashSet();
+        var source2Keys = joinEntry.SourceKeys2.Select(k => k?.Trim()).ToHashSet();
         var source2AllKeys = source2Keys.Any(k => k == "*");
 
         // Load Entries
@@ -146,15 +96,15 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
             ? null
             : b => b.FieldEquals("sys.id", settings.Source2EntryId);
 
-        var targetData = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinTargetContentTypeId, targetContentType.DisplayField, queryConfigurator: queryConfigTarget)
+        var targetData = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinEntry.TargetContentType, targetContentType.DisplayField, queryConfigurator: queryConfigTarget)
             .ToBlockingEnumerable()
             .ToDictionary(e => e.Entry["key"]!, e => new { Key = e.Entry["key"], Title = e.Entry["title"], Name = e.Entry["name"] });
 
-        var source1Data = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, joinSource1ContentTypeId, source1ContentType.DisplayField)
+        var source1Data = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulClient, joinEntry.SourceContentType1, source1ContentType.DisplayField)
             .ToBlockingEnumerable()
             .Where(e => source1AllKeys || source1Keys.Contains(e.Entry["key"]?.Value<string>()));
 
-        var source2Data = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinSource2ContentTypeId, source2ContentType.DisplayField, queryConfigurator: queryConfigSource2)
+        var source2Data = ContentfulEntryEnumerator.DeliveryEntries(ContentfulClient, joinEntry.SourceContentType2, source2ContentType.DisplayField, queryConfigurator: queryConfigSource2)
             .ToBlockingEnumerable()
             .Where(e => source2AllKeys || source2Keys.Contains(e.Entry["key"]?.Value<string>()));
 
@@ -181,9 +131,9 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 
                 var newEntry = targetSerializer.DeserializeEntry(newFlatEntry);
 
-                _console.WriteNormal("Creating {joinTargetContentTypeId} '{joinKey}' - '{joinTitle}'", joinTargetContentTypeId, joinKey, joinTitle);
+                _console.WriteNormal("Creating {joinTargetContentTypeId} '{joinKey}' - '{joinTitle}'", joinEntry.TargetContentType, joinKey, joinTitle);
 
-                await UpdateAndPublishEntry(newEntry, joinTargetContentTypeId);
+                await UpdateAndPublishEntry(newEntry, joinEntry.TargetContentType);
 
                 if (++limit >= settings.Limit)
                 {
