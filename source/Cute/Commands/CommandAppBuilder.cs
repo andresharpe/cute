@@ -144,6 +144,9 @@ public class CommandAppBuilder
                 branchConfig.AddCommand<ContentTestDataCommand>("testdata")
                     .WithDescription("Generate test data.")
                     .IsHidden();
+
+                branchConfig.AddCommand<ContentJoinCommand>("join")
+                    .WithDescription("Join multiple content types to a destination content type.");
             });
 
             commandConfig.AddBranch("type", branchConfig =>
@@ -161,9 +164,6 @@ public class CommandAppBuilder
 
                 branchConfig.AddCommand<TypeRenameCommand>("rename")
                     .WithDescription("Rename a content type including all references to it.");
-
-                branchConfig.AddCommand<TypeJoinCommand>("join")
-                    .WithDescription("Join multiple content types to a destination content type.");
             });
 
             commandConfig.AddBranch("app", branchConfig =>
