@@ -5,6 +5,7 @@ using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
+using Cute.Lib.Contentful.CommandModels.ContentJoinCommand;
 using Cute.Lib.Contentful.CommandModels.ContentSyncApi;
 using Cute.Lib.Contentful.CommandModels.ContentTestData;
 using Cute.Lib.InputAdapters.MemoryAdapters;
@@ -100,6 +101,11 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
         if (await CreateContentTypeIfNotExist(CuteContentGenerateContentType.Instance()))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"cuteContentGenerate"}'...", Globals.StyleHeading);
+        }
+
+        if (await CreateContentTypeIfNotExist(CuteContentJoinType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type '{"cuteContentJoin"}'...", Globals.StyleHeading);
         }
 
         if (await CreateContentTypeIfNotExist(TestUserContentType.Instance()))
