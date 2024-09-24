@@ -77,29 +77,30 @@ public sealed class TypeGenCommand : LoggedInCommand<TypeGenCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        var result = await base.ExecuteAsync(context, settings);
+        //var result = await base.ExecuteAsync(context, settings);
 
-        var envOptions = new OptionsForEnvironmentProvider(_appSettings, settings.Environment!);
+        //var envOptions = new OptionsForEnvironmentProvider(_appSettings, settings.Environment!);
 
-        var envClient = new ContentfulConnection(_httpClient, envOptions);
+        //var envClient = new ContentfulConnection(_httpClient, envOptions);
 
-        List<ContentType> contentTypes = settings.ContentType == "*"
-            ? (await envClient.ManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
-            : [await envClient.ManagementClient.GetContentType(settings.ContentType)];
+        //List<ContentType> contentTypes = settings.ContentType == "*"
+        //    ? (await envClient.ManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
+        //    : [await envClient.ManagementClient.GetContentType(settings.ContentType)];
 
-        ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language);
+        //ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language);
 
-        await adapter.PreGenerateTypeSource(contentTypes, settings.OutputPath, null, settings.Namespace);
+        //await adapter.PreGenerateTypeSource(contentTypes, settings.OutputPath, null, settings.Namespace);
 
-        foreach (var contentType in contentTypes)
-        {
-            var fileName = await adapter.GenerateTypeSource(contentType, settings.OutputPath, null, settings.Namespace);
+        //foreach (var contentType in contentTypes)
+        //{
+        //    var fileName = await adapter.GenerateTypeSource(contentType, settings.OutputPath, null, settings.Namespace);
 
-            _console.WriteNormal(fileName);
-        }
+        //    _console.WriteNormal(fileName);
+        //}
 
-        await adapter.PostGenerateTypeSource();
+        //await adapter.PostGenerateTypeSource();
 
+        await Task.Delay(0);
         return 0;
     }
 }

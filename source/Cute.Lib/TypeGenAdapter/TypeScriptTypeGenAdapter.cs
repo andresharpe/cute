@@ -5,16 +5,19 @@ using System.Text;
 
 namespace Cute.Lib.TypeGenAdapter;
 
-public class TypeScriptTypeGenAdapter : ITypeGenAdapter
+public class TypeScriptTypeGenAdapter(Func<FormattableString, bool> fileExistsWarningChallenge)
+    : BaseTypeGenAdapter(fileExistsWarningChallenge)
 {
-    public Task PreGenerateTypeSource(List<ContentType> contentTypes, string path, string? fileName = null, string? namespc = null)
+    public override Task PreGenerateTypeSource(List<ContentType> contentTypes, string path, string? fileName = null, string? namespc = null)
     {
         return Task.CompletedTask;
     }
 
-    public async Task<string> GenerateTypeSource(ContentType contentType, string path, string? fileName = null, string? namespc = null)
+    public override async Task<string> GenerateTypeSource(ContentType contentType, string path, string? fileName = null, string? namespc = null)
     {
         fileName ??= Path.Combine(path, contentType.SystemProperties.Id.CamelToPascalCase() + ".ts");
+
+        WarnIfFileExists(fileName);
 
         var ts = new StringBuilder();
         ts.AppendLine("import type { EntryFieldTypes } from \"contentful\";");
@@ -57,7 +60,7 @@ public class TypeScriptTypeGenAdapter : ITypeGenAdapter
         return fileName;
     }
 
-    public Task PostGenerateTypeSource()
+    public override Task PostGenerateTypeSource()
     {
         return Task.CompletedTask;
     }
