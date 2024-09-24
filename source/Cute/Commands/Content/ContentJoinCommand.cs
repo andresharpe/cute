@@ -33,7 +33,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
     {
         if (string.IsNullOrEmpty(settings.JoinId))
         {
-            return ValidationResult.Error($"No content join identifier (--join-id) specified.");
+            return ValidationResult.Error($"No content join identifier (--key) specified.");
         }
 
         return base.Validate(context, settings);
@@ -45,7 +45,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 
         if (joinEntry == null)
         {
-            throw new CliException($"No join definition with title '{settings.JoinId}' found.");
+            throw new CliException($"No join definition with key '{settings.JoinId}' found.");
         }
 
         // Load contentId's
