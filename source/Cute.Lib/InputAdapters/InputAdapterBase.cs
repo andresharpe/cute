@@ -37,4 +37,5 @@ public abstract class InputAdapterBase : IInputAdapter
 
     public Action<FormattableString>? ActionNotifier { get; set; }
     public Action<FormattableString>? ErrorNotifier { get; set; }
+    public Action<int, int, FormattableString>? CountProgressNotifier { get; set; }
 }

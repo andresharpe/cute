@@ -12,6 +12,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 {
     public override IList<ActionProgressIndicator> ActionProgressIndicators() =>
     [
+        new() { Intent = "Counting new entries..." },
         new() { Intent = "Getting new entries..." },
         new() { Intent = "Getting Contentful entries..." },
         new() { Intent = "Comparing entries..." },
@@ -20,30 +21,31 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
     public override async Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
     {
-        await GetNewAdapterEntries(progressUpdaters?[0]);
+        await GetNewAdapterEntries(progressUpdaters?[0], progressUpdaters?[1]);
 
-        await GetAllEntriesForComparison(progressUpdaters?[1]);
+        await GetAllEntriesForComparison(progressUpdaters?[2]);
 
-        await CompareAndMergeEntries(progressUpdaters?[2]);
+        await CompareAndMergeEntries(progressUpdaters?[3]);
 
-        await UpsertRequiredEntries(_withUpdatedFlatEntries!, progressUpdaters?[3]);
+        await UpsertRequiredEntries(_withUpdatedFlatEntries!, progressUpdaters?[4]);
     }
 
-    private async Task GetNewAdapterEntries(Action<BulkActionProgressEvent>? progressUpdater)
+    private async Task GetNewAdapterEntries(Action<BulkActionProgressEvent>? progressUpdaterCount, Action<BulkActionProgressEvent>? progressUpdaterRead)
     {
         int count = 0;
 
         if (_withNewEntriesAdapter is null)
             throw new CliException("You need to specify entries to upsert with 'WithNewEntries' method before 'Execute'.");
 
-        await GetAllEntriesFromAdapter(progressUpdater);
+        await GetAllEntriesFromAdapter(progressUpdaterCount, progressUpdaterRead);
 
         count = Math.Max(1, _withFlatEntries?.Count ?? throw new CliException($"Unexpected null value."));
 
-        progressUpdater?.Invoke(new(count, count, $"Read {_withFlatEntries.Count} '{_contentTypeId}' entries from '{_withNewEntriesAdapter.SourceName.Snip(60)}'.", null));
+        progressUpdaterCount?.Invoke(new(count, count, $"Counted {_withFlatEntries.Count} '{_contentTypeId}' entries from '{_withNewEntriesAdapter.SourceName.Snip(60)}'.", null));
+        progressUpdaterRead?.Invoke(new(count, count, $"Read {_withFlatEntries.Count} '{_contentTypeId}' entries from '{_withNewEntriesAdapter.SourceName.Snip(60)}'.", null));
     }
 
-    private async Task GetAllEntriesFromAdapter(Action<BulkActionProgressEvent>? progressUpdater)
+    private async Task GetAllEntriesFromAdapter(Action<BulkActionProgressEvent>? progressUpdaterCount, Action<BulkActionProgressEvent>? progressUpdaterRead)
     {
         var newEntries = new List<Entry<JObject>>();
 
@@ -59,9 +61,11 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         var displayKey = $"{displayField}.{_contentLocales.DefaultLocale}";
 
-        _withNewEntriesAdapter.ActionNotifier = (m) => NotifyUserInterface(m, progressUpdater);
+        _withNewEntriesAdapter.ActionNotifier = (m) => NotifyUserInterface(m, progressUpdaterRead);
 
-        _withNewEntriesAdapter.ErrorNotifier = (m) => NotifyUserInterfaceOfError(m, progressUpdater);
+        _withNewEntriesAdapter.ErrorNotifier = (m) => NotifyUserInterfaceOfError(m, progressUpdaterRead);
+
+        _withNewEntriesAdapter.CountProgressNotifier = (i, total, m) => progressUpdaterCount?.Invoke(new(i, total, m, null));
 
         var totalRecords = await _withNewEntriesAdapter.GetRecordCountAsync();
 
@@ -75,11 +79,11 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
             var displayFieldValue = flatEntry[displayKey]?.ToString() ?? string.Empty;
 
-            progressUpdater?.Invoke(new(i, totalRecords, null, null));
+            progressUpdaterRead?.Invoke(new(i, totalRecords, null, null));
 
             if (++i % 1000 == 0)
             {
-                NotifyUserInterface($"Getting '{_contentTypeId}' entry {i}/{totalRecords}...", progressUpdater);
+                NotifyUserInterface($"Getting '{_contentTypeId}' entry {i}/{totalRecords}...", progressUpdaterRead);
             }
         }
     }
