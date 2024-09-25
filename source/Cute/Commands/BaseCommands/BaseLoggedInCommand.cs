@@ -308,7 +308,7 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
             return false;
         }
 
-        await RateLimiter.SendRequestAsync(() => contentType.CreateWithId(ContentfulManagementClient, contentTypeId));
+        await RateLimiter.SendRequestAsync(() => contentType.CreateWithId(ContentfulManagementClient));
 
         _contentTypes.Add(contentType);
 

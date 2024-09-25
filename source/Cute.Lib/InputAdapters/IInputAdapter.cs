@@ -5,6 +5,7 @@
         string SourceName { get; }
         Action<FormattableString>? ActionNotifier { get; set; }
         Action<FormattableString>? ErrorNotifier { get; set; }
+        Action<int, int, FormattableString>? CountProgressNotifier { get; set; }
 
         Task<int> GetRecordCountAsync();
 
