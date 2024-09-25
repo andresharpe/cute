@@ -26,17 +26,9 @@ public class TypeDeleteCommand(IConsoleWriter console, ILogger<TypeDeleteCommand
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        ContentType contentType;
-        try
-        {
-            contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
-            _console.WriteBlankLine();
-            _console.WriteNormalWithHighlights($"{settings.ContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
-        }
-        catch (Exception ex)
-        {
-            throw new CliException(ex.Message);
-        }
+        ContentType contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
+        _console.WriteBlankLine();
+        _console.WriteNormalWithHighlights($"{settings.ContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
 
         if (!ConfirmWithPromptChallenge($"destroy all '{settings.ContentTypeId}' entries in {ContentfulEnvironmentId}"))
         {

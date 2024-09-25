@@ -44,6 +44,8 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
 
     private string _defaultLocaleCode = "en";
 
+    private bool _force = false;
+
     private List<ContentType> _contentTypes = [];
     protected ContentfulManagementClient ContentfulManagementClient => _contentfulConnection.ManagementClient;
     protected ContentfulClient ContentfulClient => _contentfulConnection.DeliveryClient;
@@ -123,6 +125,8 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
     {
+        _force = settings.Force;
+
         await DisplaySettings(context, settings);
 
         var stopWatch = Stopwatch.StartNew();
@@ -354,6 +358,11 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
 
     public bool ConfirmWithPromptChallenge(FormattableString actionDescription)
     {
+        if (_force)
+        {
+            return true;
+        }
+
         int challenge = new Random().Next(10, 100);
 
         FormattableString confirmation = $"Enter '{challenge}' to continue:";
