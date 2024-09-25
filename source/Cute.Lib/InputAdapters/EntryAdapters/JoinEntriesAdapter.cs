@@ -5,9 +5,7 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.CommandModels.ContentJoinCommand;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Serializers;
-using DocumentFormat.OpenXml.Math;
 using Newtonsoft.Json.Linq;
-using System;
 
 namespace Cute.Lib.InputAdapters.EntryAdapters;
 
@@ -16,8 +14,6 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
     : InputAdapterBase(nameof(JoinEntriesAdapter))
 {
     private List<Dictionary<string, object?>> _results = default!;
-
-    private EntrySerializer _serializer = default!;
 
     private int _currentRecordIndex = -1;
 
