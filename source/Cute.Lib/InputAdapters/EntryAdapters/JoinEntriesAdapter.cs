@@ -15,6 +15,7 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
 {
     private List<Dictionary<string, object?>> _results = default!;
 
+    // removed
     private int _currentRecordIndex = -1;
 
     private readonly CuteContentJoin _cuteContentJoin = cuteContentJoin;
