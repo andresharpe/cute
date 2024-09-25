@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\source\Cute.Lib\Cute.Lib.csproj" />
+    <ProjectReference Include="..\..\source\Cute\Cute.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -102,6 +102,11 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
             _console.WriteNormalWithHighlights($"Created content type '{"cuteContentGenerate"}'...", Globals.StyleHeading);
         }
 
+        if (await CreateContentTypeIfNotExist(CuteContentGenerateBatchContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type batch tracker '{"cuteContentGenerateBatch"}'...", Globals.StyleHeading);
+        }
+
         if (await CreateContentTypeIfNotExist(TestUserContentType.Instance()))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"testUser"}'...", Globals.StyleHeading);

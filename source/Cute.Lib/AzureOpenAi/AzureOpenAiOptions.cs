@@ -1,4 +1,4 @@
-﻿namespace Cute.Lib.AiModels;
+﻿namespace Cute.Lib.AzureOpenAi;
 
 public class AzureOpenAiOptions
 {

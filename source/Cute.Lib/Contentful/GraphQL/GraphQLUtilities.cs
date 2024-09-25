@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Cute.Lib.Contentful.GraphQL;
 
-internal class GraphQLValidator
+public class GraphQLUtilities
 {
     public static string EnsureFieldExistsOrAdd(string query, string field)
     {
@@ -23,6 +23,34 @@ internal class GraphQLValidator
         AddField(userField, field);
 
         return Serialize(document);
+    }
+
+    public static string GetContentTypeId(string query)
+    {
+        var document = Parser.Parse(query);
+
+        var contenTypeId = FindField(document, "Collection")
+            ?? throw new CliException("The query does not contain a 'Collection' field.");
+
+        return contenTypeId.Name.StringValue[..^10];
+    }
+
+    private static GraphQLField? FindField(GraphQLDocument document, string parentFieldPostFix)
+    {
+        foreach (var definition in document.Definitions)
+        {
+            if (definition is GraphQLOperationDefinition operation)
+            {
+                foreach (var selection in operation.SelectionSet.Selections)
+                {
+                    if (selection is GraphQLField parent && parent.Name.StringValue.EndsWith(parentFieldPostFix))
+                    {
+                        return parent;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static GraphQLSelectionSet? FindSelectionSet(GraphQLDocument document, string parentFieldPostFix, string childField)
