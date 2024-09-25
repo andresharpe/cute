@@ -4,12 +4,15 @@ using Contentful.Core.Extensions;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Cute.Lib.AiModels;
+using Cute.Lib.AzureOpenAi.Batch;
 using Cute.Lib.Contentful.BulkActions.Models;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Contentful.GraphQL;
 using Cute.Lib.Exceptions;
+using Cute.Lib.Extensions;
 using Cute.Lib.RateLimiters;
 using Cute.Lib.Scriban;
+using Cute.Lib.Serializers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
@@ -18,6 +21,14 @@ using Scriban.Runtime;
 using System.Text;
 
 namespace Cute.Lib.Contentful.BulkActions.Actions;
+
+public enum GenerateOperation
+{
+    GenerateSingle,
+    GenerateParallel,
+    GenerateBatch,
+    ListBatches,
+}
 
 public class GenerateBulkAction(
         ContentfulConnection contentfulConnection,
@@ -36,9 +47,17 @@ public class GenerateBulkAction(
 
     private Dictionary<string, ContentType>? _withContentTypes;
 
+    private GenerateOperation _operation = GenerateOperation.GenerateBatch;
+
     public GenerateBulkAction WithContentTypes(IEnumerable<ContentType> contentTypes)
     {
         _withContentTypes = contentTypes.ToDictionary(ct => ct.SystemProperties.Id);
+        return this;
+    }
+
+    public GenerateBulkAction WithGenerateOperation(GenerateOperation operation)
+    {
+        _operation = operation;
         return this;
     }
 
@@ -60,18 +79,30 @@ public class GenerateBulkAction(
         DataFilter? dataFilter = null,
         string[]? modelNames = null)
     {
+        var options = _azureOpenAiOptionsProvider.GetAzureOpenAIClientOptions();
+
+        _httpClient.BaseAddress = new Uri(options.Endpoint);
+
+        _httpClient.DefaultRequestHeaders.Add("api-key", options.ApiKey);
+
         displayActions.DisplayRuler?.Invoke();
         displayActions.DisplayBlankLine?.Invoke();
         displayActions.DisplayFormatted?.Invoke($"Reading prompt entry {metaPromptKey}...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var metaPrompt = CuteContentGenerate.GetByKey(_contentfulConnection.PreviewClient, metaPromptKey)
+        var cuteContentGenerateEntry = CuteContentGenerate.GetByKey(_contentfulConnection.PreviewClient, metaPromptKey)
             ?? throw new CliException($"No 'cuteContentGenerate' entry with key '{metaPromptKey}' found.");
 
-        displayActions.DisplayFormatted?.Invoke($"Executing query {metaPrompt.CuteDataQueryEntry.Key}...");
+        if (_operation == GenerateOperation.ListBatches)
+        {
+            await ListBatches(cuteContentGenerateEntry, displayActions);
+            return;
+        }
+
+        displayActions.DisplayFormatted?.Invoke($"Executing query {cuteContentGenerateEntry.CuteDataQueryEntry.Key}...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var queryResult = await GetQueryData(metaPrompt)
+        var queryResult = await GetQueryData(cuteContentGenerateEntry)
             ?? throw new CliException($"No data found to process. Is your query valid and tested?");
 
         if (dataFilter is not null)
@@ -90,25 +121,267 @@ public class GenerateBulkAction(
             queryResult = filteredResult;
         }
 
+        if (!testOnly)
+        {
+            displayActions.DisplayFormatted?.Invoke($"Skipping non-empty {cuteContentGenerateEntry.PromptOutputContentField} entries...");
+            displayActions.DisplayBlankLine?.Invoke();
+
+            var filteredResult = new JArray();
+            foreach (var obj in queryResult.Cast<JObject>())
+            {
+                if (EntryHasExistingContent(cuteContentGenerateEntry, obj))
+                {
+                    continue;
+                }
+                filteredResult.Add(obj);
+            }
+            queryResult = filteredResult;
+        }
+
         displayActions.DisplayFormatted?.Invoke($"Found {queryResult.Count} entries...");
         displayActions.DisplayBlankLine?.Invoke();
 
         displayActions.DisplayRuler?.Invoke();
         displayActions.DisplayBlankLine?.Invoke();
 
-        progressUpdater?.Invoke(0, queryResult.Count);
+        progressUpdater?.Invoke(0, Math.Max(1, queryResult.Count));
 
         if (modelNames == null || modelNames.Length == 0)
         {
-            await ProcessQueryResults(metaPrompt, queryResult, displayActions, progressUpdater, testOnly);
+            switch (_operation)
+            {
+                case GenerateOperation.GenerateSingle:
+                    await ProcessQueryResults(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                    break;
+
+                case GenerateOperation.GenerateParallel:
+                    ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                    break;
+
+                case GenerateOperation.GenerateBatch:
+                    await ProcessQueryResultsInBatch(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                    break;
+
+                default:
+                    throw new NotImplementedException();
+            }
         }
         else
         {
-            await ProcessQueryResultsForModels(metaPrompt, queryResult, displayActions, progressUpdater, testOnly, modelNames);
+            await ProcessQueryResultsForModels(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, modelNames);
         }
     }
 
-    private async Task ProcessQueryResultsForModels(CuteContentGenerate metaPrompt, JArray queryResult,
+    private async Task<CuteContentGenerateBatch?> GetOpenBatchEntry(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult, DisplayActions displayActions, Action<int, int>? progressUpdater, bool testOnly)
+    {
+        var batchEntry = CuteContentGenerateBatch
+            .GetAll(_contentfulConnection.PreviewClient)
+            .Where(cb => cb.CompletedAt is null && cb.CancelledAt is null && cb.ExpiredAt is null && cb.FailedAt is null)
+            .Where(cb => cb.CuteContentGenerateEntry.Sys.Id == cuteContentGenerateEntry.Sys.Id)
+            .SingleOrDefault();
+
+        if (batchEntry == null) return null;
+
+        if (cuteContentGenerateEntry is null) return null;
+
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var azureOpenAiBatchProcessor = new AzureOpenAiBatchProcessor(_httpClient);
+
+        displayActions.DisplayFormatted?.Invoke($"Getting batch status(es) from Azure Open AI at '{_httpClient.BaseAddress}'...");
+
+        var status = await azureOpenAiBatchProcessor.BatchJobStatus(batchEntry.Key)
+            ?? throw new CliException("List batch status(es) from Azure Open AI failed.");
+
+        if (status.CompletedAt is not null)
+        {
+            batchEntry.CompletedAt = DateTimeExtensions.FromUnix(status.CompletedAt.Value);
+            batchEntry.Status = status.Status;
+            await SaveCuteBatchEntry(batchEntry, displayActions);
+
+            await ProcessBatchResults(
+                azureOpenAiBatchProcessor.BatchJobResult(status.OutputFileId),
+                cuteContentGenerateEntry,
+                batchEntry,
+                queryResult, displayActions,
+                progressUpdater,
+                testOnly);
+
+            batchEntry.Status = "completed-and-applied";
+            batchEntry.AppliedAt = DateTime.UtcNow.StripMilliseconds();
+            batchEntry.Sys.Version++;
+            await SaveCuteBatchEntry(batchEntry, displayActions);
+        }
+        else if (status.ExpiredAt is not null)
+        {
+            batchEntry.ExpiredAt = DateTimeExtensions.FromUnix(status.ExpiredAt.Value);
+            batchEntry.Status = status.Status;
+            await SaveCuteBatchEntry(batchEntry, displayActions);
+        }
+        else if (status.FailedAt is not null)
+        {
+            batchEntry.FailedAt = DateTimeExtensions.FromUnix(status.FailedAt.Value);
+            batchEntry.Status = status.Status;
+            await SaveCuteBatchEntry(batchEntry, displayActions);
+        }
+        else if (status.CancelledAt is not null)
+        {
+            batchEntry.CancelledAt = DateTimeOffset.FromUnixTimeSeconds(status.CancelledAt.Value).UtcDateTime;
+            batchEntry.Status = status.Status;
+            await SaveCuteBatchEntry(batchEntry, displayActions);
+        }
+
+        return batchEntry;
+    }
+
+    private async Task ProcessBatchResults(
+        IAsyncEnumerable<BatchJobResultResponse> jobResults,
+        CuteContentGenerate cuteContentGenerateEntry,
+        CuteContentGenerateBatch batchEntry,
+        JArray queryResult,
+        DisplayActions displayActions,
+        Action<int, int>? progressUpdater,
+        bool testOnly)
+    {
+        var entriesDict = queryResult.Cast<JObject>()
+                .ToDictionary(e => e.SelectToken("sys.id")!.Value<string>()!);
+
+        var entryCount = 1;
+
+        batchEntry.CompletionTokens = 0;
+        batchEntry.PromptTokens = 0;
+        batchEntry.TotalTokens = 0;
+
+        displayActions.DisplayBlankLine?.Invoke();
+        displayActions.DisplayFormatted?.Invoke($"Downloading and applying results...");
+
+        await foreach (var jobResult in jobResults)
+        {
+            progressUpdater?.Invoke(entryCount++, queryResult.Count);
+            batchEntry.CompletionTokens += jobResult.Response.Body.Usage.CompletionTokens;
+            batchEntry.PromptTokens += jobResult.Response.Body.Usage.PromptTokens;
+            batchEntry.TotalTokens += jobResult.Response.Body.Usage.TotalTokens;
+
+            var objectId = jobResult.CustomId.Split('|')[1];
+
+            if (!entriesDict.TryGetValue(objectId, out var entry)) continue;
+
+            var promptResult = jobResult.Response.Body.Choices[0].Message.Content;
+
+            if (!testOnly)
+            {
+                await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
+                queryResult.Remove(entry);
+            }
+        }
+    }
+
+    private async Task SaveCuteBatchEntry(CuteContentGenerateBatch batchEntry, DisplayActions displayActions)
+    {
+        var entry = batchEntry.ToEntry(_contentLocales!.DefaultLocale);
+
+        var latestEntry = await RateLimiter.SendRequestAsync(() =>
+            _contentfulConnection.ManagementClient.GetEntry(entry.SystemProperties.Id),
+            null,
+            null,
+            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        );
+        await RateLimiter.SendRequestAsync(() =>
+            _contentfulConnection.ManagementClient.CreateOrUpdateEntry(entry.Fields,
+                 entry.SystemProperties.Id,
+                 version: latestEntry.SystemProperties.Version!.Value),
+            null,
+            null,
+            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        );
+        await RateLimiter.SendRequestAsync(() =>
+            _contentfulConnection.ManagementClient.PublishEntry(
+                 entry.SystemProperties.Id,
+                 version: latestEntry.SystemProperties.Version!.Value + 1),
+            null,
+            null,
+            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        );
+    }
+
+    private async Task ListBatches(CuteContentGenerate cuteContentGenerateEntry, DisplayActions displayActions)
+    {
+        if (cuteContentGenerateEntry is null) return;
+
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var azureOpenAiBatchProcessor = new AzureOpenAiBatchProcessor(_httpClient);
+
+        displayActions.DisplayFormatted?.Invoke($"Getting batch status(es) from Azure Open AI at '{_httpClient.BaseAddress}'...");
+
+        var response = await azureOpenAiBatchProcessor.BatchJobStatusList()
+            ?? throw new CliException("List batch status(es) from Azure Open AI failed.");
+
+        static DateTime? dd(int? i) => i is null ? null : DateTimeOffset.FromUnixTimeSeconds(i.Value).UtcDateTime;
+
+        var batchEntries = CuteContentGenerateBatch
+            .GetAll(_contentfulConnection.PreviewClient)
+            .Where(cb => cb.CuteContentGenerateEntry.Sys.Id == cuteContentGenerateEntry.Sys.Id)
+            .ToDictionary(be => be.Key);
+
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var batchNumber = response.Count;
+        var listed = 0;
+
+        foreach (var batchJobStatus in response.OrderByDescending(r => r.CreatedAt))
+        {
+            var uploadStatus = await azureOpenAiBatchProcessor.UploadStatus(batchJobStatus.InputFileId);
+
+            if (uploadStatus is null)
+            {
+                continue;
+            }
+
+            var contentTypeSysId = uploadStatus.Filename.Split('-')[0];
+            if (!cuteContentGenerateEntry.Sys.Id.Equals(contentTypeSysId))
+            {
+                continue;
+            }
+
+            if (listed++ >= 5)
+            {
+                break;
+            }
+
+            var batchEntry = batchEntries.GetValueOrDefault(batchJobStatus.Id);
+
+            displayActions.DisplayFormatted?.Invoke($"Batch number     : {batchNumber--:00000}");
+            displayActions.DisplayFormatted?.Invoke($"Batch Id         : {batchJobStatus.Id}");
+            displayActions.DisplayFormatted?.Invoke($"Status           : {batchJobStatus.Status}");
+            displayActions.DisplayFormatted?.Invoke($"Created at       : {dd(batchJobStatus.CreatedAt):R}");
+            displayActions.DisplayFormatted?.Invoke($"Completed at     : {dd(batchJobStatus.CompletedAt):R}");
+            displayActions.DisplayFormatted?.Invoke($"Cancelled at     : {dd(batchJobStatus.CancelledAt):R}");
+            displayActions.DisplayFormatted?.Invoke($"Failed at        : {dd(batchJobStatus.FailedAt):R}");
+            displayActions.DisplayFormatted?.Invoke($"Expired at       : {dd(batchJobStatus.ExpiredAt):R}");
+            displayActions.DisplayFormatted?.Invoke($"Output file      : {batchJobStatus.OutputFileId}");
+            displayActions.DisplayFormatted?.Invoke($"Input file       : {batchJobStatus.InputFileId}");
+            displayActions.DisplayFormatted?.Invoke($"Input file size  : {uploadStatus.Bytes / 1024:N0} Kb");
+            displayActions.DisplayFormatted?.Invoke($"Cute key         : {cuteContentGenerateEntry.Key}");
+            displayActions.DisplayFormatted?.Invoke($"Cute title       : {cuteContentGenerateEntry.Title}");
+            if (batchEntry is null)
+            {
+                displayActions.DisplayRuler?.Invoke();
+                continue;
+            }
+            displayActions.DisplayFormatted?.Invoke($"Content type     : {batchEntry.TargetContentType}");
+            displayActions.DisplayFormatted?.Invoke($"Target Field     : {batchEntry.TargetField}");
+            displayActions.DisplayFormatted?.Invoke($"Entries Count    : {batchEntry.TargetEntriesCount}");
+            displayActions.DisplayFormatted?.Invoke($"Completion tokens: {batchEntry.CompletionTokens:N0}");
+            displayActions.DisplayFormatted?.Invoke($"Prompt tokens    : {batchEntry.PromptTokens:N0}");
+            displayActions.DisplayFormatted?.Invoke($"Total tokens     : {batchEntry.TotalTokens:N0}");
+            displayActions.DisplayFormatted?.Invoke($"Overall status   : {batchEntry.Status}");
+
+            displayActions.DisplayRuler?.Invoke();
+        }
+    }
+
+    private async Task ProcessQueryResultsForModels(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult,
         DisplayActions displayActions,
         Action<int, int>? progressUpdater,
         bool testOnly,
@@ -118,13 +391,13 @@ public class GenerateBulkAction(
 
         foreach (var modelName in modelNames)
         {
-            await ProcessQueryResults(metaPrompt, queryResult, displayActions, progressUpdater, testOnly, modelName, first);
+            await ProcessQueryResults(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, modelName, first);
 
             first = false;
         }
     }
 
-    private async Task ProcessQueryResults(CuteContentGenerate metaPrompt, JArray queryResult,
+    private async Task ProcessQueryResults(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult,
         DisplayActions displayActions,
         Action<int, int>? progressUpdater,
         bool testOnly,
@@ -137,27 +410,27 @@ public class GenerateBulkAction(
 
         var chatCompletionOptions = new ChatCompletionOptions()
         {
-            MaxTokens = metaPrompt.MaxTokenLimit,
-            Temperature = (float)metaPrompt.Temperature,
-            FrequencyPenalty = (float)metaPrompt.FrequencyPenalty,
-            PresencePenalty = (float)metaPrompt.PresencePenalty,
-            TopP = (float)metaPrompt.TopP
+            MaxTokens = cuteContentGenerateEntry.MaxTokenLimit,
+            Temperature = (float)cuteContentGenerateEntry.Temperature,
+            FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty,
+            PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty,
+            TopP = (float)cuteContentGenerateEntry.TopP
         };
 
         if (modelName is null)
         {
-            modelName = metaPrompt.DeploymentModel;
+            modelName = cuteContentGenerateEntry.DeploymentModel;
             if (string.IsNullOrWhiteSpace(modelName))
             {
                 modelName = null;
             }
         }
 
-        var promptTemplate = Template.Parse(metaPrompt.Prompt);
+        var promptTemplate = Template.Parse(cuteContentGenerateEntry.Prompt);
 
-        var systemTemplate = Template.Parse(metaPrompt.SystemMessage);
+        var systemTemplate = Template.Parse(cuteContentGenerateEntry.SystemMessage);
 
-        var variableName = metaPrompt.CuteDataQueryEntry.VariablePrefix.Trim('.');
+        var variableName = cuteContentGenerateEntry.CuteDataQueryEntry.VariablePrefix.Trim('.');
 
         var recordNum = 1;
         var recordTotal = queryResult.Count;
@@ -166,7 +439,7 @@ public class GenerateBulkAction(
         {
             progressUpdater?.Invoke(recordNum++, recordTotal);
 
-            if (EntryHasExistingContent(metaPrompt, entry) && !testOnly)
+            if (EntryHasExistingContent(cuteContentGenerateEntry, entry) && !testOnly)
             {
                 continue;
             }
@@ -216,10 +489,309 @@ public class GenerateBulkAction(
 
             if (!testOnly)
             {
-                await UpdateContentfulEntry(metaPrompt, entry, promptResult, displayActions);
+                await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
             }
 
             scriptObject.Remove(variableName);
+        }
+    }
+
+    private async Task ProcessQueryResultsInBatch(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult, DisplayActions displayActions, Action<int, int>? progressUpdater, bool testOnly)
+    {
+        var batchStatus = await GetOpenBatchEntry(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+
+        if (batchStatus?.IsPending() ?? false)
+        {
+            displayActions.DisplayBlankLine?.Invoke();
+            displayActions.DisplayFormatted?.Invoke($"The batch job submitted on {batchStatus.CreatedAt:O} is still in progress. ({batchStatus.Status})");
+            return;
+        }
+
+        var scriptObject = CreateScriptObject();
+
+        var promptTemplate = Template.Parse(cuteContentGenerateEntry.Prompt);
+
+        var systemTemplate = Template.Parse(cuteContentGenerateEntry.SystemMessage);
+
+        var variableName = cuteContentGenerateEntry.CuteDataQueryEntry.VariablePrefix.Trim('.');
+
+        var recordNum = 1;
+
+        var recordTotal = queryResult.Count;
+
+        var jobs = new List<AzureOpenAiBatchRequest>();
+
+        var options = _azureOpenAiOptionsProvider.GetAzureOpenAIClientOptions();
+
+        foreach (var entry in queryResult.Cast<JObject>())
+        {
+            progressUpdater?.Invoke(recordNum++, recordTotal);
+
+            if (EntryHasExistingContent(cuteContentGenerateEntry, entry) && !testOnly)
+            {
+                continue;
+            }
+
+            scriptObject.SetValue(variableName, entry, true);
+
+            var job = new AzureOpenAiBatchRequest
+            {
+                CustomId = $"{cuteContentGenerateEntry.Sys.Id}|{entry.SelectToken("sys.id")}",
+                Method = "POST",
+                Url = "/chat/completions",
+                Body = new BatchRequestBody
+                {
+                    Model = $"{options.DeploymentName}-batch",
+                    Messages =
+                    [
+                        new ()
+                        {
+                            Role = "system",
+                            Content = RenderTemplate(scriptObject, systemTemplate)
+                        },
+                        new ()
+                        {
+                            Role = "user",
+                            Content = RenderTemplate(scriptObject, promptTemplate)
+                        },
+                    ]
+                }
+            };
+
+            scriptObject.Remove(variableName);
+
+            jobs.Add(job);
+        };
+
+        if (jobs.Count == 0)
+        {
+            displayActions.DisplayBlankLine?.Invoke();
+            displayActions.DisplayFormatted?.Invoke($"No new content to generate...");
+            return;
+        }
+
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var azureOpenAiBatchProcessor = new AzureOpenAiBatchProcessor(_httpClient);
+
+        displayActions.DisplayFormatted?.Invoke($"Uploading to Azure Open AI at '{options.Endpoint}'...");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var response = await azureOpenAiBatchProcessor.UploadRequests(jobs)
+            ?? throw new CliException("Batch file upload to Azure Open AI failed.");
+
+        displayActions.DisplayFormatted?.Invoke($"File reference from Azure is '{response.Id}'...");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var completedResponse = await azureOpenAiBatchProcessor.WaitForUploadCompleted(response);
+
+        displayActions.DisplayFormatted?.Invoke($"File upload completed for '{response.Id}' ({response.Bytes:N0} bytes)...");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        displayActions.DisplayFormatted?.Invoke($"Creating batch job for cute batch '{azureOpenAiBatchProcessor.Id}'...");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var createBatchJobResponse = await azureOpenAiBatchProcessor.CreateBatchJob(completedResponse)
+            ?? throw new CliException("Batch job creation on Azure Open AI failed.");
+
+        displayActions.DisplayFormatted?.Invoke($"Created Azure batch '{createBatchJobResponse.Id}'...");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var batchJobStatus = await azureOpenAiBatchProcessor.BatchJobStatus(createBatchJobResponse)
+            ?? throw new CliException("Batch job status failed on Azure Open AI.");
+
+        displayActions.DisplayFormatted?.Invoke($"Azure batch '{createBatchJobResponse.Id}' has status of '{batchJobStatus.Status}'...");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        var cuteBatchContentType = CuteContentGenerateBatchContentType.Instance();
+
+        var serializer = new EntrySerializer(cuteBatchContentType, _contentLocales!);
+
+        var batchFlatEntry = serializer.CreateNewFlatEntry();
+
+        var createdDate = DateTimeOffset.FromUnixTimeSeconds(createBatchJobResponse.CreatedAt).UtcDateTime;
+
+        batchFlatEntry["key.en"] = createBatchJobResponse.Id;
+        batchFlatEntry["title.en"] = $"{cuteContentGenerateEntry.Title} - {createdDate:O}";
+        batchFlatEntry["cuteContentGenerateEntry.en"] = cuteContentGenerateEntry.Sys.Id;
+        batchFlatEntry["status.en"] = createBatchJobResponse.Status;
+        batchFlatEntry["createdAt.en"] = createdDate;
+        batchFlatEntry["targetContentType.en"] = GraphQLUtilities.GetContentTypeId(cuteContentGenerateEntry.CuteDataQueryEntry.Query);
+        batchFlatEntry["targetField.en"] = cuteContentGenerateEntry.PromptOutputContentField;
+        batchFlatEntry["targetEntriesCount.en"] = jobs.Count;
+
+        var batchEntry = serializer.DeserializeEntry(batchFlatEntry);
+
+        batchEntry.SystemProperties.ContentType = cuteBatchContentType;
+
+        await RateLimiter.SendRequestAsync(() =>
+            _contentfulConnection.ManagementClient.CreateOrUpdateEntry(batchEntry.Fields,
+                batchEntry.SystemProperties.Id,
+                contentTypeId: cuteBatchContentType.SystemProperties.Id,
+                version: 0),
+            null,
+            null,
+            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        );
+
+        await RateLimiter.SendRequestAsync(() =>
+            _contentfulConnection.ManagementClient.PublishEntry(batchEntry.SystemProperties.Id,
+                version: 1),
+            null,
+            null,
+            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        );
+
+        displayActions.DisplayFormatted?.Invoke($"Created {"cuteContentGenerateBatch"} entry to track batch progress.");
+        displayActions.DisplayBlankLine?.Invoke();
+    }
+
+    private void ProcessQueryResultsInParallel(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult,
+            DisplayActions displayActions,
+            Action<int, int>? progressUpdater,
+            bool testOnly,
+            string? modelName = null,
+            bool displaySystemMessageAndPrompt = true)
+    {
+        var scriptObject = CreateScriptObject();
+
+        var promptTemplate = Template.Parse(cuteContentGenerateEntry.Prompt);
+
+        var systemTemplate = Template.Parse(cuteContentGenerateEntry.SystemMessage);
+
+        var variableName = cuteContentGenerateEntry.CuteDataQueryEntry.VariablePrefix.Trim('.');
+
+        var recordNum = 1;
+
+        var recordTotal = queryResult.Count;
+
+        var jobs = new List<GenerateJob>();
+
+        foreach (var entry in queryResult.Cast<JObject>())
+        {
+            progressUpdater?.Invoke(recordNum++, recordTotal);
+
+            if (EntryHasExistingContent(cuteContentGenerateEntry, entry) && !testOnly)
+            {
+                continue;
+            }
+
+            scriptObject.SetValue(variableName, entry, true);
+
+            var job = new GenerateJob
+            {
+                EntryKey = entry["key"]?.Value<string>()
+                    ?? "(unknown entry key)",
+
+                EntryTitle = entry["title"]?.Value<string>()
+                    ?? entry["name"]?.Value<string>()
+                    ?? "(unknown entry title)",
+
+                SystemMessage = RenderTemplate(scriptObject, systemTemplate),
+
+                Prompt = RenderTemplate(scriptObject, promptTemplate),
+
+                Entry = entry
+            };
+
+            scriptObject.Remove(variableName);
+
+            jobs.Add(job);
+        }
+
+        var chatClient = CreateChatClient(modelName, displayActions);
+
+        var chatCompletionOptions = new ChatCompletionOptions()
+        {
+            MaxTokens = cuteContentGenerateEntry.MaxTokenLimit,
+            Temperature = (float)cuteContentGenerateEntry.Temperature,
+            FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty,
+            PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty,
+            TopP = (float)cuteContentGenerateEntry.TopP
+        };
+
+        if (modelName is null)
+        {
+            modelName = cuteContentGenerateEntry.DeploymentModel;
+            if (string.IsNullOrWhiteSpace(modelName))
+            {
+                modelName = null;
+            }
+        }
+
+        var modelNameAsString = modelName == null ? string.Empty : $"[{modelName}] ";
+
+        var jobNum = 1;
+
+        var jobTotal = jobs.Count;
+
+        var taskList = new List<GenerateJob>();
+
+        var lastJob = jobs.LastOrDefault();
+
+        foreach (var job in jobs)
+        {
+            progressUpdater?.Invoke(jobNum++, jobTotal);
+
+            job.GenerateTask = SendPromptToModel(chatClient, chatCompletionOptions, job.SystemMessage, job.Prompt);
+
+            taskList.Add(job);
+
+            if (taskList.Count < 25 && job != lastJob) continue;
+
+            displayActions.DisplayBlankLine?.Invoke();
+
+            displayActions.DisplayFormatted?.Invoke($"Generating content for {taskList.Count} entries...");
+
+            Task.WaitAll(taskList.Select(j => j.GenerateTask).ToArray());
+
+            displayActions.DisplayBlankLine?.Invoke();
+
+            foreach (var completedJob in taskList)
+            {
+                displayActions.DisplayAlert?.Invoke($"[{completedJob.EntryKey}] : [{completedJob.EntryTitle}]");
+                displayActions.DisplayBlankLine?.Invoke();
+
+                displayActions.DisplayRuler?.Invoke();
+
+                if (displaySystemMessageAndPrompt)
+                {
+                    displayActions.DisplayHeading?.Invoke("System Message:");
+
+                    DisplayLines(completedJob.SystemMessage, displayActions.DisplayDim);
+
+                    displayActions.DisplayBlankLine?.Invoke();
+
+                    displayActions.DisplayHeading?.Invoke("Prompt:");
+
+                    DisplayLines(completedJob.Prompt, displayActions.DisplayDim);
+                }
+
+                displayActions.DisplayBlankLine?.Invoke();
+
+                displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
+
+                var promptResult = FixFormatting(completedJob.GenerateTask.Result);
+
+                DisplayLines(promptResult, displayActions.DisplayNormal);
+
+                displayActions.DisplayBlankLine?.Invoke();
+
+                if (!testOnly)
+                {
+                    completedJob.UpdateTask = UpdateContentfulEntry(cuteContentGenerateEntry, completedJob.Entry, promptResult, displayActions);
+                }
+            }
+
+            displayActions.DisplayBlankLine?.Invoke();
+
+            displayActions.DisplayFormatted?.Invoke($"Saving {taskList.Count} entries...");
+
+            Task.WaitAll(taskList.Select(j => j.UpdateTask).ToArray());
+
+            displayActions.DisplayBlankLine?.Invoke();
+
+            taskList.Clear();
         }
     }
 
@@ -358,9 +930,9 @@ public class GenerateBulkAction(
         }
     }
 
-    private static bool EntryHasExistingContent(CuteContentGenerate metaPrompt, JObject entry)
+    private static bool EntryHasExistingContent(CuteContentGenerate cuteContentGenerateEntry, JObject entry)
     {
-        var content = entry.SelectToken(metaPrompt.PromptOutputContentField);
+        var content = entry.SelectToken(cuteContentGenerateEntry.PromptOutputContentField);
 
         if (content.IsNull()) return false;
 
@@ -369,12 +941,17 @@ public class GenerateBulkAction(
             return jArray.Count > 0;
         }
 
+        if (content is JObject jObj)
+        {
+            return jObj.HasValues;
+        }
+
         if (string.IsNullOrWhiteSpace(content?.Value<string>())) return false;
 
         return true;
     }
 
-    private async Task UpdateContentfulEntry(CuteContentGenerate metaPrompt, JObject entry, string promptResult, DisplayActions displayActions)
+    private async Task UpdateContentfulEntry(CuteContentGenerate cuteContentGenerateEntry, JObject entry, string promptResult, DisplayActions displayActions)
     {
         var id = entry.SelectToken("$.sys.id")?.Value<string>() ??
             throw new CliException("The query needs to return a 'sys.id' for each item.");
@@ -383,7 +960,7 @@ public class GenerateBulkAction(
             _contentfulConnection.ManagementClient.GetEntry(id),
             null,
             null,
-            (m) => displayActions?.DisplayAlert?.Invoke(m.ToString())
+            (m) => displayActions?.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
 
         var fields = obj.Fields as JObject ??
@@ -394,14 +971,14 @@ public class GenerateBulkAction(
         var contentType = (_withContentTypes?[contentTypeId])
             ?? throw new CliException($"The content type '{contentTypeId}' was not resolved. Did you call '.WithContentTypes' method first?");
 
-        var fieldId = metaPrompt.PromptOutputContentField;
+        var fieldId = cuteContentGenerateEntry.PromptOutputContentField;
 
         var fieldDefinition = contentType.Fields.FirstOrDefault(f => f.Id == fieldId)
             ?? throw new CliException($"The field '{fieldId}' was not found in the content type '{contentTypeId}'.");
 
         var oldValueRef = fields[fieldId];
 
-        var locale = metaPrompt.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en";
+        var locale = cuteContentGenerateEntry.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en";
 
         if (oldValueRef is null)
         {
@@ -429,7 +1006,7 @@ public class GenerateBulkAction(
         JToken? replaceValue = fieldDefinition.Type switch
         {
             "Symbol" or "Text" => promptResult,
-            "Object" => JsonConvert.DeserializeObject<JToken>(promptResult),
+            "Object" => ToObject(promptResult, displayActions),
             "RichText" => ToRichText(promptResult),
             "Array" => ToArray(promptResult, fieldDefinition.Items, fieldId, fieldDefinition),
             _ => throw new CliException($"Field '{fieldId}' is of type '{fieldDefinition.Type}' which can't store prompt results."),
@@ -447,17 +1024,27 @@ public class GenerateBulkAction(
             _contentfulConnection.ManagementClient.CreateOrUpdateEntry(obj, version: obj.SystemProperties.Version),
             null,
             null,
-            (m) => displayActions?.DisplayAlert?.Invoke(m.ToString())
+            (m) => displayActions?.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
+    }
 
-        /*
-        await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.PublishEntry(id, (int)obj.SystemProperties.Version! + 1),
-            null,
-            null,
-            (m) => displayActions?.DisplayAlert?.Invoke(m.ToString())
-        );
-        */
+    private static JToken? ToObject(string promptResult, DisplayActions displayActions)
+    {
+        try
+        {
+            return JsonConvert.DeserializeObject<JToken>(promptResult);
+        }
+        catch (Exception ex)
+        {
+            displayActions.DisplayBlankLine?.Invoke();
+            displayActions.DisplayRuler?.Invoke();
+            displayActions.DisplayAlert?.Invoke(ex.Message);
+            displayActions.DisplayBlankLine?.Invoke();
+            DisplayLines(promptResult, displayActions.DisplayAlert);
+            displayActions.DisplayRuler?.Invoke();
+            displayActions.DisplayBlankLine?.Invoke();
+        }
+        return null;
     }
 
     private static JArray ToArray(string promptResult, Schema items, string fieldId, Field fieldDefinition)
@@ -567,19 +1154,31 @@ public class GenerateBulkAction(
         return client.GetChatClient(deploymentName);
     }
 
-    private async Task<JArray?> GetQueryData(CuteContentGenerate metaPrompt)
+    private async Task<JArray?> GetQueryData(CuteContentGenerate cuteContentGenerateEntry)
     {
         // Add the target field to the query if it doesn't exist...
-        var query = GraphQLValidator.EnsureFieldExistsOrAdd(metaPrompt.CuteDataQueryEntry.Query, metaPrompt.PromptOutputContentField);
+        var query = GraphQLUtilities.EnsureFieldExistsOrAdd(cuteContentGenerateEntry.CuteDataQueryEntry.Query, cuteContentGenerateEntry.PromptOutputContentField);
 
         return await _graphQlClient.GetData(
             query,
-            metaPrompt.CuteDataQueryEntry.JsonSelector,
-            metaPrompt.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en");
+            cuteContentGenerateEntry.CuteDataQueryEntry.JsonSelector,
+            cuteContentGenerateEntry.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en",
+            preview: true);
     }
 
     private static string RenderTemplate(ScriptObject scriptObject, Template template)
     {
         return template.Render(scriptObject, memberRenamer: member => member.Name.ToCamelCase());
+    }
+
+    private class GenerateJob
+    {
+        public string EntryKey { get; init; } = default!;
+        public string EntryTitle { get; init; } = default!;
+        public string SystemMessage { get; init; } = default!;
+        public string Prompt { get; init; } = default!;
+        public JObject Entry { get; init; } = default!;
+        public Task<string> GenerateTask { get; internal set; } = default!;
+        public Task UpdateTask { get; internal set; } = default!;
     }
 }

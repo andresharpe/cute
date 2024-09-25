@@ -1,6 +1,7 @@
 ﻿using Contentful.Core.Configuration;
 using Cute.Constants;
 using Cute.Lib.AiModels;
+using Cute.Lib.AzureOpenAi;
 using Cute.Lib.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Extensions;

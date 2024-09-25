@@ -10,6 +10,9 @@ using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Contentful.BulkActions.Actions;
+using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
+using Cute.Lib.Contentful.CommandModels.ContentSyncApi;
+using Cute.Lib.Contentful.CommandModels.ContentTestData;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
 using Cute.Lib.RateLimiters;
@@ -264,6 +267,8 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
         }
 
         _contentTypes = [.. await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.GetContentTypes())];
+
+        await CreateTestContentTypesIfNotExists();
     }
 
     public string? GetString(Entry<JObject> entry, string key, string? localeCode = null)
@@ -308,6 +313,39 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
         _contentTypes.Add(contentType);
 
         return true;
+    }
+
+    private async Task CreateTestContentTypesIfNotExists()
+    {
+        if (await CreateContentTypeIfNotExist(CuteDataQueryContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type {"cuteDataQuery"}...", Globals.StyleHeading);
+        }
+
+        if (await CreateContentTypeIfNotExist(CuteLanguageContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type '{"cuteLanguage"}'...", Globals.StyleHeading);
+        }
+
+        if (await CreateContentTypeIfNotExist(CuteContentSyncApiContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type '{"cuteContentSyncApi"}'...", Globals.StyleHeading);
+        }
+
+        if (await CreateContentTypeIfNotExist(CuteContentGenerateContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type '{"cuteContentGenerate"}'...", Globals.StyleHeading);
+        }
+
+        if (await CreateContentTypeIfNotExist(CuteContentGenerateBatchContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type batch tracker '{"cuteContentGenerateBatch"}'...", Globals.StyleHeading);
+        }
+
+        if (await CreateContentTypeIfNotExist(TestUserContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type '{"testUser"}'...", Globals.StyleHeading);
+        }
     }
 
     public string? ResolveContentTypeId(string? suppliedContentType)

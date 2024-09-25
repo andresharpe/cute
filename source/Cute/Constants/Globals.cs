@@ -3,7 +3,7 @@ using Spectre.Console;
 
 namespace Cute.Constants;
 
-internal static class Globals
+public static class Globals
 {
     public const string AppName = "cute";
     public const string AppLongName = "Contentful Update Tool & Extractor";

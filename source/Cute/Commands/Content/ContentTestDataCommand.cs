@@ -1,4 +1,4 @@
-﻿using Cute.Commands.BaseCommands;
+using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
 using Cute.Constants;
@@ -102,7 +102,10 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
         {
             _console.WriteNormalWithHighlights($"Created content type '{"cuteContentGenerate"}'...", Globals.StyleHeading);
         }
-
+        if (await CreateContentTypeIfNotExist(CuteContentGenerateBatchContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type batch tracker '{"cuteContentGenerateBatch"}'...", Globals.StyleHeading);
+        }
         if (await CreateContentTypeIfNotExist(CuteContentJoinType.Instance()))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"cuteContentJoin"}'...", Globals.StyleHeading);

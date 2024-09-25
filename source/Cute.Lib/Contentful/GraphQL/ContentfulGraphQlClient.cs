@@ -1,6 +1,5 @@
 ﻿using Cute.Lib.Exceptions;
 using Cute.Lib.RateLimiters;
-using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
@@ -12,32 +11,33 @@ public class ContentfulGraphQlClient
 {
     private readonly HttpClient _httpClient;
 
+    private readonly ContentfulConnection _contentfulConnection;
+
     public ContentfulGraphQlClient(
         ContentfulConnection contentfulConnection,
-        ILogger<ContentfulGraphQlClient> logger,
         HttpClient httpClient)
     {
         _httpClient = httpClient;
 
         var env = contentfulConnection.Options.Environment;
         var space = contentfulConnection.Options.SpaceId;
-        var apiKey = contentfulConnection.Options.DeliveryApiKey;
 
         _httpClient.BaseAddress = new Uri($"https://graphql.contentful.com/content/v1/spaces/{space}/environments/{env}");
 
-        httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", apiKey);
+        _contentfulConnection = contentfulConnection;
     }
 
     public async Task<JArray?> GetData(string query, string jsonResultsPath, string locale,
-        int? limit = null)
+        int? limit = null, bool preview = false)
     {
+        var apiKey = preview ? _contentfulConnection.Options.PreviewApiKey : _contentfulConnection.Options.DeliveryApiKey;
+
         var postBody = new
         {
             query,
             variables = new Dictionary<string, object>()
             {
-                ["preview"] = false,
+                ["preview"] = preview,
                 ["locale"] = locale,
                 ["skip"] = 0,
                 ["limit"] = limit ?? 1000,
@@ -53,6 +53,8 @@ public class ContentfulGraphQlClient
                 Method = HttpMethod.Post,
                 Content = new StringContent(JsonConvert.SerializeObject(postBody), Encoding.UTF8, "application/json")
             };
+
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
             using var response = await RateLimiter.SendRequestAsync(
                 () => _httpClient.SendAsync(request),

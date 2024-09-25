@@ -1,10 +1,12 @@
 using Contentful.Core;
+using Contentful.Core.Models;
 using Cute.Lib.SiteGen.Models;
 
 namespace Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 
 public class CuteContentGenerate
 {
+    public SystemProperties Sys { get; set; } = default!;
     public string Key { get; set; } = default!;
     public string Title { get; set; } = default!;
     public string SystemMessage { get; set; } = default!;
@@ -32,5 +34,18 @@ public class CuteContentGenerate
             .ToBlockingEnumerable()
             .Select(e => e.Entry)
             .FirstOrDefault();
+    }
+
+    public static IReadOnlyList<CuteContentGenerate> GetAll(ContentfulClient contentfulClient)
+    {
+        return ContentfulEntryEnumerator
+            .DeliveryEntries<CuteContentGenerate>(
+                contentfulClient,
+                "cuteContentGenerate",
+                pageSize: 1000
+            )
+            .ToBlockingEnumerable()
+            .Select(e => e.Entry)
+            .ToList();
     }
 }
