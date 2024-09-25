@@ -164,6 +164,9 @@ public class CommandAppBuilder
 
                 branchConfig.AddCommand<TypeRenameCommand>("rename")
                     .WithDescription("Rename a content type including all references to it.");
+
+                branchConfig.AddCommand<TypeDeleteCommand>("delete")
+                    .WithDescription("Delete a content type and its entries.");
             });
 
             commandConfig.AddBranch("app", branchConfig =>

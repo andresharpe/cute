@@ -105,29 +105,7 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
         }
         else
         {
-            if (!ConfirmWithPromptChallenge($"destroy all '{newContentTypeId}' entries in {ContentfulEnvironmentId}"))
-            {
-                return -1;
-            }
-
-            await PerformBulkOperations(
-                [
-                    new DeleteBulkAction(_contentfulConnection, _httpClient)
-                    .WithContentType(contentTypeNew)
-                    .WithContentLocales(ContentLocales)
-                    .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
-                ]
-            );
-
-            await ContentfulManagementClient.DeactivateContentType(newContentTypeId);
-
-            await ContentfulManagementClient.DeleteContentType(newContentTypeId);
-
-            _console.WriteNormalWithHighlights($"Deleted {newContentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
-
-            contentTypeNew = await contentTypeOld.CloneWithId(ContentfulManagementClient, newContentTypeId);
-
-            _console.WriteNormalWithHighlights($"Success. Created {newContentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
+            throw new CliException($"Content type {newContentTypeId} already exists in {ContentfulEnvironmentId}. Please specify another name or manually delete existing type by running a 'type delete' command");
         }
 
         var createEntries = ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, oldContentTypeId)
