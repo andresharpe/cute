@@ -5,7 +5,7 @@ using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
-using Cute.Lib.Exceptions;
+using Cute.Lib.RateLimiters;
 using Cute.Services;
 using Spectre.Console.Cli;
 using System.ComponentModel;
@@ -46,9 +46,9 @@ public class TypeDeleteCommand(IConsoleWriter console, ILogger<TypeDeleteCommand
             ]
         );
 
-        await ContentfulManagementClient.DeactivateContentType(settings.ContentTypeId);
+        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeactivateContentType(settings.ContentTypeId));
 
-        await ContentfulManagementClient.DeleteContentType(settings.ContentTypeId);
+        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeleteContentType(settings.ContentTypeId));
 
         _console.WriteNormalWithHighlights($"Deleted {settings.ContentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
 

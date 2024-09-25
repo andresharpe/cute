@@ -9,6 +9,7 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
+using Cute.Lib.RateLimiters;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
@@ -147,7 +148,7 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
         // 1: fix refs
 
-        var allContentTypes = (await ContentfulManagementClient.GetContentTypes()).OrderBy(c => c.SystemProperties.Id);
+        var allContentTypes = (await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.GetContentTypes())).OrderBy(c => c.SystemProperties.Id);
 
         var changedTypes = new Dictionary<string, ContentType>();
 
@@ -203,15 +204,15 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
         foreach (var (contentTypeId, contentType) in changedTypes)
         {
             _console.WriteNormalWithHighlights($"Updating reference for content type {contentTypeId}", Globals.StyleHeading);
-            await ContentfulManagementClient.CreateOrUpdateContentType(contentType,
-                version: contentType.SystemProperties.Version);
+            await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.CreateOrUpdateContentType(contentType,
+                version: contentType.SystemProperties.Version));
         }
 
         // 2: remove old content type
 
-        await ContentfulManagementClient.DeactivateContentType(oldContentTypeId);
+        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeactivateContentType(oldContentTypeId));
 
-        await ContentfulManagementClient.DeleteContentType(oldContentTypeId);
+        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeleteContentType(oldContentTypeId));
 
         _console.WriteBlankLine();
         _console.WriteAlert("Done!");
@@ -370,7 +371,7 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
             if (isChanged)
             {
                 _console.WriteNormalWithHighlights($"...saving changes to '{contentType.SystemProperties.Id}'", Globals.StyleHeading);
-                await ContentfulManagementClient.CreateOrUpdateContentType(contentType, version: contentType.SystemProperties.Version);
+                await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.CreateOrUpdateContentType(contentType, version: contentType.SystemProperties.Version));
             }
         }
 

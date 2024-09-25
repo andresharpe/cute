@@ -6,6 +6,7 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
+using Cute.Lib.RateLimiters;
 using Cute.Lib.TypeGenAdapter;
 using Cute.Services;
 using Spectre.Console;
@@ -76,8 +77,8 @@ public class TypeScaffoldCommand(IConsoleWriter console, ILogger<TypeScaffoldCom
 
             var envClient = new ContentfulConnection(_httpClient, envOptions);
             contentTypes = settings.ContentTypeId == null
-                ? (await envClient.ManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
-                : [await envClient.ManagementClient.GetContentType(settings.ContentTypeId)];
+                ? (await RateLimiter.SendRequestAsync(() => envClient.ManagementClient.GetContentTypes())).OrderBy(ct => ct.Name).ToList()
+                : [await RateLimiter.SendRequestAsync(() => envClient.ManagementClient.GetContentType(settings.ContentTypeId))];
         }
 
         var displayActions = new DisplayActions

@@ -37,9 +37,9 @@ public static class ContentfulContentTypeExtensions
 
         // end: hack
 
-        contentType = await client.CreateOrUpdateContentType(contentType);
+        contentType = await RateLimiter.SendRequestAsync(() => client.CreateOrUpdateContentType(contentType));
 
-        await client.ActivateContentType(contentType.SystemProperties.Id, 1);
+        await RateLimiter.SendRequestAsync(() => client.ActivateContentType(contentType.SystemProperties.Id, 1));
     }
 
     public static async Task<ContentType> CloneWithId(this ContentType contentType,
@@ -73,9 +73,9 @@ public static class ContentfulContentTypeExtensions
 
         // end: hack
 
-        clonedContentType = await client.CreateOrUpdateContentType(clonedContentType);
+        clonedContentType = await RateLimiter.SendRequestAsync(() => client.CreateOrUpdateContentType(clonedContentType));
 
-        await client.ActivateContentType(contentTypeId, 1);
+        await RateLimiter.SendRequestAsync(() => client.ActivateContentType(contentTypeId, 1));
 
         return clonedContentType;
     }
