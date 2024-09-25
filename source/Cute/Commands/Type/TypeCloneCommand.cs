@@ -18,6 +18,7 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
     AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeCloneCommand.Settings>(console, logger, contentfulConnection, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
+
     public class Settings : LoggedInSettings
     {
         [CommandOption("-c|--content-type-id <ID>")]
@@ -40,11 +41,6 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
         string contentTypeId = settings.ContentTypeId;
-
-        if (!ConfirmWithPromptChallenge($"destroy all '{contentTypeId}' entries in {ContentfulEnvironmentId}"))
-        {
-            return -1;
-        }
 
         if (settings.SourceEnvironmentId == ContentfulEnvironmentId)
         {
@@ -88,28 +84,7 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
         }
         else
         {
-            _console.WriteBlankLine();
-            _console.WriteNormalWithHighlights($"{contentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
-            _console.WriteBlankLine();
-
-            await PerformBulkOperations(
-                [
-                    new DeleteBulkAction(_contentfulConnection, _httpClient)
-                    .WithContentType(sourceContentType)
-                    .WithContentLocales(ContentLocales)
-                    .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
-                    .WithConcurrentTaskLimit(settings.EntriesPerBatch)
-                ]);
-
-            await ContentfulManagementClient.DeactivateContentType(contentTypeId);
-
-            await ContentfulManagementClient.DeleteContentType(contentTypeId);
-
-            _console.WriteNormalWithHighlights($"Deleted {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
-
-            targetContentType = await sourceContentType.CloneWithId(ContentfulManagementClient, contentTypeId);
-
-            _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
+            throw new CliException($"Content type {contentTypeId} already exists in {ContentfulEnvironmentId}. Please manually delete existing type by running a 'type delete' command");
         }
 
         _console.WriteNormalWithHighlights($"Reading entries {contentTypeId} in {settings.SourceEnvironmentId}", Globals.StyleHeading);
