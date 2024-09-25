@@ -1,22 +1,25 @@
 ﻿using ClosedXML.Excel;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
-using DocumentFormat.OpenXml.Spreadsheet;
+using Cute.Lib.Contentful.BulkActions;
 
 namespace Cute.Lib.TypeGenAdapter;
 
 // typegen -o c:\temp -l Excel
 
-public class ExcelTypeGenAdapter : ITypeGenAdapter
+public class ExcelTypeGenAdapter(DisplayActions displayActions)
+    : BaseTypeGenAdapter(displayActions)
 {
     private string _fileName = default!;
     private XLWorkbook _workbook = default!;
 
-    public Task PreGenerateTypeSource(List<ContentType> contentTypes, string path, string? fileName = null, string? namespc = null)
+    public override Task PreGenerateTypeSource(List<ContentType> contentTypes, string path, string? fileName = null, string? namespc = null)
     {
         var spaceId = contentTypes.First().SystemProperties.Space.SystemProperties.Id;
 
         _fileName ??= Path.Combine(path, spaceId + ".xlsx");
+
+        WarnIfFileExists(_fileName);
 
         if (System.IO.File.Exists(_fileName))
         {
@@ -59,7 +62,7 @@ public class ExcelTypeGenAdapter : ITypeGenAdapter
         return Task.CompletedTask;
     }
 
-    public Task<string> GenerateTypeSource(ContentType contentType, string path, string? fileName = null, string? namespc = null)
+    public override Task<string> GenerateTypeSource(ContentType contentType, string path, string? fileName = null, string? namespc = null)
     {
         var sheetName = contentType.SystemProperties.Id;
 
@@ -111,7 +114,7 @@ public class ExcelTypeGenAdapter : ITypeGenAdapter
         return Task.FromResult($"{_fileName} [{sheetName}]");
     }
 
-    public Task PostGenerateTypeSource()
+    public override Task PostGenerateTypeSource()
     {
         _workbook.SaveAs(_fileName);
 
