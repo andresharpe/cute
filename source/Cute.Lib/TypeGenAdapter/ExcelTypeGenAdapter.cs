@@ -1,14 +1,14 @@
 ﻿using ClosedXML.Excel;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
-using DocumentFormat.OpenXml.Spreadsheet;
+using Cute.Lib.Contentful.BulkActions;
 
 namespace Cute.Lib.TypeGenAdapter;
 
 // typegen -o c:\temp -l Excel
 
-public class ExcelTypeGenAdapter(Func<FormattableString, bool> fileExistsWarningChallenge)
-    : BaseTypeGenAdapter(fileExistsWarningChallenge)
+public class ExcelTypeGenAdapter(DisplayActions displayActions)
+    : BaseTypeGenAdapter(displayActions)
 {
     private string _fileName = default!;
     private XLWorkbook _workbook = default!;

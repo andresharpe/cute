@@ -1,11 +1,12 @@
 ﻿using Contentful.Core.Models;
+using Cute.Lib.Contentful.BulkActions;
 using File = System.IO.File;
 
 namespace Cute.Lib.TypeGenAdapter
 {
-    public abstract class BaseTypeGenAdapter(Func<FormattableString, bool> fileExistsWarningChallenge) : ITypeGenAdapter
+    public abstract class BaseTypeGenAdapter(DisplayActions displayActions) : ITypeGenAdapter
     {
-        private readonly Func<FormattableString, bool> _fileExistsWarningChallenge = fileExistsWarningChallenge;
+        private readonly DisplayActions _displayActions = displayActions;
 
         public abstract Task<string> GenerateTypeSource(ContentType contentType, string path, string? fileName = null, string? namespc = null);
 
@@ -15,9 +16,9 @@ namespace Cute.Lib.TypeGenAdapter
 
         protected bool WarnIfFileExists(string path)
         {
-            if (File.Exists(path))
+            if (File.Exists(path) && _displayActions.ConfirmWithPromptChallenge != null)
             {
-                return fileExistsWarningChallenge($"overwrite {path}");
+                return _displayActions.ConfirmWithPromptChallenge($"overwrite {path}");
             }
             return true;
         }

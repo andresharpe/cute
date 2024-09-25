@@ -10,4 +10,5 @@ public class DisplayActions
     public Action? DisplayRuler { get; set; } = null!;
     public Action? DisplayBlankLine { get; set; } = null!;
     public Func<string?, string>? EscapeMarkup { get; set; } = null!;
+    public Func<FormattableString, bool>? ConfirmWithPromptChallenge = null!;
 }

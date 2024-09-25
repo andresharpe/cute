@@ -1,12 +1,13 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
+using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Extensions;
 using System.Text;
 
 namespace Cute.Lib.TypeGenAdapter;
 
-public class CSharpTypeGenAdapter(Func<FormattableString, bool> fileExistsWarningChallenge)
-    : BaseTypeGenAdapter(fileExistsWarningChallenge)
+public class CSharpTypeGenAdapter(DisplayActions displayActions)
+    : BaseTypeGenAdapter(displayActions)
 {
     public override Task PreGenerateTypeSource(List<ContentType> contentTypes, string path, string? fileName = null, string? namespc = null)
     {

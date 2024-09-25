@@ -3,6 +3,7 @@ using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
 using Cute.Lib.Contentful;
+using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.TypeGenAdapter;
@@ -79,7 +80,12 @@ public class TypeScaffoldCommand(IConsoleWriter console, ILogger<TypeScaffoldCom
                 : [await envClient.ManagementClient.GetContentType(settings.ContentTypeId)];
         }
 
-        ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language, ConfirmWithPromptChallenge);
+        var displayActions = new DisplayActions
+        {
+            ConfirmWithPromptChallenge = ConfirmWithPromptChallenge
+        };
+
+        ITypeGenAdapter adapter = TypeGenFactory.Create(settings.Language, displayActions);
 
         await adapter.PreGenerateTypeSource(contentTypes, settings.OutputPath, null, settings.Namespace);
 
