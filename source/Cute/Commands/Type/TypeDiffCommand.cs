@@ -5,6 +5,7 @@ using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
+using Cute.Lib.RateLimiters;
 using Cute.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -41,8 +42,8 @@ public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> lo
         _console.WriteNormalWithHighlights($"Comparing content types between environments: {ContentfulEnvironmentId} <--> {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
         List<ContentType> sourceEnvContentTypes = string.IsNullOrEmpty(settings.ContentTypeId)
-            ? (await sourceEnvClient.ManagementClient.GetContentTypes()).OrderBy(ct => ct.Name).ToList()
-            : [await sourceEnvClient.ManagementClient.GetContentType(settings.ContentTypeId)];
+            ? (await RateLimiter.SendRequestAsync(() => sourceEnvClient.ManagementClient.GetContentTypes())).OrderBy(ct => ct.Name).ToList()
+            : [await RateLimiter.SendRequestAsync(() => sourceEnvClient.ManagementClient.GetContentType(settings.ContentTypeId))];
 
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"{sourceEnvContentTypes.Count} found in environment {settings.SourceEnvironmentId}", Globals.StyleHeading);
