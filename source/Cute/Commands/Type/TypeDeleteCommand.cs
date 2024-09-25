@@ -20,7 +20,7 @@ public class TypeDeleteCommand(IConsoleWriter console, ILogger<TypeDeleteCommand
     public class Settings : LoggedInSettings
     {
         [CommandOption("-c|--content-type-id <ID>")]
-        [Description("Specifies the content type id to generate types for. Default is all.")]
+        [Description("Specifies the content type id to be deleted.")]
         public string ContentTypeId { get; set; } = string.Empty;
     }
 
