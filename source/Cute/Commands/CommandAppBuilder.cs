@@ -57,7 +57,7 @@ public class CommandAppBuilder
         _services = BuildServiceCollection();
     }
 
-    public CommandApp Build()
+    public CommandApp Build(Action<IConfigurator>? configurator = null)
     {
         var typeRegistrar = new TypeRegistrar(_services);
 
@@ -193,6 +193,8 @@ public class CommandAppBuilder
 
             commandConfig.AddCommand<VersionCommand>("version")
                 .WithDescription("Display the current version of the CLI.");
+
+            configurator?.Invoke(commandConfig);
         });
 
         return commandApp;
