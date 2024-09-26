@@ -40,13 +40,15 @@ public class XmlToMarkdownTests(ITestOutputHelper output)
         Assert.False(string.IsNullOrWhiteSpace(markdownOutput), "Markdown output should not be empty.");
 
         // Output the markdown to the test output for verification
-        File.WriteAllText("../../../../../docs/cli.MD", markdownOutput);
+        File.WriteAllText("../../../../../docs/CUTE-USAGE.md", markdownOutput);
     }
 
     // Include the ProcessXmlToMarkdown and other helper methods here
     private static string ProcessXmlToMarkdown(XDocument xmlDoc)
     {
-        StringWriter markdownWriter = new StringWriter();
+        using var markdownWriter = new StringWriter();
+
+        markdownWriter.WriteLine("# Cute CLI Usage\n");
 
         // Start processing from the root commands
         var rootCommands = xmlDoc.Element("Model")?.Elements("Command");
@@ -92,8 +94,8 @@ public class XmlToMarkdownTests(ITestOutputHelper output)
         {
             writer.WriteLine($"{headingLevel}# Parameters\n");
             // Output table header
-            writer.WriteLine("| Option | Required | Description |");
-            writer.WriteLine("|--------|----------|-------------|");
+            writer.WriteLine("| Option | Description |");
+            writer.WriteLine("|--------|-------------|");
 
             foreach (var param in parametersNode.Elements("Option"))
             {
@@ -106,17 +108,17 @@ public class XmlToMarkdownTests(ITestOutputHelper output)
                 var paramDescription = GetDescriptionText(param.Element("Description"));
 
                 var optionSyntax = "";
-                if (!string.IsNullOrEmpty(shortName))
-                {
-                    optionSyntax += $"-{shortName}";
-                }
                 if (!string.IsNullOrEmpty(longName))
+                {
+                    optionSyntax += $"--{longName}";
+                }
+                if (!string.IsNullOrEmpty(shortName))
                 {
                     if (!string.IsNullOrEmpty(optionSyntax))
                     {
                         optionSyntax += ", ";
                     }
-                    optionSyntax += $"--{longName}";
+                    optionSyntax += $"-{shortName}";
                 }
                 if (!string.IsNullOrEmpty(value) && value != "NULL")
                 {
@@ -128,7 +130,7 @@ public class XmlToMarkdownTests(ITestOutputHelper output)
                 // Escape pipes and line breaks in descriptions
                 paramDescription = paramDescription.Replace("|", "\\|").Replace("\n", " ").Replace("\r", "");
 
-                writer.WriteLine($"| {optionSyntax} | {requiredText} | {paramDescription} |");
+                writer.WriteLine($"| {optionSyntax} | {paramDescription} |");
             }
             writer.WriteLine("");
         }
@@ -165,44 +167,35 @@ public class XmlToMarkdownTests(ITestOutputHelper output)
         }
     }
 
+    private static readonly Regex _spectreMarkup = new(@"\[(\/?)(?!\*)[^\]]+\]", RegexOptions.Compiled);
+
     private static string CleanDescription(string text)
     {
         if (string.IsNullOrEmpty(text))
             return "";
 
-        // Replace [italic]...[/] with *...*
-        text = Regex.Replace(text, @"\[(\/?)italic(?: [^\]]+)?\]", "*");
-
         // Remove color specifications like [LightSkyBlue3]
-        text = Regex.Replace(text, @"\[(\/?)(?!\*)[^\]]+\]", "");
+        text = _spectreMarkup.Replace(text, "");
 
         return text.Trim();
     }
 
     // Custom IAnsiConsole implementation
-    public class StringWriterConsole : IAnsiConsole
+    public class StringWriterConsole(StringWriter writer) : IAnsiConsole
     {
-        private readonly StringWriter _writer;
+        private readonly StringWriter _writer = writer;
 
-        public StringWriterConsole(StringWriter writer)
-        {
-            _writer = writer;
-        }
+        public IAnsiConsoleCursor Cursor { get; } = null!;
 
-        public IAnsiConsoleCursor Cursor { get; } = new CustomConsoleCursor();
+        public IAnsiConsoleInput Input { get; } = null!;
 
-        public IAnsiConsoleInput Input { get; } = new CustomConsoleInput();
-
-        public RenderPipeline Pipeline { get; } = new RenderPipeline();
+        public RenderPipeline Pipeline { get; } = null!;
 
         public IExclusivityMode ExclusivityMode => null!;
 
         public Profile Profile => throw new NotImplementedException();
 
-        public void Clear(bool home)
-        {
-            // Do nothing
-        }
+        public void Clear(bool home) => throw new NotImplementedException();
 
         public void Write(Segment segment)
         {
@@ -216,53 +209,13 @@ public class XmlToMarkdownTests(ITestOutputHelper output)
 
         public void Write(IRenderable renderable)
         {
-            var segments = renderable.Render(
-                new RenderOptions(null!, new Size(160, 160)), 400
-                );
+            var segments = renderable.Render(new RenderOptions(null!, new Size(1024, 1024)), 1024);
 
             // Write the segments
             foreach (var segment in segments)
             {
                 Write(segment);
             }
-        }
-    }
-
-    // Custom implementation of IAnsiConsoleCursor
-    public class CustomConsoleCursor : IAnsiConsoleCursor
-    {
-        public void Show(bool show)
-        {
-            // Do nothing
-        }
-
-        public void SetPosition(int column, int line)
-        {
-            // Do nothing
-        }
-
-        public void Move(CursorDirection direction, int steps)
-        {
-            // Do nothing
-        }
-    }
-
-    // Custom implementation of IAnsiConsoleInput
-    public class CustomConsoleInput : IAnsiConsoleInput
-    {
-        public bool IsKeyAvailable()
-        {
-            return false;
-        }
-
-        ConsoleKeyInfo? IAnsiConsoleInput.ReadKey(bool intercept)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<ConsoleKeyInfo?> ReadKeyAsync(bool intercept, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
         }
     }
 }
