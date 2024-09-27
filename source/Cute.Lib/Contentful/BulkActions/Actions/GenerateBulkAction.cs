@@ -332,7 +332,13 @@ public class GenerateBulkAction(
                 continue;
             }
 
-            var contentTypeSysId = uploadStatus.Filename.Split('-')[0];
+            var parts = uploadStatus.Filename.Split('-');
+            var contentTypeSysId = parts[0];
+            if (contentTypeSysId == "cute")
+            {
+                contentTypeSysId = $"cute-{parts[1]}";
+            }
+
             if (!cuteContentGenerateEntry.Sys.Id.Equals(contentTypeSysId))
             {
                 continue;
