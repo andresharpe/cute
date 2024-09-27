@@ -1,6 +1,4 @@
-﻿using Contentful.Core;
-
-namespace Cute.Lib.Contentful.CommandModels.ContentSyncApi;
+﻿namespace Cute.Lib.Contentful.CommandModels.ContentSyncApi;
 
 public class CuteContentSyncApi
 {
@@ -9,17 +7,9 @@ public class CuteContentSyncApi
     public string Yaml { get; set; } = default!;
     public string Schedule { get; set; } = default!;
 
-    public static CuteContentSyncApi? GetByKey(ContentfulClient contentfulClient, string key)
+    public static CuteContentSyncApi? GetByKey(ContentfulConnection contentfulConnection, string key)
     {
-        return ContentfulEntryEnumerator
-            .DeliveryEntries<CuteContentSyncApi>(
-                contentfulClient,
-                "cuteContentSyncApi",
-                pageSize: 1,
-                queryConfigurator: b => b.FieldEquals("fields.key", key)
-            )
-            .ToBlockingEnumerable()
-            .Select(e => e.Entry)
-            .FirstOrDefault();
+        return contentfulConnection
+            .GetPreviewEntryByKey<CuteContentSyncApi>("cuteContentSyncApi", "fields.key", key);
     }
 }

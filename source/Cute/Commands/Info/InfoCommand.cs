@@ -13,9 +13,8 @@ using Text = Spectre.Console.Text;
 
 namespace Cute.Commands.Info;
 
-public sealed class InfoCommand(IConsoleWriter console, ILogger<InfoCommand> logger,
-    ContentfulConnection contentfulConnection, AppSettings appSettings)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+public sealed class InfoCommand(IConsoleWriter console, ILogger<InfoCommand> logger, AppSettings appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     public class Settings : LoggedInSettings
     {
@@ -24,8 +23,8 @@ public sealed class InfoCommand(IConsoleWriter console, ILogger<InfoCommand> log
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
         var topTable = new Table()
-    .RoundedBorder()
-    .BorderColor(Globals.StyleDim.Foreground);
+            .RoundedBorder()
+            .BorderColor(Globals.StyleDim.Foreground);
 
         topTable.AddColumn(new TableColumn(new Text("Space", Globals.StyleSubHeading)));
         topTable.AddColumn(new TableColumn(new Text("Id", Globals.StyleSubHeading)));
@@ -33,11 +32,11 @@ public sealed class InfoCommand(IConsoleWriter console, ILogger<InfoCommand> log
         topTable.AddColumn(new TableColumn(new Text("User Id", Globals.StyleSubHeading)));
         topTable.AddColumn(new TableColumn(new Text("User Name", Globals.StyleSubHeading)));
         topTable.AddRow(
-            new Markup(ContentfulSpace.Name, Globals.StyleAlert),
-            new Markup(ContentfulSpaceId, Globals.StyleNormal),
-            new Markup(ContentfulEnvironmentId, Globals.StyleNormal),
-            new Markup(ContentfulUser.SystemProperties.Id, Globals.StyleNormal),
-            new Markup(ContentfulUser.Email, Globals.StyleNormal)
+            new Markup((await ContentfulConnection.GetDefaultSpaceAsync()).Name, Globals.StyleAlert),
+            new Markup((await ContentfulConnection.GetDefaultSpaceAsync()).Id(), Globals.StyleNormal),
+            new Markup((await ContentfulConnection.GetDefaultEnvironmentAsync()).SystemProperties.Id, Globals.StyleNormal),
+            new Markup((await ContentfulConnection.GetCurrentUserAsync()).Id(), Globals.StyleNormal),
+            new Markup((await ContentfulConnection.GetCurrentUserAsync()).Email, Globals.StyleNormal)
         );
         AnsiConsole.Write(topTable);
 
@@ -68,22 +67,20 @@ public sealed class InfoCommand(IConsoleWriter console, ILogger<InfoCommand> log
             .Spinner(Spinner.Known.Aesthetic)
             .StartAsync("Getting info...", async ctx =>
             {
-                var contentTypes = (await ContentfulManagementClient.GetContentTypes(spaceId: ContentfulSpaceId))
+                var contentTypesExt = (await ContentfulConnection.GetContentTypeExtendedAsync())
                     .OrderBy(t => t.Name);
 
-                var totalEntries = ContentTypes.TotalEntries(ContentfulManagementClient);
-
-                foreach (var contentType in contentTypes)
+                foreach (var contentTypeExt in contentTypesExt)
                 {
                     typesTable.AddRow(
-                        new Markup(contentType.Name.RemoveEmojis().Trim().Snip(27), Globals.StyleNormal),
-                        new Markup(contentType.SystemProperties.Id, Globals.StyleAlertAccent),
-                        new Markup(contentType.Fields.Count.ToString(), Globals.StyleNormal).RightJustified(),
-                        new Markup(totalEntries[contentType.SystemProperties.Id].ToString(), Globals.StyleNormal).RightJustified()
+                        new Markup(contentTypeExt.Name.RemoveEmojis().Trim().Snip(27), Globals.StyleNormal),
+                        new Markup(contentTypeExt.Id(), Globals.StyleAlertAccent),
+                        new Markup(contentTypeExt.Fields.Count.ToString(), Globals.StyleNormal).RightJustified(),
+                        new Markup(contentTypeExt.TotalEntries.ToString(), Globals.StyleNormal).RightJustified()
                     );
                 }
 
-                var locales = (await ContentfulManagementClient.GetLocalesCollection(spaceId: ContentfulSpaceId))
+                var locales = (await ContentfulConnection.GetLocalesAsync())
                     .OrderBy(t => t.Name);
 
                 foreach (var locale in locales)

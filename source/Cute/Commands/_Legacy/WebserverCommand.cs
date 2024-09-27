@@ -18,7 +18,7 @@ public sealed class WebserverCommand : WebCommand<WebserverCommand.Settings>
     private readonly ILogger<WebserverCommand> _logger;
 
     public WebserverCommand(IConsoleWriter console, ILogger<WebserverCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings, ICommandApp commandApp)
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings, ICommandApp commandApp)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _commandApp = commandApp;

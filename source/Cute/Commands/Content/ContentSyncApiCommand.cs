@@ -19,9 +19,9 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace Cute.Commands.Content;
 
 public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncApiCommand> logger,
-    ContentfulConnection contentfulConnection, AppSettings appSettings, HttpClient httpClient,
+    AppSettings appSettings, HttpClient httpClient,
     HttpResponseFileCache httpResponseCache)
-    : BaseLoggedInCommand<ContentSyncApiCommand.Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<ContentSyncApiCommand.Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
     private readonly HttpResponseFileCache _httpResponseCache = httpResponseCache;
@@ -62,9 +62,11 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         var contentMetaTypeId = contentMetaType.SystemProperties.Id;
 
-        var contentLocales = new ContentLocales([DefaultLocaleCode], DefaultLocaleCode);
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
 
-        var apiSyncEntry = CuteContentSyncApi.GetByKey(ContentfulClient, settings.Key)
+        var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
+
+        var apiSyncEntry = CuteContentSyncApi.GetByKey(ContentfulConnection, settings.Key)
             ?? throw new CliException($"No API sync entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
 
         var yamlDeserializer = new DeserializerBuilder()
@@ -76,20 +78,20 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         adapter.Id = settings.Key;
 
-        var contentType = GetContentTypeOrThrowError(adapter.ContentType, $"Syncing '{contentMetaTypeId}' entry with key '{settings.Key}'.");
+        var contentType = await GetContentTypeOrThrowError(adapter.ContentType, $"Syncing '{contentMetaTypeId}' entry with key '{settings.Key}'.");
 
         await PerformBulkOperations([
 
-            new UpsertBulkAction(_contentfulConnection, _httpClient)
+            new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithNewEntries(
                     new HttpInputAdapter(
                         adapter,
-                        _contentfulConnection,
+                        ContentfulConnection,
                         contentLocales,
-                        _appSettings.GetSettings(),
-                        ContentTypes,
+                        AppSettings.GetSettings(),
+                        await ContentfulConnection.GetContentTypesAsync(),
                         _httpClient
                     )
                     .WithHttpResponseFileCache(settings.UseFileCache ?  _httpResponseCache : null )
@@ -98,7 +100,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
                 .WithApplyChanges(settings.Apply)
                 .WithVerbosity(settings.Verbosity),
 
-            new PublishBulkAction(_contentfulConnection, _httpClient)
+            new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)

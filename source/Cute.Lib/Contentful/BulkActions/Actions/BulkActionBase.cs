@@ -170,9 +170,8 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         var i = 0;
 
-        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(
-            _contentfulConnection.ManagementClient, contentTypeId, displayField)
-        )
+        await foreach (var (entry, total) in
+            _contentfulConnection.GetManagementEntries<Entry<JObject>>(_contentType))
         {
             var displayFieldValue = entry.Fields[displayField]?[_contentLocales.DefaultLocale]?.Value<string>() ?? string.Empty;
 
@@ -189,11 +188,11 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
                 }
             });
 
-            progressUpdater?.Invoke(new(i, entries.Total, null, null));
+            progressUpdater?.Invoke(new(i, total, null, null));
 
             if (++i % 1000 == 0)
             {
-                NotifyUserInterface($"Getting '{_contentTypeId}' entry {i}/{entries.Total}...", progressUpdater);
+                NotifyUserInterface($"Getting '{_contentTypeId}' entry {i}/{total}...", progressUpdater);
             }
         }
 
@@ -312,7 +311,10 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
     private async Task<BulkActionResponse> SendBulkChangePublishRequestViaHttp(BulkAction bulkAction, IEnumerable<BulkItem> items, Action<BulkActionProgressEvent>? progressUpdater)
     {
-        var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{_contentfulConnection.Options.SpaceId}/environments/{_contentfulConnection.Options.Environment}/bulk_actions/{bulkAction.ToString().ToLower()}");
+        var spaceId = (await _contentfulConnection.GetDefaultSpaceAsync()).SystemProperties.Id;
+        var environmentId = (await _contentfulConnection.GetDefaultEnvironmentAsync()).SystemProperties.Id;
+
+        var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{spaceId}/environments/{environmentId}/bulk_actions/{bulkAction.ToString().ToLower()}");
 
         object bulkObject = bulkAction == BulkAction.Publish
             ? items.Select(i => new { sys = new { id = i.Sys.Id, type = "Link", linkType = "Entry", version = i.Sys.Version ?? 1 } }).ToArray()
@@ -325,7 +327,7 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
             Content = new StringContent(JsonConvert.SerializeObject(new { entities = new { items = bulkObject } }), Encoding.UTF8, "application/json")
         };
 
-        bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.Options.ManagementApiKey);
+        bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.ManagementApiKey);
 
         using var bulkResponse = await RateLimiter.SendRequestAsync(
                 () => _httpClient.SendAsync(bulkRequest),
@@ -344,7 +346,10 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
     private async Task<BulkActionResponse> SendBulkActionStatusRequestViaHttp(string bulkActionResponseId, Action<BulkActionProgressEvent>? progressUpdater)
     {
-        var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{_contentfulConnection.Options.SpaceId}/environments/{_contentfulConnection.Options.Environment}/bulk_actions/actions/{bulkActionResponseId}");
+        var spaceId = (await _contentfulConnection.GetDefaultSpaceAsync()).SystemProperties.Id;
+        var environmentId = (await _contentfulConnection.GetDefaultEnvironmentAsync()).SystemProperties.Id;
+
+        var bulkEndpoint = new Uri($"https://api.contentful.com/spaces/{spaceId}/environments/{environmentId}/bulk_actions/actions/{bulkActionResponseId}");
 
         var bulkRequest = new HttpRequestMessage
         {
@@ -352,7 +357,7 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
             Method = HttpMethod.Get,
         };
 
-        bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.Options.ManagementApiKey);
+        bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.ManagementApiKey);
 
         using var bulkResponse = await RateLimiter.SendRequestAsync(
                 () => _httpClient.SendAsync(bulkRequest),

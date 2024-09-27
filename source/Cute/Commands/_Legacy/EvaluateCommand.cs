@@ -16,7 +16,7 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
     private readonly HttpClient _httpClient;
 
     public EvaluateCommand(IConsoleWriter console, ILogger<EvaluateCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings, HttpClient httpClient)
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings, HttpClient httpClient)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _httpClient = httpClient;

@@ -97,23 +97,31 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
 
     public override Task<int> GetRecordCountAsync()
     {
-        var records = ContentfulEntryEnumerator.Entries<Entry<JObject>>(
-            _contentfulConnection.ManagementClient,
-            _contentTypeId,
-            _contentType.DisplayField,
-            includeLevels: 1,
-            pageSize: 1)
+        var records = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
+                new EntryQuery.Builder()
+                    .WithContentType(_contentTypeId)
+                    .WithPageSize(0)
+                    .WithIncludeLevels(0)
+                    .Build()
+            )
             .ToBlockingEnumerable()
-            .Select(s => s.Entries)
-            .FirstOrDefault()?.Total ?? 0;
+            .Select(s => s.TotalEntries)
+            .First();
 
         return Task.FromResult(records);
     }
 
     public override async IAsyncEnumerable<IDictionary<string, object?>> GetRecordsAsync()
     {
-        await foreach (var (entry, _) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(
-            _contentfulConnection.ManagementClient, _contentTypeId, _contentType.DisplayField, includeLevels: 1))
+        var enumerable = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
+            new EntryQuery.Builder()
+                .WithContentType(_contentTypeId)
+                .WithOrderByField(_contentType.DisplayField)
+                .WithIncludeLevels(1)
+                .Build()
+            );
+
+        await foreach (var (entry, _) in enumerable)
         {
             _flatEntry = GetFlatEntry(entry);
 
@@ -129,9 +137,7 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
     {
         ScriptObject? scriptObject = [];
 
-        CuteFunctions.ContentfulManagementClient = contentfulConnection.ManagementClient;
-
-        CuteFunctions.ContentfulClient = contentfulConnection.DeliveryClient;
+        CuteFunctions.ContentfulConnection = contentfulConnection;
 
         scriptObject.SetValue("cute", new CuteFunctions(), true);
 

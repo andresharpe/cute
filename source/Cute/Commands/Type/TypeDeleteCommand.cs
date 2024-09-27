@@ -5,15 +5,16 @@ using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
-using Cute.Lib.RateLimiters;
+using Cute.Lib.Extensions;
 using Cute.Services;
 using Spectre.Console.Cli;
 using System.ComponentModel;
 
 namespace Cute.Commands.Type;
 
-public class TypeDeleteCommand(IConsoleWriter console, ILogger<TypeDeleteCommand> logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeDeleteCommand.Settings>(console, logger, contentfulConnection, appSettings)
+public class TypeDeleteCommand(IConsoleWriter console, ILogger<TypeDeleteCommand> logger, AppSettings appSettings,
+    HttpClient httpClient)
+    : BaseLoggedInCommand<TypeDeleteCommand.Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -26,11 +27,13 @@ public class TypeDeleteCommand(IConsoleWriter console, ILogger<TypeDeleteCommand
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        ContentType contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
-        _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"{settings.ContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
+        ContentType contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
+        var contentfulEnvironment = await ContentfulConnection.GetDefaultEnvironmentAsync();
 
-        if (!ConfirmWithPromptChallenge($"destroy all '{settings.ContentTypeId}' entries in {ContentfulEnvironmentId}"))
+        _console.WriteBlankLine();
+        _console.WriteNormalWithHighlights($"{settings.ContentTypeId} found in environment {contentfulEnvironment.Id()}", Globals.StyleHeading);
+
+        if (!ConfirmWithPromptChallenge($"destroy all '{settings.ContentTypeId}' entries in {contentfulEnvironment.Id()}"))
         {
             return -1;
         }
@@ -39,18 +42,16 @@ public class TypeDeleteCommand(IConsoleWriter console, ILogger<TypeDeleteCommand
 
         await PerformBulkOperations(
             [
-                new DeleteBulkAction(_contentfulConnection, _httpClient)
+                new DeleteBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentType)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
             ]
         );
 
-        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeactivateContentType(settings.ContentTypeId));
+        await ContentfulConnection.DeleteContentTypeAsync(contentType);
 
-        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeleteContentType(settings.ContentTypeId));
-
-        _console.WriteNormalWithHighlights($"Deleted {settings.ContentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"Deleted {settings.ContentTypeId} in {contentfulEnvironment.Id()}", Globals.StyleHeading);
 
         return 0;
     }

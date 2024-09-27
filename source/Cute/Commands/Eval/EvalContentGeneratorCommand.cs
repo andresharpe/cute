@@ -1,14 +1,13 @@
 ﻿using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
-using Cute.Lib.Contentful;
 using Cute.Services;
 using Spectre.Console.Cli;
 
 namespace Cute.Commands.Eval;
 
-public class EvalContentGeneratorCommand(IConsoleWriter console, ILogger logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings) : BaseLoggedInCommand<LoggedInSettings>(console, logger, contentfulConnection, appSettings)
+public class EvalContentGeneratorCommand(IConsoleWriter console, ILogger logger, AppSettings appSettings)
+    : BaseLoggedInCommand<LoggedInSettings>(console, logger, appSettings)
 {
     public override Task<int> ExecuteCommandAsync(CommandContext context, LoggedInSettings settings)
     {

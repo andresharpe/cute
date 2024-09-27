@@ -4,6 +4,7 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
+using Cute.Lib.Extensions;
 using Cute.Lib.InputAdapters.FileAdapters;
 using Cute.Services;
 using Spectre.Console;
@@ -13,9 +14,9 @@ using static Cute.Commands.Content.ContentUploadCommand;
 
 namespace Cute.Commands.Content;
 
-public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadCommand> logger, ContentfulConnection contentfulConnection,
+public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadCommand> logger,
     AppSettings appSettings, HttpClient httpClient)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -68,17 +69,17 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
     {
         if (settings.Format == null) return -1;
 
-        settings.ContentTypeId = ResolveContentTypeId(settings.ContentTypeId) ??
+        settings.ContentTypeId = await ResolveContentTypeId(settings.ContentTypeId) ??
             throw new CliException("You need to specify a content type to upload.");
 
-        var contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
+        var contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
 
         if (!ConfirmWithPromptChallenge($"CREATE and UPDATE entries in '{settings.ContentTypeId}'"))
         {
             return -1;
         }
 
-        var contentLocales = ContentLocales;
+        var contentLocales = await ContentfulConnection.GetContentLocalesAsync();
 
         var fileFormat = settings.Format.Value;
 
@@ -92,7 +93,7 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
         await PerformBulkOperations(
         [
 
-            new UpsertBulkAction(_contentfulConnection, _httpClient)
+            new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithNewEntries(
@@ -105,7 +106,7 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
                 .WithApplyChanges(settings.Apply)
                 .WithVerbosity(settings.Verbosity),
 
-            new PublishBulkAction(_contentfulConnection, _httpClient)
+            new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)

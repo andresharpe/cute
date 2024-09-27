@@ -30,10 +30,9 @@ using File = System.IO.File;
 namespace Cute.Commands.Content;
 
 public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<ContentSeedGeoDataCommand> logger,
-    ContentfulConnection contentfulConnection, AppSettings appSettings,
-    HttpClient httpClient, HttpClient googleClient)
+    AppSettings appSettings, HttpClient httpClient, HttpClient googleClient)
 
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private string _extractedFile = default!;
     private readonly HttpClient _httpClient = httpClient;
@@ -100,7 +99,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        if (!_appSettings.GetSettings().TryGetValue("Cute__GoogleApiKey", out _googleApiKey!))
+        if (!AppSettings.GetSettings().TryGetValue("Cute__GoogleApiKey", out _googleApiKey!))
         {
             throw new CliException("Google API key not found in environment variables. (Cute__GoogleApiKey)");
         }
@@ -128,13 +127,14 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         if (settings.Upload)
         {
             var prefix = settings.ContentTypePrefix;
-            var contentTypeId = ResolveContentTypeId($"{prefix}Geo") ?? throw new CliException($"Content type '{prefix}Geo' not found.");
-            var contentType = GetContentTypeOrThrowError(contentTypeId);
-            var contentLocales = new ContentLocales([ContentLocales.DefaultLocale], ContentLocales.DefaultLocale);
+            var contentTypeId = await ResolveContentTypeId($"{prefix}Geo") ?? throw new CliException($"Content type '{prefix}Geo' not found.");
+            var contentType = await GetContentTypeOrThrowError(contentTypeId);
+            var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+            var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
 
             await PerformBulkOperations([
 
-                new UpsertBulkAction(_contentfulConnection, _httpClient)
+                new UpsertBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
                     .WithNewEntries(
@@ -147,7 +147,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                     .WithApplyChanges(true)
                     .WithVerbosity(settings.Verbosity),
 
-                new PublishBulkAction(_contentfulConnection, _httpClient)
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
                     .WithVerbosity(settings.Verbosity)
@@ -260,9 +260,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         var nextOutput = outputEvery;
         var prefix = settings.ContentTypePrefix;
 
-        _console.WriteNormalWithHighlights($"Checking Contentful data in {_appSettings.ContentfulDefaultEnvironment}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"Checking Contentful data in {AppSettings.ContentfulDefaultEnvironment}", Globals.StyleHeading);
 
-        var dataLocations = ContentfulEntryEnumerator.DeliveryEntries<JObject>(ContentfulPreviewClient, $"{prefix}Location")
+        var dataLocations = ContentfulConnection.GetDeliveryEntries<JObject>($"{prefix}Location")
             .ToBlockingEnumerable()
             .Select(e => new
             {
@@ -279,8 +279,13 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         _console.WriteNormalWithHighlights($"...{dataCountryCode.Count:N0} related countries found.", Globals.StyleHeading);
 
-        var countryToGeoId = ContentfulEntryEnumerator.DeliveryEntries<GeoInfo>(ContentfulPreviewClient, $"{prefix}Geo",
-                queryConfigurator: q => q.FieldEquals("fields.geoType", "country"))
+        var countryToGeoId = ContentfulConnection
+                .GetPreviewEntries<GeoInfo>(
+                    new EntryQuery.Builder()
+                        .WithContentType($"{prefix}Geo")
+                        .WithQueryConfig(q => q.FieldEquals("fields.geoType", "country"))
+                        .Build()
+            )
             .ToBlockingEnumerable()
             .Select(x => x.Entry)
             .Where(e => dataCountryCode.Contains(e.Key))
@@ -288,15 +293,21 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         _console.WriteNormalWithHighlights($"...{countryToGeoId.Count:N0} existing country Geos found.", Globals.StyleHeading);
 
-        var adminCodeToGeoId = ContentfulEntryEnumerator.DeliveryEntries<GeoInfo>(ContentfulPreviewClient, $"{prefix}Geo",
-                queryConfigurator: q => q.FieldEquals("fields.geoType", "state-or-province"))
+        var adminCodeToGeoId = ContentfulConnection
+            .GetPreviewEntries<GeoInfo>(
+                new EntryQuery.Builder()
+                    .WithContentType($"{prefix}Geo")
+                    .WithQueryConfig(q => q.FieldEquals("fields.geoType", "state-or-province"))
+                    .Build()
+            )
             .ToBlockingEnumerable()
             .Select(x => x.Entry)
             .ToDictionary(o => o.Key);
 
         _console.WriteNormalWithHighlights($"...{adminCodeToGeoId.Count:N0} existing state and province Geos found.", Globals.StyleHeading);
 
-        var countryCodeToInfo = ContentfulEntryEnumerator.DeliveryEntries<GeoInfo>(ContentfulPreviewClient, $"{prefix}Country")
+        var countryCodeToInfo = ContentfulConnection
+            .GetPreviewEntries<GeoInfo>($"{prefix}Country")
              .ToBlockingEnumerable()
             .Select(x => x.Entry)
             .Where(e => dataCountryCode.Contains(e.Key))

@@ -26,7 +26,7 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
     private readonly GenerateBulkAction _generateCommandRunner;
 
     public GenerateCommand(IConsoleWriter console, ILogger<GenerateCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings, AzureTranslator translator,
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings, AzureTranslator translator,
         GenerateBulkAction generateCommandRunner)
         : base(console, logger, contentfulConnection, appSettings)
     {

@@ -1,4 +1,3 @@
-using Contentful.Core;
 using Contentful.Core.Models;
 using Cute.Lib.SiteGen.Models;
 
@@ -22,30 +21,16 @@ public class CuteContentGenerate
     public DataLanguage GeneratorTargetDataLanguageEntry { get; set; } = default!;
     public List<DataLanguage> TranslatorTargetDataLanguageEntries { get; set; } = default!;
 
-    public static CuteContentGenerate? GetByKey(ContentfulClient contentfulClient, string key)
+    public static CuteContentGenerate? GetByKey(ContentfulConnection contentfulConnection, string key)
     {
-        return ContentfulEntryEnumerator
-            .DeliveryEntries<CuteContentGenerate>(
-                contentfulClient,
-                "cuteContentGenerate",
-                pageSize: 1,
-                queryConfigurator: b => b.FieldEquals("fields.key", key)
-            )
-            .ToBlockingEnumerable()
-            .Select(e => e.Entry)
-            .FirstOrDefault();
+        return contentfulConnection
+            .GetPreviewEntryByKey<CuteContentGenerate>("cuteContentGenerate", "fields.key", key);
     }
 
-    public static IReadOnlyList<CuteContentGenerate> GetAll(ContentfulClient contentfulClient)
+    public static IReadOnlyList<CuteContentGenerate> GetAll(ContentfulConnection contentfulConnection)
     {
-        return ContentfulEntryEnumerator
-            .DeliveryEntries<CuteContentGenerate>(
-                contentfulClient,
-                "cuteContentGenerate",
-                pageSize: 1000
-            )
-            .ToBlockingEnumerable()
-            .Select(e => e.Entry)
+        return contentfulConnection
+            .GetAllPreviewEntries<CuteContentGenerate>("cuteContentGenerate")
             .ToList();
     }
 }

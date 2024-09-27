@@ -6,7 +6,6 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
-using Cute.Lib.RateLimiters;
 using Cute.Lib.TypeGenAdapter;
 using Cute.Services;
 using Spectre.Console;
@@ -15,8 +14,9 @@ using System.ComponentModel;
 
 namespace Cute.Commands.Type;
 
-public class TypeScaffoldCommand(IConsoleWriter console, ILogger<TypeScaffoldCommand> logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeScaffoldCommand.Settings>(console, logger, contentfulConnection, appSettings)
+public class TypeScaffoldCommand(IConsoleWriter console, ILogger<TypeScaffoldCommand> logger,
+    AppSettings appSettings, HttpClient httpClient)
+    : BaseLoggedInCommand<TypeScaffoldCommand.Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -65,20 +65,26 @@ public class TypeScaffoldCommand(IConsoleWriter console, ILogger<TypeScaffoldCom
     {
         List<ContentType> contentTypes;
 
+        var allContentTypes = await ContentfulConnection.GetContentTypesAsync();
+
         if (settings.EnvironmentId is null)
         {
             contentTypes = settings.ContentTypeId == null
-                ? ContentTypes.ToList()
-                : [GetContentTypeOrThrowError(settings.ContentTypeId)];
+                ? allContentTypes.ToList()
+                : [await GetContentTypeOrThrowError(settings.ContentTypeId)];
         }
         else
         {
-            var envOptions = new OptionsForEnvironmentProvider(_appSettings, settings.EnvironmentId!);
+            var envOptions = new OptionsForEnvironmentProvider(AppSettings, settings.EnvironmentId!);
 
-            var envClient = new ContentfulConnection(_httpClient, envOptions);
+            var envClient = new ContentfulConnection.Builder()
+                .WithHttpClient(_httpClient)
+                .WithOptionsProvider(envOptions)
+                .Build();
+
             contentTypes = settings.ContentTypeId == null
-                ? (await RateLimiter.SendRequestAsync(() => envClient.ManagementClient.GetContentTypes())).OrderBy(ct => ct.Name).ToList()
-                : [await RateLimiter.SendRequestAsync(() => envClient.ManagementClient.GetContentType(settings.ContentTypeId))];
+                ? (await envClient.GetContentTypesAsync()).OrderBy(ct => ct.Name).ToList()
+                : [await envClient.GetContentTypeAsync(settings.ContentTypeId)];
         }
 
         var displayActions = new DisplayActions

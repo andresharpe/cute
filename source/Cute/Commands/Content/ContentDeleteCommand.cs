@@ -13,9 +13,9 @@ using static Cute.Commands.Content.ContentDeleteCommand;
 
 namespace Cute.Commands.Content;
 
-public class ContentDeleteCommand(IConsoleWriter console, ILogger<ContentDeleteCommand> logger, ContentfulConnection contentfulConnection,
+public class ContentDeleteCommand(IConsoleWriter console, ILogger<ContentDeleteCommand> logger,
     AppSettings appSettings, HttpClient httpClient)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -33,10 +33,10 @@ public class ContentDeleteCommand(IConsoleWriter console, ILogger<ContentDeleteC
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        settings.ContentTypeId = ResolveContentTypeId(settings.ContentTypeId) ??
+        settings.ContentTypeId = await ResolveContentTypeId(settings.ContentTypeId) ??
             throw new CliException("You need to specify a content type to delete entries for.");
 
-        var contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
+        var contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
 
         if (!ConfirmWithPromptChallenge($"{"DELETE"} all entries in '{settings.ContentTypeId}'"))
         {
@@ -45,9 +45,9 @@ public class ContentDeleteCommand(IConsoleWriter console, ILogger<ContentDeleteC
 
         await PerformBulkOperations(
             [
-                new DeleteBulkAction(_contentfulConnection, _httpClient)
+                new DeleteBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentType)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
             ]
         );

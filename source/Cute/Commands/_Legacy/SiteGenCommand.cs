@@ -16,7 +16,7 @@ public sealed class SiteGenCommand : LoggedInCommand<SiteGenCommand.Settings>
     private readonly SiteGenerator _siteGenerator;
 
     public SiteGenCommand(IConsoleWriter console, ILogger<InfoCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings,
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings,
         SiteGenerator siteGenerator)
         : base(console, logger, contentfulConnection, appSettings)
     {

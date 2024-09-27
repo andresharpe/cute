@@ -51,7 +51,7 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
         var source2Keys = _cuteContentJoin.SourceKeys2.Select(k => k?.Trim()).ToHashSet();
         var source2AllKeys = source2Keys.Any(k => k == "*");
 
-        Action<QueryBuilder<Entry<JObject>>> source1Filter = b =>
+        Action<QueryBuilder<object>> source1Filter = b =>
         {
             if (!source1AllKeys)
             {
@@ -59,7 +59,7 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
             }
         };
 
-        Action<QueryBuilder<Entry<JObject>>> source2Filter = b =>
+        Action<QueryBuilder<object>> source2Filter = b =>
         {
             if (!source2AllKeys)
             {
@@ -71,13 +71,24 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
             }
         };
 
-        var entries1 = ContentfulEntryEnumerator.Entries<Entry<JObject>>(_contentfulConnection.ManagementClient, _sourceContentType1.SystemProperties.Id, queryConfigurator: source1Filter)
+        var entries1 =
+            _contentfulConnection.GetManagementEntries<Entry<JObject>>(
+                new EntryQuery.Builder()
+                    .WithContentType(_sourceContentType1)
+                    .WithQueryConfig(source1Filter)
+                    .Build()
+            )
             .ToBlockingEnumerable()
             .Select(e => e.Entry)
             //.Where(e => source1AllKeys || source1Keys.Contains(e.Fields["key"]?.Value<string>()))
             .ToList();
 
-        var entries2 = ContentfulEntryEnumerator.Entries<Entry<JObject>>(_contentfulConnection.ManagementClient, _sourceContentType2.SystemProperties.Id, queryConfigurator: source2Filter)
+        var entries2 = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
+                new EntryQuery.Builder()
+                    .WithContentType(_sourceContentType2.SystemProperties.Id)
+                    .WithQueryConfig(source2Filter)
+                    .Build()
+            )
             .ToBlockingEnumerable()
             .Select(e => e.Entry)
             //.Where(e => source2AllKeys || source2Keys.Contains(e.Fields["key"]?.Value<string>()))

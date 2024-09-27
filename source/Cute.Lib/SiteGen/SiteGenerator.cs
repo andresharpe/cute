@@ -44,13 +44,8 @@ public class SiteGenerator
     {
         var scriptObject = CreateScriptObject(appSettings);
 
-        var appPlatform = ContentfulEntryEnumerator.DeliveryEntries<UiAppPlatform>(_contentfulConnection.DeliveryClient,
-            "uiAppPlatform",
-            queryConfigurator: b => b.FieldEquals("fields.key", appPlatformKey)
-        )
-        .ToBlockingEnumerable()
-        .Select(e => e.Entry)
-        .FirstOrDefault();
+        var appPlatform = _contentfulConnection
+            .GetPreviewEntryByKey<UiAppPlatform>("uiAppPlatform", "fields.key", appPlatformKey);
 
         if (appPlatform is null)
         {
@@ -67,9 +62,7 @@ public class SiteGenerator
     {
         ScriptObject? scriptObject = [];
 
-        CuteFunctions.ContentfulManagementClient = _contentfulConnection.ManagementClient;
-
-        CuteFunctions.ContentfulClient = _contentfulConnection.DeliveryClient;
+        CuteFunctions.ContentfulConnection = _contentfulConnection;
 
         scriptObject.SetValue("cute", new CuteFunctions(), true);
 
@@ -84,11 +77,12 @@ public class SiteGenerator
 
         foreach (var locale in appPlatform.DataLanguageEntries)
         {
-            var pages = ContentfulEntryEnumerator.DeliveryEntries<UiPage>(
-                _contentfulConnection.DeliveryClient,
-                "uiPage",
-                queryConfigurator: b => b.LocaleIs(locale.Iso2code)
-            );
+            var pages = _contentfulConnection.GetPreviewEntries<UiPage>(
+                new EntryQuery.Builder()
+                    .WithContentType("uiPage")
+                    .WithQueryConfig(b => b.LocaleIs(locale.Iso2code))
+                    .Build()
+                );
 
             appPlatform.Locale = locale.Iso2code;
 

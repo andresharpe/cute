@@ -1,8 +1,5 @@
 ﻿using ClosedXML;
-using Contentful.Core;
-using Contentful.Core.Configuration;
 using Contentful.Core.Models;
-using Contentful.Core.Models.Management;
 using Cute.Commands.Content;
 using Cute.Commands.Login;
 using Cute.Config;
@@ -12,14 +9,11 @@ using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Contentful.CommandModels.ContentSyncApi;
-using Cute.Lib.Contentful.CommandModels.ContentTestData;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
-using Cute.Lib.RateLimiters;
 using Cute.Services;
 using Cute.UiComponents;
 using FuzzySharp;
-using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Diagnostics;
@@ -28,106 +22,54 @@ using Text = Spectre.Console.Text;
 
 namespace Cute.Commands.BaseCommands;
 
-public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
+public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILogger logger,
+    AppSettings appSettings)
+    : AsyncCommand<TSettings>
     where TSettings : LoggedInSettings
 {
-    protected readonly IConsoleWriter _console;
+    protected readonly IConsoleWriter _console = console;
 
-    private readonly ILogger _logger;
+    private readonly ILogger _logger = logger;
 
-    protected ContentfulConnection _contentfulConnection;
+    private ContentfulConnection _contentfulConnection = null!;
 
-    private User _contentfulUser = new();
-
-    private Space _contentfulSpace = new();
-
-    private List<Locale> _contentfulLocales = [];
-
-    private Locale _defaultLocale = new();
-
-    private string _defaultLocaleCode = "en";
+    private readonly AppSettings _appSettings = appSettings;
 
     private bool _force = false;
 
-    private List<ContentType> _contentTypes = [];
-    protected ContentfulManagementClient ContentfulManagementClient => _contentfulConnection.ManagementClient;
-    protected ContentfulClient ContentfulClient => _contentfulConnection.DeliveryClient;
-    protected ContentfulClient ContentfulPreviewClient => _contentfulConnection.PreviewClient;
-    protected ContentfulOptions ContentfulOptions => _contentfulConnection.Options;
-    protected string ContentfulSpaceId => ContentfulOptions.SpaceId;
-    protected string ContentfulEnvironmentId => ContentfulOptions.Environment;
-    protected User ContentfulUser => _contentfulUser;
-    protected Space ContentfulSpace => _contentfulSpace;
-    protected IEnumerable<Locale> Locales => _contentfulLocales;
-    protected IEnumerable<ContentType> ContentTypes => _contentTypes;
-    protected ContentLocales ContentLocales => new(Locales.Select(l => l.Code).ToArray(), DefaultLocaleCode);
-    protected Locale DefaultLocale => _defaultLocale;
-    protected string DefaultLocaleCode => _defaultLocaleCode;
-
-    protected readonly AppSettings _appSettings;
+    public AppSettings AppSettings => _appSettings;
+    public ContentfulConnection ContentfulConnection => _contentfulConnection;
 
     public override ValidationResult Validate(CommandContext context, TSettings settings)
     {
-        if (settings is not LoggedInSettings loggedInSettings)
-        {
-            return ValidationResult.Error(
-                $"Unexpected settings type ('{settings.GetType().Name}' does not inherit from 'LoggedInSettings'"
-            );
-        }
-
-        loggedInSettings.SpaceId ??= ContentfulSpaceId;
-
-        loggedInSettings.EnvironmentId ??= ContentfulEnvironmentId;
-
-        var isChanged = false;
-
-        var connection = new AppSettings()
-        {
-            ContentfulDefaultEnvironment = _contentfulConnection.Options.Environment,
-            ContentfulDefaultSpace = _contentfulConnection.Options.SpaceId,
-            ContentfulManagementApiKey = _contentfulConnection.Options.ManagementApiKey,
-            ContentfulDeliveryApiKey = _contentfulConnection.Options.DeliveryApiKey,
-            ContentfulPreviewApiKey = _contentfulConnection.Options.PreviewApiKey,
-        };
-
-        if (loggedInSettings.EnvironmentId != ContentfulEnvironmentId)
-        {
-            connection.ContentfulDefaultEnvironment = loggedInSettings.EnvironmentId;
-            isChanged = true;
-        }
-
-        if (loggedInSettings.SpaceId != ContentfulSpaceId)
-        {
-            connection.ContentfulDefaultSpace = loggedInSettings.SpaceId;
-            isChanged = true;
-        }
-
-        if (isChanged)
-        {
-            _contentfulConnection = new ContentfulConnection(new HttpClient(), connection);
-        }
-
         return base.Validate(context, settings);
-    }
-
-    public BaseLoggedInCommand(IConsoleWriter console, ILogger logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings)
-    {
-        _console = console;
-
-        _console.Logger = logger;
-
-        _logger = logger;
-
-        _contentfulConnection = contentfulConnection;
-
-        _appSettings = appSettings;
     }
 
     public abstract Task<int> ExecuteCommandAsync(CommandContext context, TSettings settings);
 
     public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
     {
+        if (settings is not LoggedInSettings loggedInSettings)
+        {
+            throw new CliException(
+                $"Unexpected settings type ('{settings.GetType().Name}' does not inherit from 'LoggedInSettings'"
+            );
+        }
+
+        var options = _appSettings.GetContentfulOptions();
+
+        options.SpaceId = settings.SpaceId ?? options.SpaceId;
+        options.Environment = settings.EnvironmentId ?? options.Environment;
+
+        _contentfulConnection = new ContentfulConnection.Builder()
+            .WithHttpClient(new HttpClient())
+            .WithOptions(options)
+            .Build();
+
+        loggedInSettings.SpaceId ??= options.SpaceId;
+
+        loggedInSettings.EnvironmentId ??= options.Environment;
+
         _force = settings.Force;
 
         await DisplaySettings(context, settings);
@@ -189,23 +131,15 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
 
         var showTable = false;
 
-        _contentfulUser = await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.GetCurrentUser());
+        var locales = await _contentfulConnection.GetLocalesAsync();
 
-        _contentfulSpace = await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.GetSpace(ContentfulSpaceId));
-
-        var locales = await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.GetLocalesCollection());
-
-        _contentfulLocales = [.. locales.OrderBy(c => !c.Default)];
-
-        _defaultLocale = _contentfulLocales[0];
-
-        _defaultLocaleCode = _defaultLocale.Code;
+        var defaultLocale = await _contentfulConnection.GetDefaultLocaleAsync();
 
         if (settings is ContentCommandSettings contentSettings)
         {
             if (contentSettings.Locales is null || contentSettings.Locales.Length == 0)
             {
-                contentSettings.Locales = _contentfulLocales
+                contentSettings.Locales = locales
                     .Select(l => l.Code)
                     .ToArray();
             }
@@ -213,23 +147,29 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
             {
                 var validatedLocales = contentSettings.Locales
                     .ToHashSet()
-                    .Select(l => _contentfulLocales.FirstOrDefault(c => c.Code.Equals(l, StringComparison.OrdinalIgnoreCase)))
+                    .Select(l => locales.FirstOrDefault(c => c.Code.Equals(l, StringComparison.OrdinalIgnoreCase)))
                     .Where(l => l is not null)
-                    .Where(l => !l!.Equals(_defaultLocaleCode))
+                    .Where(l => !l!.Equals(defaultLocale.Code))
                     .Select(l => l!.Code)
                     .ToList();
 
-                validatedLocales.Insert(0, _defaultLocaleCode);
+                validatedLocales.Insert(0, defaultLocale.Code);
 
                 contentSettings.Locales = [.. validatedLocales];
             }
         }
 
-        _logger.LogInformation("Logging into Contentful space {name} (id: {space})", _contentfulSpace.Name, ContentfulSpaceId);
+        var space = await _contentfulConnection.GetDefaultSpaceAsync();
 
-        _logger.LogInformation("Using environment {environment}", ContentfulEnvironmentId);
+        _logger.LogInformation("Logging into Contentful space {name} (id: {space})", space.Name, space.SystemProperties.Id);
 
-        _logger.LogInformation("Logged in as user {name} (id: {id})", _contentfulUser.Email, _contentfulUser.SystemProperties.Id);
+        var environment = await _contentfulConnection.GetDefaultEnvironmentAsync();
+
+        _logger.LogInformation("Using environment {environment}", environment.SystemProperties.Id);
+
+        var user = await _contentfulConnection.GetCurrentUserAsync();
+
+        _logger.LogInformation("Logged in as user {name} (id: {id})", user.Email, user.SystemProperties.Id);
 
         _logger.LogInformation("Starting command {command}", context.Name);
 
@@ -270,89 +210,58 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
             _console.WriteBlankLine();
         }
 
-        _contentTypes = [.. await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.GetContentTypes())];
-
-        await CreateTestContentTypesIfNotExists();
+        await CreateCuteContentTypesIfNotExists();
     }
 
-    public string? GetString(Entry<JObject> entry, string key, string? localeCode = null)
+    public async Task<ContentType> GetContentTypeOrThrowError(string contentTypeId, string? intent = null)
     {
-        localeCode ??= _defaultLocaleCode;
-        return entry.Fields[key]?[localeCode]?.Value<string>();
-    }
+        var contentTypes = await _contentfulConnection.GetContentTypesAsync();
 
-    public float? GetFloat(Entry<JObject> entry, string key, string? localeCode = null)
-    {
-        localeCode ??= _defaultLocaleCode;
-        return entry.Fields[key]?[localeCode]?.Value<float>();
-    }
-
-    public U? GetObject<U>(Entry<JObject> entry, string key, string? localeCode = null)
-    {
-        localeCode ??= _defaultLocaleCode;
-        var token = entry.Fields[key]?[localeCode];
-
-        if (token == null) return default;
-
-        return token.ToObject<U>();
-    }
-
-    public ContentType GetContentTypeOrThrowError(string contentTypeId, string? intent = null)
-    {
-        return ContentTypes.FirstOrDefault(c => c.SystemProperties.Id == contentTypeId) ??
-        throw new CliException($"No content type with id '{contentTypeId}' found. {intent}");
+        return contentTypes.FirstOrDefault(c => c.SystemProperties.Id == contentTypeId) ??
+            throw new CliException($"No content type with id '{contentTypeId}' found. {intent}");
     }
 
     public async Task<bool> CreateContentTypeIfNotExist(ContentType contentType)
     {
         var contentTypeId = contentType.SystemProperties.Id;
 
-        if (ContentTypes.Any(c => c.SystemProperties.Id == contentTypeId))
+        var contentTypes = await _contentfulConnection.GetContentTypesAsync();
+
+        if (contentTypes.Any(c => c.SystemProperties.Id == contentTypeId))
         {
             return false;
         }
 
-        await RateLimiter.SendRequestAsync(() => contentType.CreateWithId(ContentfulManagementClient));
-
-        _contentTypes.Add(contentType);
+        await _contentfulConnection.CreateContentTypeAsync(contentType);
 
         return true;
     }
 
-    private async Task CreateTestContentTypesIfNotExists()
+    private async Task CreateCuteContentTypesIfNotExists()
     {
-        if (await CreateContentTypeIfNotExist(CuteDataQueryContentType.Instance()))
-        {
-            _console.WriteNormalWithHighlights($"Created content type {"cuteDataQuery"}...", Globals.StyleHeading);
-        }
+        ContentType[] cuteTypes = [
+            CuteDataQueryContentType.Instance(),
+            CuteLanguageContentType.Instance(),
+            CuteContentSyncApiContentType.Instance(),
+            CuteContentGenerateContentType.Instance(),
+            CuteContentGenerateBatchContentType.Instance()
+        ];
 
-        if (await CreateContentTypeIfNotExist(CuteLanguageContentType.Instance()))
-        {
-            _console.WriteNormalWithHighlights($"Created content type '{"cuteLanguage"}'...", Globals.StyleHeading);
-        }
+        var contentTypeIds = (await _contentfulConnection.GetContentTypesAsync())
+            .Select(c => c.SystemProperties.Id)
+            .ToHashSet();
 
-        if (await CreateContentTypeIfNotExist(CuteContentSyncApiContentType.Instance()))
-        {
-            _console.WriteNormalWithHighlights($"Created content type '{"cuteContentSyncApi"}'...", Globals.StyleHeading);
-        }
-
-        if (await CreateContentTypeIfNotExist(CuteContentGenerateContentType.Instance()))
-        {
-            _console.WriteNormalWithHighlights($"Created content type '{"cuteContentGenerate"}'...", Globals.StyleHeading);
-        }
-
-        if (await CreateContentTypeIfNotExist(CuteContentGenerateBatchContentType.Instance()))
-        {
-            _console.WriteNormalWithHighlights($"Created content type batch tracker '{"cuteContentGenerateBatch"}'...", Globals.StyleHeading);
-        }
-
-        if (await CreateContentTypeIfNotExist(TestUserContentType.Instance()))
-        {
-            _console.WriteNormalWithHighlights($"Created content type '{"testUser"}'...", Globals.StyleHeading);
-        }
+        var missingTypes = cuteTypes
+            .Where(c => !contentTypeIds.Contains(c.SystemProperties.Id))
+            .Select(async c =>
+            {
+                await _contentfulConnection.CreateContentTypeAsync(c);
+                _console.WriteNormalWithHighlights($"Created content type {c.SystemProperties.Id}...", Globals.StyleHeading);
+                return c;
+            });
     }
 
-    public string? ResolveContentTypeId(string? suppliedContentType)
+    public async Task<string?> ResolveContentTypeId(string? suppliedContentType)
     {
         var promptContentTypes = new SelectionPrompt<string>()
             .Title($"[{Globals.StyleNormal.Foreground}]Select a content type:[/]")
@@ -362,32 +271,37 @@ public abstract class BaseLoggedInCommand<TSettings> : AsyncCommand<TSettings>
 
         promptContentTypes.SearchEnabled = true;
 
+        var contentTypes = await _contentfulConnection.GetContentTypesAsync();
+
         if (suppliedContentType is not null)
         {
-            var exactMatch = ContentTypes
+            var exactMatch = contentTypes
                 .FirstOrDefault(t => t.SystemProperties.Id.Equals(suppliedContentType))?
                 .SystemProperties.Id!;
 
             if (exactMatch is not null) return exactMatch;
 
-            var caseInsensitiveMatch = ContentTypes
-                .FirstOrDefault(t => t.SystemProperties.Id.Equals(suppliedContentType, StringComparison.OrdinalIgnoreCase))?
-                .SystemProperties.Id!;
+            var caseInsensitiveMatch =
+                contentTypes
+                    .FirstOrDefault(t => t.SystemProperties.Id.Equals(suppliedContentType, StringComparison.OrdinalIgnoreCase))?
+                    .SystemProperties.Id!;
 
             if (caseInsensitiveMatch is not null) return caseInsensitiveMatch;
 
-            promptContentTypes.AddChoices(ContentTypes
-                .Select(c => c.SystemProperties.Id)
-                .OrderByDescending(e => Fuzz.PartialRatio(suppliedContentType, e))
-                .Select(e => $"[{Globals.StyleDim.Foreground}]{e}[/]")
+            promptContentTypes.AddChoices(
+                contentTypes
+                    .Select(c => c.SystemProperties.Id)
+                    .OrderByDescending(e => Fuzz.PartialRatio(suppliedContentType, e))
+                    .Select(e => $"[{Globals.StyleDim.Foreground}]{e}[/]")
             );
         }
         else
         {
-            promptContentTypes.AddChoices(ContentTypes
-                .Select(c => c.SystemProperties.Id)
-                .OrderBy(e => e)
-                .Select(e => $"[{Globals.StyleDim.Foreground}]{e}[/]")
+            promptContentTypes.AddChoices(
+                contentTypes
+                    .Select(c => c.SystemProperties.Id)
+                    .OrderBy(e => e)
+                    .Select(e => $"[{Globals.StyleDim.Foreground}]{e}[/]")
             );
         }
 

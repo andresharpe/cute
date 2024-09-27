@@ -1,7 +1,6 @@
 ﻿using Contentful.Core.Models;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
-using Cute.Lib.RateLimiters;
 using Cute.Lib.Serializers;
 using Newtonsoft.Json.Linq;
 
@@ -154,12 +153,12 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         _forComparisonEntries = [];
 
-        await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(
-            _contentfulConnection.ManagementClient, _contentTypeId, contentDisplayField))
+        await foreach (var (entry, total) in
+            _contentfulConnection.GetManagementEntries<Entry<JObject>>(_contentType))
         {
             if (steps == -1)
             {
-                steps = entries.Total;
+                steps = total;
             }
 
             progressUpdater?.Invoke(new(currentStep++, steps, null, null));
@@ -375,16 +374,15 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
             FormattableString message = $"Upserting '{_contentTypeId}' ({messageProcessed}/{totalCount}) '{displayFieldValue.Snip(40)}'";
 
-            tasks[taskNo++] = RateLimiter.SendRequestAsync(
-                    () => _contentfulConnection.ManagementClient.CreateOrUpdateEntry(
-                            newEntry.Fields,
-                            id: newEntry.SystemProperties.Id,
-                            version: newEntry.SystemProperties.Version ?? 0,
-                            contentTypeId: _contentTypeId),
-                    message,
-                    (m) => NotifyUserInterface(m, progressUpdater),
-                    (e) => NotifyUserInterfaceOfError(e, progressUpdater)
-                );
+            tasks[taskNo++] = _contentfulConnection.CreateOrUpdateEntryAsync(
+                newEntry.Fields,
+                newEntry.SystemProperties.Id,
+                newEntry.SystemProperties.Version ?? 0,
+                _contentTypeId,
+                message,
+                (m) => NotifyUserInterface(m, progressUpdater),
+                (e) => NotifyUserInterfaceOfError(e, progressUpdater)
+            );
 
             if (taskNo >= tasks.Length)
             {

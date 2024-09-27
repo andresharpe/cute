@@ -5,7 +5,7 @@ using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
-using Cute.Lib.RateLimiters;
+using Cute.Lib.Extensions;
 using Cute.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -17,8 +17,9 @@ using File = System.IO.File;
 
 namespace Cute.Commands.Type;
 
-public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeDiffCommand.Settings>(console, logger, contentfulConnection, appSettings)
+public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> logger, AppSettings appSettings,
+    HttpClient httpClient)
+    : BaseLoggedInCommand<TypeDiffCommand.Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -35,25 +36,34 @@ public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> lo
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var sourceEnvOptions = new OptionsForEnvironmentProvider(_appSettings, settings.SourceEnvironmentId!);
+        var sourceEnvOptions = new OptionsForEnvironmentProvider(AppSettings, settings.SourceEnvironmentId!);
 
-        var sourceEnvClient = new ContentfulConnection(_httpClient, sourceEnvOptions);
+        var contentfulEnvironment = await ContentfulConnection.GetDefaultEnvironmentAsync();
 
-        _console.WriteNormalWithHighlights($"Comparing content types between environments: {ContentfulEnvironmentId} <--> {settings.SourceEnvironmentId}", Globals.StyleHeading);
+        var sourceEnvClient = new ContentfulConnection.Builder()
+            .WithHttpClient(_httpClient)
+            .WithOptionsProvider(sourceEnvOptions)
+            .Build();
+
+        var targetEnvId = (await ContentfulConnection.GetDefaultEnvironmentAsync()).SystemProperties.Id;
+
+        _console.WriteNormalWithHighlights($"Comparing content types between environments: {targetEnvId} <--> {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
         List<ContentType> sourceEnvContentTypes = string.IsNullOrEmpty(settings.ContentTypeId)
-            ? (await RateLimiter.SendRequestAsync(() => sourceEnvClient.ManagementClient.GetContentTypes())).OrderBy(ct => ct.Name).ToList()
-            : [await RateLimiter.SendRequestAsync(() => sourceEnvClient.ManagementClient.GetContentType(settings.ContentTypeId))];
+            ? (await sourceEnvClient.GetContentTypesAsync()).OrderBy(ct => ct.Name).ToList()
+            : [await sourceEnvClient.GetContentTypeAsync(settings.ContentTypeId)];
 
         _console.WriteBlankLine();
         _console.WriteNormalWithHighlights($"{sourceEnvContentTypes.Count} found in environment {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
+        var allContentTypes = await ContentfulConnection.GetContentTypesAsync();
+
         List<ContentType> targetEnvContentTypes = string.IsNullOrEmpty(settings.ContentTypeId)
-            ? ContentTypes.OrderBy(ct => ct.Name).ToList()
-            : [GetContentTypeOrThrowError(settings.ContentTypeId)];
+            ? allContentTypes.OrderBy(ct => ct.Name).ToList()
+            : [await GetContentTypeOrThrowError(settings.ContentTypeId)];
 
         _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"{targetEnvContentTypes.Count} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"{targetEnvContentTypes.Count} found in environment {contentfulEnvironment.Id()}", Globals.StyleHeading);
 
         await CompareContentTypes(targetEnvContentTypes, sourceEnvContentTypes, settings.SourceEnvironmentId!);
 
@@ -62,6 +72,8 @@ public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> lo
 
     private async Task CompareContentTypes(List<ContentType> targetEnvContentTypes, List<ContentType> sourceEnvContentTypes, string otherEnv)
     {
+        var contentfulEnvironment = await ContentfulConnection.GetDefaultEnvironmentAsync();
+
         var tmpTarget = Path.GetTempFileName() + ".cute-diff.json";
         var tmpSource = Path.GetTempFileName() + ".cute-diff.json";
 
@@ -73,7 +85,7 @@ public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> lo
         }
 
         _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"Extracting compare values from {ContentfulEnvironmentId}...", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"Extracting compare values from {contentfulEnvironment.Id()}...", Globals.StyleHeading);
         var targetObj = targetEnvContentTypes.Select(ExtractTypeInfo).ToList();
 
         _console.WriteBlankLine();
@@ -84,7 +96,7 @@ public class TypeDiffCommand(IConsoleWriter console, ILogger<TypeDiffCommand> lo
 
         var targetWrapper = new
         {
-            Environment = ContentfulEnvironmentId,
+            Environment = contentfulEnvironment.Id(),
             RunDate = now,
             FileName = tmpTarget,
             Results = targetObj

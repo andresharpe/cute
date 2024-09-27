@@ -21,7 +21,7 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
 
     private readonly ILogger _logger;
 
-    private readonly ContentfulConnection _contentfulConnection;
+    private readonly LegacyContentfulConnection _contentfulConnection;
 
     private User _contentfulUser = new();
 
@@ -48,7 +48,7 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
     protected readonly AppSettings _appSettings;
 
     public LoggedInCommand(IConsoleWriter console, ILogger logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings)
     {
         _console = console;
 
