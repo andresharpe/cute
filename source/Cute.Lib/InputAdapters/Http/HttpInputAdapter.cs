@@ -464,9 +464,7 @@ public class HttpInputAdapter(
     {
         ScriptObject? scriptObject = [];
 
-        CuteFunctions.ContentfulManagementClient = contentfulConnection.ManagementClient;
-
-        CuteFunctions.ContentfulClient = contentfulConnection.DeliveryClient;
+        CuteFunctions.ContentfulConnection = contentfulConnection;
 
         scriptObject.SetValue("cute", new CuteFunctions(), true);
 
@@ -490,11 +488,12 @@ public class HttpInputAdapter(
             var contentType = contentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == entryDefinition.ContentType)
                 ?? throw new CliException($"Content type '{entryDefinition.ContentType}' does not exist.");
 
-            var enumerator = ContentfulEntryEnumerator
-                .Entries<Entry<JObject>>(
-                    contentfulConnection.ManagementClient,
-                    entryDefinition.ContentType, contentType.DisplayField,
-                    queryString: entryDefinition.QueryParameters
+            var enumerator = contentfulConnection.GetManagementEntries<Entry<JObject>>(
+                    new EntryQuery.Builder()
+                        .WithContentType(entryDefinition.ContentType)
+                        .WithOrderByField(contentType.DisplayField)
+                        .WithQueryString(entryDefinition.QueryParameters)
+                        .Build()
                 );
 
             contentEntryEnumerators.Add(enumerator);

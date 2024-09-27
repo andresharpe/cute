@@ -13,8 +13,9 @@ using System.ComponentModel;
 
 namespace Cute.Commands.Content;
 
-public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinCommand> logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<ContentJoinCommand.Settings>(console, logger, contentfulConnection, appSettings)
+public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinCommand> logger,
+    AppSettings appSettings, HttpClient httpClient)
+    : BaseLoggedInCommand<ContentJoinCommand.Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -41,7 +42,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var joinEntry = CuteContentJoin.GetByKey(ContentfulClient, settings.JoinId);
+        var joinEntry = CuteContentJoin.GetByKey(ContentfulConnection, settings.JoinId);
 
         if (joinEntry == null)
         {
@@ -50,22 +51,22 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 
         // Load contentId's
 
-        var source1ContentType = GetContentTypeOrThrowError(joinEntry.SourceContentType1);
-        var source2ContentType = GetContentTypeOrThrowError(joinEntry.SourceContentType2);
-        var targetContentType = GetContentTypeOrThrowError(joinEntry.TargetContentType);
+        var source1ContentType = await GetContentTypeOrThrowError(joinEntry.SourceContentType1);
+        var source2ContentType = await GetContentTypeOrThrowError(joinEntry.SourceContentType2);
+        var targetContentType = await GetContentTypeOrThrowError(joinEntry.TargetContentType);
 
         // Load Entries
         await PerformBulkOperations(
             [
-                new UpsertBulkAction(_contentfulConnection, _httpClient)
+                new UpsertBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(targetContentType)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithMatchField("key")
                     .WithNewEntries(
                         new JoinEntriesAdapter(
                             joinEntry,
-                            _contentfulConnection,
-                            ContentLocales,
+                            ContentfulConnection,
+                            await ContentfulConnection.GetContentLocalesAsync(),
                             source1ContentType,
                             source2ContentType,
                             targetContentType,
@@ -74,9 +75,9 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
                     )
                     .WithVerbosity(settings.Verbosity),
 
-                new PublishBulkAction(_contentfulConnection, _httpClient)
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(targetContentType)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
             ]
         );

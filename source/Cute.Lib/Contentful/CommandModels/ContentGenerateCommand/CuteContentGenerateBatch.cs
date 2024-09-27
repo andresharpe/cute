@@ -1,5 +1,4 @@
-﻿using Contentful.Core;
-using Contentful.Core.Models;
+﻿using Contentful.Core.Models;
 using Newtonsoft.Json.Linq;
 
 namespace Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
@@ -126,30 +125,16 @@ public class CuteContentGenerateBatch
         }
     };
 
-    public static CuteContentGenerateBatch? GetByKey(ContentfulClient contentfulClient, string key)
+    public static CuteContentGenerateBatch? GetByKey(ContentfulConnection contentfulConnection, string key)
     {
-        return ContentfulEntryEnumerator
-            .DeliveryEntries<CuteContentGenerateBatch>(
-                contentfulClient,
-                "cuteContentGenerateBatch",
-                pageSize: 1,
-                queryConfigurator: b => b.FieldEquals("fields.key", key)
-            )
-            .ToBlockingEnumerable()
-            .Select(e => e.Entry)
-            .FirstOrDefault();
+        return contentfulConnection
+            .GetPreviewEntryByKey<CuteContentGenerateBatch>("cuteContentGenerateBatch", "fields.key", key);
     }
 
-    public static IReadOnlyList<CuteContentGenerateBatch> GetAll(ContentfulClient contentfulClient)
+    public static IReadOnlyList<CuteContentGenerateBatch> GetAll(ContentfulConnection contentfulConnection)
     {
-        return ContentfulEntryEnumerator
-            .DeliveryEntries<CuteContentGenerateBatch>(
-                contentfulClient,
-                "cuteContentGenerateBatch",
-                pageSize: 1000
-            )
-            .ToBlockingEnumerable()
-            .Select(e => e.Entry)
+        return contentfulConnection
+            .GetAllPreviewEntries<CuteContentGenerateBatch>("cuteContentGenerateBatch")
             .ToList();
     }
 }

@@ -4,7 +4,7 @@ using Cute.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Exceptions;
-using Cute.Lib.InputAdapters;
+using Cute.Lib.InputAdapters.EntryAdapters;
 using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -13,9 +13,9 @@ using static Cute.Commands.Content.ContentEditCommand;
 
 namespace Cute.Commands.Content;
 
-public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditCommand> logger, ContentfulConnection contentfulConnection,
+public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditCommand> logger,
     AppSettings appSettings, HttpClient httpClient)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -44,7 +44,10 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        settings.Locale ??= DefaultLocaleCode;
+        var defaultLocale = ContentfulConnection.GetDefaultLocaleAsync().Result;
+        var defaultLocaleCode = defaultLocale.Code;
+
+        settings.Locale ??= defaultLocaleCode;
 
         settings.Locale = settings.Locale.ToLower();
 
@@ -58,10 +61,10 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        settings.ContentTypeId = ResolveContentTypeId(settings.ContentTypeId) ??
+        settings.ContentTypeId = await ResolveContentTypeId(settings.ContentTypeId) ??
             throw new CliException("You need to specify a content type to edit.");
 
-        var contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
+        var contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
 
         var matchedFields = contentType.Fields
             .Select(f => f.Id)
@@ -77,7 +80,9 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
             throw new CliException($"The field(s) named '{string.Join(',', missingFields)}' not in content type '{settings.ContentTypeId}'");
         }
 
-        if (!Locales.Any(l => l.Code.Equals(settings.Locale)))
+        var locales = await ContentfulConnection.GetLocalesAsync();
+
+        if (!locales.Any(l => l.Code.Equals(settings.Locale)))
         {
             throw new CliException($"The locale '{settings.Locale}' was not found.");
         }
@@ -87,11 +92,11 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
             return -1;
         }
 
-        var contentLocales = ContentLocales;
+        var contentLocales = await ContentfulConnection.GetContentLocalesAsync();
 
         await PerformBulkOperations([
 
-            new UpsertBulkAction(_contentfulConnection, _httpClient)
+            new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithNewEntries(
@@ -101,12 +106,12 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
                         settings.Fields,
                         settings.Values,
                         contentType,
-                        _contentfulConnection
+                        ContentfulConnection
                     ))
                 .WithApplyChanges(settings.Apply)
                 .WithVerbosity(settings.Verbosity),
 
-            new PublishBulkAction(_contentfulConnection, _httpClient)
+            new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)

@@ -13,9 +13,9 @@ using static Cute.Commands.Content.ContentUnpublishCommand;
 
 namespace Cute.Commands.Content;
 
-public class ContentUnpublishCommand(IConsoleWriter console, ILogger<ContentUnpublishCommand> logger, ContentfulConnection contentfulConnection,
+public class ContentUnpublishCommand(IConsoleWriter console, ILogger<ContentUnpublishCommand> logger,
     AppSettings appSettings, HttpClient httpClient)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -33,10 +33,10 @@ public class ContentUnpublishCommand(IConsoleWriter console, ILogger<ContentUnpu
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        settings.ContentTypeId = ResolveContentTypeId(settings.ContentTypeId) ??
+        settings.ContentTypeId = await ResolveContentTypeId(settings.ContentTypeId) ??
             throw new CliException("You need to specify a content type to unpublish entries for.");
 
-        var contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
+        var contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
 
         if (!ConfirmWithPromptChallenge($"{"UNPUBLISH"} all entries in '{settings.ContentTypeId}'"))
         {
@@ -45,9 +45,9 @@ public class ContentUnpublishCommand(IConsoleWriter console, ILogger<ContentUnpu
 
         await PerformBulkOperations(
             [
-                new UnpublishBulkAction(_contentfulConnection, _httpClient)
+                new UnpublishBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentType)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
             ]
         );

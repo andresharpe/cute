@@ -1,5 +1,4 @@
-﻿using Contentful.Core;
-using Contentful.Core.Models;
+﻿using Contentful.Core.Models;
 using Cute.Lib.Contentful;
 using Cute.Lib.Utilities;
 using Html2Markdown;
@@ -13,10 +12,7 @@ namespace Cute.Lib.Scriban;
 public class CuteFunctions : ScriptObject
 {
     [ScriptMemberIgnore]
-    public static ContentfulManagementClient ContentfulManagementClient { get; set; } = default!;
-
-    [ScriptMemberIgnore]
-    public static ContentfulClient ContentfulClient { get; set; } = default!;
+    public static ContentfulConnection ContentfulConnection { get; set; } = default!;
 
     private static readonly Converter _htmlConverter = new();
 
@@ -150,7 +146,13 @@ public class CuteFunctions : ScriptObject
             {
                 if (!_countEntriesCache.TryGetValue(cacheKey, out var _))
                 {
-                    var results = ContentfulEntryEnumerator.Entries<JObject>(ContentfulManagementClient, contentType, includeLevels: 1, pageSize: 500).ToBlockingEnumerable();
+                    var results = ContentfulConnection.GetManagementEntries<JObject>(
+                            new EntryQuery.Builder()
+                                .WithContentType(contentType)
+                                .WithIncludeLevels(1)
+                                .Build()
+                        )
+                        .ToBlockingEnumerable();
 
                     var resultsDictionary = new Dictionary<string, int>();
 
@@ -197,7 +199,12 @@ public class CuteFunctions : ScriptObject
         {
             lock (_nearEntriesCache)
             {
-                var contentEntriesLoader = ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, contentType, locationField)
+                var contentEntriesLoader = ContentfulConnection.GetManagementEntries<Entry<JObject>>(
+                        new EntryQuery.Builder()
+                            .WithContentType(contentType)
+                            .WithOrderByField(locationField)
+                            .Build()
+                    )
                     .ToBlockingEnumerable()
                     .Where(e => e.Entry.Fields[locationField]?["en"] != null)
                     .Select(e => e.Entry.Fields[locationField]?["en"]!.ToObject<Location>()!)
@@ -241,7 +248,12 @@ public class CuteFunctions : ScriptObject
         {
             lock (_lookupEntriesCache)
             {
-                var contentEntriesLoader = ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, contentType, matchField)
+                var contentEntriesLoader = ContentfulConnection.GetManagementEntries<Entry<JObject>>(
+                        new EntryQuery.Builder()
+                            .WithContentType(contentType)
+                            .WithOrderByField(matchField)
+                            .Build()
+                    )
                     .ToBlockingEnumerable()
                     .Where(e => e.Entry.Fields[matchField]?["en"] != null)
                     .ToDictionary(e => e.Entry.Fields[matchField]?["en"]!.Value<string>()!, e => e.Entry, StringComparer.InvariantCultureIgnoreCase);

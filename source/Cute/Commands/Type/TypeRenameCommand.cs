@@ -9,7 +9,6 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
-using Cute.Lib.RateLimiters;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
@@ -18,8 +17,9 @@ using System.ComponentModel;
 
 namespace Cute.Commands.Type;
 
-public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand> logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeRenameCommand.Settings>(console, logger, contentfulConnection, appSettings)
+public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand> logger, AppSettings appSettings,
+    HttpClient httpClient)
+    : BaseLoggedInCommand<TypeRenameCommand.Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -64,6 +64,8 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
+        var contentfulEnvironment = await ContentfulConnection.GetDefaultEnvironmentAsync();
+
         if (settings.ApplyNamingConvention)
         {
             return await CheckAndApplyNamingConventions();
@@ -77,20 +79,20 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
         try
         {
-            contentTypeNew = GetContentTypeOrThrowError(newContentTypeId);
+            contentTypeNew = await GetContentTypeOrThrowError(newContentTypeId);
             _console.WriteBlankLine();
-            _console.WriteNormalWithHighlights($"{newContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"{newContentTypeId} found in environment {contentfulEnvironment.Id()}", Globals.StyleHeading);
         }
         catch
         {
-            _console.WriteNormalWithHighlights($"The content type {newContentTypeId} does not exist in {ContentfulEnvironmentId}", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"The content type {newContentTypeId} does not exist in {contentfulEnvironment.Id()}", Globals.StyleHeading);
         }
 
-        contentTypeOld = GetContentTypeOrThrowError(oldContentTypeId);
+        contentTypeOld = await GetContentTypeOrThrowError(oldContentTypeId);
         _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"{oldContentTypeId} found in environment {ContentfulEnvironmentId}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"{oldContentTypeId} found in environment {contentfulEnvironment.Id()}", Globals.StyleHeading);
 
-        if (!ConfirmWithPromptChallenge($"potentially destroy all '{oldContentTypeId}' entries in {ContentfulEnvironmentId}"))
+        if (!ConfirmWithPromptChallenge($"potentially destroy all '{oldContentTypeId}' entries in {contentfulEnvironment.Id()}"))
         {
             return -1;
         }
@@ -101,31 +103,32 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
         if (contentTypeNew is null)
         {
-            contentTypeNew = await contentTypeOld.CloneWithId(ContentfulManagementClient, newContentTypeId);
-            _console.WriteNormalWithHighlights($"Success. Created {newContentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
+            contentTypeNew = await ContentfulConnection.CloneContentTypeAsync(contentTypeOld, newContentTypeId);
+            _console.WriteNormalWithHighlights($"Success. Created {newContentTypeId} in {contentfulEnvironment.Id()}", Globals.StyleHeading);
         }
         else
         {
-            throw new CliException($"Content type {newContentTypeId} already exists in {ContentfulEnvironmentId}. Please specify another name or manually delete existing type by running a 'type delete' command");
+            throw new CliException($"Content type {newContentTypeId} already exists in {contentfulEnvironment.Id()}. Please specify another name or manually delete existing type by running a 'type delete' command");
         }
 
-        var createEntries = ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient, oldContentTypeId)
+        var createEntries = ContentfulConnection
+            .GetManagementEntries<Entry<JObject>>(oldContentTypeId)
             .ToBlockingEnumerable()
             .Select(e => e.Entry)
             .ToList();
 
         bulkActions.AddRange(
             [
-                new DeleteBulkAction(_contentfulConnection, _httpClient)
+                new DeleteBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentTypeOld)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
                     .WithConcurrentTaskLimit(25)
                     .WithPublishChunkSize(100)
                     .WithMillisecondsBetweenCalls(120),
-                new UpsertBulkAction(_contentfulConnection, _httpClient)
+                new UpsertBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentTypeNew!)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
                     .WithNewEntries(createEntries)
                     .WithConcurrentTaskLimit(25)
@@ -137,9 +140,9 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
         if (settings.Publish)
         {
             bulkActions.Add(
-                new PublishBulkAction(_contentfulConnection, _httpClient)
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentTypeNew)
-                    .WithContentLocales(ContentLocales)
+                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
             );
         }
@@ -148,7 +151,8 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
         // 1: fix refs
 
-        var allContentTypes = (await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.GetContentTypes())).OrderBy(c => c.SystemProperties.Id);
+        var allContentTypes = (await ContentfulConnection.GetContentTypesAsync())
+            .OrderBy(c => c.Id());
 
         var changedTypes = new Dictionary<string, ContentType>();
 
@@ -204,15 +208,13 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
         foreach (var (contentTypeId, contentType) in changedTypes)
         {
             _console.WriteNormalWithHighlights($"Updating reference for content type {contentTypeId}", Globals.StyleHeading);
-            await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.CreateOrUpdateContentType(contentType,
-                version: contentType.SystemProperties.Version));
+            await ContentfulConnection.CreateOrUpdateContentTypeAsync(contentType,
+                version: contentType.SystemProperties.Version);
         }
 
         // 2: remove old content type
 
-        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeactivateContentType(oldContentTypeId));
-
-        await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.DeleteContentType(oldContentTypeId));
+        await ContentfulConnection.DeleteContentTypeAsync(contentTypeOld);
 
         _console.WriteBlankLine();
         _console.WriteAlert("Done!");
@@ -222,14 +224,16 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
 
     private async Task<int> CheckAndApplyNamingConventions()
     {
+        var contentTypes = await ContentfulConnection.GetContentTypesAsync();
+
         _console.WriteNormal("Reading all content types..");
 
-        var namespaces = ContentTypes
+        var namespaces = contentTypes
             .Select(t => t.SystemProperties.Id)
             .Select(i => i.SplitCamelCase()[0])
             .ToHashSet();
 
-        foreach (var contentType in ContentTypes.OrderBy(c => c.SystemProperties.Id))
+        foreach (var contentType in contentTypes.OrderBy(c => c.SystemProperties.Id))
         {
             var isChanged = false;
 
@@ -371,7 +375,8 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
             if (isChanged)
             {
                 _console.WriteNormalWithHighlights($"...saving changes to '{contentType.SystemProperties.Id}'", Globals.StyleHeading);
-                await RateLimiter.SendRequestAsync(() => ContentfulManagementClient.CreateOrUpdateContentType(contentType, version: contentType.SystemProperties.Version));
+                await ContentfulConnection
+                    .CreateOrUpdateContentTypeAsync(contentType, contentType.Version());
             }
         }
 

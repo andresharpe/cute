@@ -18,8 +18,8 @@ using static Cute.Commands.Content.ContentDownloadCommand;
 namespace Cute.Commands.Content;
 
 public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownloadCommand> logger,
-    ContentfulConnection contentfulConnection, AppSettings appSettings)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+         AppSettings appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     public class Settings : ContentCommandSettings
     {
@@ -59,12 +59,10 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var x = ContentTypes.Select(ct => ct.Name);
-
-        settings.ContentTypeId = ResolveContentTypeId(settings.ContentTypeId) ??
+        settings.ContentTypeId = await ResolveContentTypeId(settings.ContentTypeId) ??
             throw new CliException("You need to specify a content type to download.");
 
-        var contentType = GetContentTypeOrThrowError(settings.ContentTypeId);
+        var contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
 
         settings.Path ??= settings.ContentTypeId + settings.Format switch
         {
@@ -87,7 +85,7 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
 
                 taskPrepare.Increment(80);
 
-                var serializer = new EntrySerializer(contentType, ContentLocales);
+                var serializer = new EntrySerializer(contentType, await ContentfulConnection.GetContentLocalesAsync());
 
                 outputAdapter.AddHeadings(serializer.ColumnFieldNames);
                 taskPrepare.Increment(20);
@@ -95,12 +93,13 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
 
                 taskExtract.MaxValue = 1;
 
-                await foreach (var (entry, entries) in ContentfulEntryEnumerator.Entries<Entry<JObject>>(ContentfulManagementClient,
-                    settings.ContentTypeId, contentType.DisplayField))
+                var enumerable = ContentfulConnection.GetManagementEntries<Entry<JObject>>(contentType);
+
+                await foreach (var (entry, total) in enumerable)
                 {
                     if (taskExtract.MaxValue == 1)
                     {
-                        taskExtract.MaxValue = entries.Total;
+                        taskExtract.MaxValue = total;
                     }
                     outputAdapter.AddRow(serializer.SerializeEntry(entry));
                     taskExtract.Increment(1);

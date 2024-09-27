@@ -6,6 +6,7 @@ using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Exceptions;
+using Cute.Lib.Extensions;
 using Cute.Services;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
@@ -14,8 +15,8 @@ using System.ComponentModel;
 
 namespace Cute.Commands.Type;
 
-public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> logger, ContentfulConnection contentfulConnection,
-    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<TypeCloneCommand.Settings>(console, logger, contentfulConnection, appSettings)
+public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> logger, AppSettings appSettings, HttpClient httpClient)
+    : BaseLoggedInCommand<TypeCloneCommand.Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
 
@@ -40,25 +41,30 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        string contentTypeId = settings.ContentTypeId;
+        var contentTypeId = settings.ContentTypeId;
 
-        if (settings.SourceEnvironmentId == ContentfulEnvironmentId)
+        var contentfulEnvironment = await ContentfulConnection.GetDefaultEnvironmentAsync();
+
+        if (settings.SourceEnvironmentId == contentfulEnvironment.Id())
         {
             throw new CliException("You can not clone a content type in the same environment because content id's will clash.");
         }
 
-        var sourceEnvOptions = new OptionsForEnvironmentProvider(_appSettings, settings.SourceEnvironmentId!);
+        var sourceEnvOptions = new OptionsForEnvironmentProvider(AppSettings, settings.SourceEnvironmentId!);
 
-        var sourceEnvClient = new ContentfulConnection(_httpClient, sourceEnvOptions);
+        var sourceEnvClient = new ContentfulConnection.Builder()
+            .WithHttpClient(_httpClient)
+            .WithOptionsProvider(sourceEnvOptions)
+            .Build();
 
-        _console.WriteNormalWithHighlights($"Comparing content types between environments: {ContentfulEnvironmentId} <--> {settings.SourceEnvironmentId}", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"Comparing content types between environments: {contentfulEnvironment.Id()} <--> {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
         ContentType? targetContentType = null;
         ContentType? sourceContentType = null;
 
         try
         {
-            sourceContentType = await sourceEnvClient.ManagementClient.GetContentType(contentTypeId);
+            sourceContentType = await sourceEnvClient.GetContentTypeAsync(contentTypeId);
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights($"{contentTypeId} found in environment {settings.SourceEnvironmentId}", Globals.StyleHeading);
         }
@@ -69,39 +75,38 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
 
         try
         {
-            targetContentType = GetContentTypeOrThrowError(contentTypeId);
+            targetContentType = await GetContentTypeOrThrowError(contentTypeId);
         }
         catch { }
 
         if (targetContentType is null)
         {
-            _console.WriteNormalWithHighlights($"The content type {contentTypeId} does not exist in {ContentfulEnvironmentId}", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"The content type {contentTypeId} does not exist in {contentfulEnvironment.Id()}", Globals.StyleHeading);
             _console.WriteBlankLine();
 
-            targetContentType = await sourceContentType.CloneWithId(ContentfulManagementClient, contentTypeId);
+            targetContentType = await ContentfulConnection.CloneContentTypeAsync(sourceContentType, contentTypeId);
 
-            _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {ContentfulEnvironmentId}", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"Success. Created {contentTypeId} in {contentfulEnvironment.Id()}", Globals.StyleHeading);
         }
         else
         {
-            throw new CliException($"Content type {contentTypeId} already exists in {ContentfulEnvironmentId}. Please manually delete existing type by running a 'type delete' command");
+            throw new CliException($"Content type {contentTypeId} already exists in {contentfulEnvironment.Id()}. Please manually delete existing type by running a 'type delete' command");
         }
 
         _console.WriteNormalWithHighlights($"Reading entries {contentTypeId} in {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
-        var createEntries = ContentfulEntryEnumerator.Entries<Entry<JObject>>(sourceEnvClient.ManagementClient, contentTypeId)
+        var createEntries = ContentfulConnection
+            .GetManagementEntries<Entry<JObject>>(contentTypeId)
             .ToBlockingEnumerable()
             .Select(e => e.Entry)
             .ToList();
 
         _console.WriteNormalWithHighlights($"{createEntries.Count} entries found...", Globals.StyleHeading);
 
-        await Task.Delay(2000);
-
         var bulkActions = new List<IBulkAction> {
-            new UpsertBulkAction(_contentfulConnection, _httpClient)
+            new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(sourceContentType)
-                .WithContentLocales(ContentLocales)
+                .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                 .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
                 .WithNewEntries(createEntries)
                 .WithConcurrentTaskLimit(settings.EntriesPerBatch)
@@ -112,9 +117,9 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
         if (settings.Publish)
         {
             bulkActions.Add(
-                new PublishBulkAction(_contentfulConnection, _httpClient)
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(sourceContentType)
-                .WithContentLocales(ContentLocales)
+                .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                 .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
                 .WithConcurrentTaskLimit(settings.EntriesPerBatch)
             );

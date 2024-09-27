@@ -210,11 +210,11 @@ public class CommandAppBuilder
         services.AddSingleton(_appSettings);
         services.AddSingleton(_appSettings.GetSettings());
         services.AddSingleton<IContentfulOptionsProvider>(_appSettings);
+        services.AddTransient<ContentfulConnection>();
+        services.AddTransient<ContentfulGraphQlClient>();
         services.AddSingleton<IAzureOpenAiOptionsProvider>(_appSettings);
         services.AddTransient<AzureTranslator>();
-        services.AddTransient<ContentfulConnection>();
         services.AddTransient<HttpResponseFileCache>();
-        services.AddTransient<ContentfulGraphQlClient>();
         services.AddTransient<SiteGenerator>();
         services.AddTransient<GenerateBulkAction>();
         services.AddHttpClient();

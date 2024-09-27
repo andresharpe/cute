@@ -19,9 +19,8 @@ using static Cute.Commands.Content.ContentTestDataCommand;
 namespace Cute.Commands.Content;
 
 public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestDataCommand> logger,
-    ContentfulConnection contentfulConnection,
     AppSettings appSettings, HttpClient httpClient)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     public class Settings : LoggedInSettings
     {
@@ -41,7 +40,11 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
 
         var contentTypeId = contentType.SystemProperties.Id;
 
-        var contentLocales = new ContentLocales([DefaultLocaleCode], DefaultLocaleCode);
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+
+        var defaultLocaleCode = defaultLocale.Code;
+
+        var contentLocales = new ContentLocales([defaultLocaleCode], defaultLocaleCode);
 
         await CreateTestContentTypesIfNotExists();
 
@@ -55,18 +58,18 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
         await PerformBulkOperations(
             [
 
-                new DeleteBulkAction(_contentfulConnection, httpClient)
+                new DeleteBulkAction(ContentfulConnection, httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
                     .WithVerbosity(settings.Verbosity),
 
-                new UpsertBulkAction(_contentfulConnection, httpClient)
+                new UpsertBulkAction(ContentfulConnection, httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
                     .WithNewEntries(testDataAdapter)
                     .WithVerbosity(settings.Verbosity),
 
-                new PublishBulkAction(_contentfulConnection, httpClient)
+                new PublishBulkAction(ContentfulConnection, httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
                     .WithVerbosity(settings.Verbosity)

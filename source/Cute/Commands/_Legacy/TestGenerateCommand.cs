@@ -17,7 +17,7 @@ public sealed class TestGenerateCommand : LoggedInCommand<TestGenerateCommand.Se
     private readonly GenerateBulkAction _generateCommandRunner;
 
     public TestGenerateCommand(IConsoleWriter console, ILogger<GenerateCommand> logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings,
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings,
         GenerateBulkAction generateCommandRunner)
         : base(console, logger, contentfulConnection, appSettings)
     {

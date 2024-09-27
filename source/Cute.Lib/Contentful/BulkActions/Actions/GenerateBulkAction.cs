@@ -10,7 +10,6 @@ using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Contentful.GraphQL;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
-using Cute.Lib.RateLimiters;
 using Cute.Lib.Scriban;
 using Cute.Lib.Serializers;
 using Newtonsoft.Json;
@@ -90,7 +89,7 @@ public class GenerateBulkAction(
         displayActions.DisplayFormatted?.Invoke($"Reading prompt entry {metaPromptKey}...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var cuteContentGenerateEntry = CuteContentGenerate.GetByKey(_contentfulConnection.PreviewClient, metaPromptKey)
+        var cuteContentGenerateEntry = CuteContentGenerate.GetByKey(_contentfulConnection, metaPromptKey)
             ?? throw new CliException($"No 'cuteContentGenerate' entry with key '{metaPromptKey}' found.");
 
         if (_operation == GenerateOperation.ListBatches)
@@ -175,7 +174,7 @@ public class GenerateBulkAction(
     private async Task<CuteContentGenerateBatch?> GetOpenBatchEntry(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult, DisplayActions displayActions, Action<int, int>? progressUpdater, bool testOnly)
     {
         var batchEntry = CuteContentGenerateBatch
-            .GetAll(_contentfulConnection.PreviewClient)
+            .GetAll(_contentfulConnection)
             .Where(cb => cb.CompletedAt is null && cb.CancelledAt is null && cb.ExpiredAt is null && cb.FailedAt is null)
             .Where(cb => cb.CuteContentGenerateEntry.Sys.Id == cuteContentGenerateEntry.Sys.Id)
             .SingleOrDefault();
@@ -280,27 +279,22 @@ public class GenerateBulkAction(
     {
         var entry = batchEntry.ToEntry(_contentLocales!.DefaultLocale);
 
-        var latestEntry = await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.GetEntry(entry.SystemProperties.Id),
-            null,
-            null,
-            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        var latestEntry = await _contentfulConnection.GetManagementEntryAsync(
+            entry.SystemProperties.Id,
+            errorNotifier: (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
-        await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.CreateOrUpdateEntry(entry.Fields,
-                 entry.SystemProperties.Id,
-                 version: latestEntry.SystemProperties.Version!.Value),
-            null,
-            null,
-            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+
+        await _contentfulConnection.CreateOrUpdateEntryAsync(
+            entry.Fields,
+            entry.SystemProperties.Id,
+            latestEntry.SystemProperties.Version!.Value,
+            errorNotifier: (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
-        await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.PublishEntry(
-                 entry.SystemProperties.Id,
-                 version: latestEntry.SystemProperties.Version!.Value + 1),
-            null,
-            null,
-            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+
+        await _contentfulConnection.PublishEntryAsync(
+            entry.SystemProperties.Id,
+            latestEntry.SystemProperties.Version!.Value + 1,
+            errorNotifier: (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
     }
 
@@ -320,7 +314,7 @@ public class GenerateBulkAction(
         static DateTime? dd(int? i) => i is null ? null : DateTimeOffset.FromUnixTimeSeconds(i.Value).UtcDateTime;
 
         var batchEntries = CuteContentGenerateBatch
-            .GetAll(_contentfulConnection.PreviewClient)
+            .GetAll(_contentfulConnection)
             .Where(cb => cb.CuteContentGenerateEntry.Sys.Id == cuteContentGenerateEntry.Sys.Id)
             .ToDictionary(be => be.Key);
 
@@ -630,22 +624,16 @@ public class GenerateBulkAction(
 
         batchEntry.SystemProperties.ContentType = cuteBatchContentType;
 
-        await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.CreateOrUpdateEntry(batchEntry.Fields,
-                batchEntry.SystemProperties.Id,
-                contentTypeId: cuteBatchContentType.SystemProperties.Id,
-                version: 0),
-            null,
-            null,
-            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        await _contentfulConnection.CreateOrUpdateEntryAsync(
+            batchEntry.Fields,
+            batchEntry.SystemProperties.Id, version: 0,
+            errorNotifier: (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
 
-        await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.PublishEntry(batchEntry.SystemProperties.Id,
-                version: 1),
-            null,
-            null,
-            (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        await _contentfulConnection.PublishEntryAsync(
+            batchEntry.SystemProperties.Id,
+            version: 1,
+            errorNotifier: (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
 
         displayActions.DisplayFormatted?.Invoke($"Created {"cuteContentGenerateBatch"} entry to track batch progress.");
@@ -962,12 +950,8 @@ public class GenerateBulkAction(
         var id = entry.SelectToken("$.sys.id")?.Value<string>() ??
             throw new CliException("The query needs to return a 'sys.id' for each item.");
 
-        var obj = await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.GetEntry(id),
-            null,
-            null,
-            (m) => displayActions?.DisplayAlert?.Invoke(m.ToString().Snip(40))
-        );
+        var obj = await _contentfulConnection.GetManagementEntryAsync(id,
+            errorNotifier: (m) => displayActions.DisplayAlert?.Invoke(m.ToString().Snip(40)));
 
         var fields = obj.Fields as JObject ??
             throw new CliException("Weird! The entry does not have any fields?? I'd run without looking back..");
@@ -1026,11 +1010,8 @@ public class GenerateBulkAction(
 
         oldValueRef[locale] = replaceValue;
 
-        await RateLimiter.SendRequestAsync(() =>
-            _contentfulConnection.ManagementClient.CreateOrUpdateEntry(obj, version: obj.SystemProperties.Version),
-            null,
-            null,
-            (m) => displayActions?.DisplayAlert?.Invoke(m.ToString().Snip(40))
+        await _contentfulConnection.CreateOrUpdateEntryAsync(obj, obj.SystemProperties.Version,
+            errorNotifier: (m) => displayActions?.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
     }
 
@@ -1130,9 +1111,7 @@ public class GenerateBulkAction(
     {
         ScriptObject? scriptObject = [];
 
-        CuteFunctions.ContentfulManagementClient = _contentfulConnection.ManagementClient;
-
-        CuteFunctions.ContentfulClient = _contentfulConnection.DeliveryClient;
+        CuteFunctions.ContentfulConnection = _contentfulConnection;
 
         scriptObject.SetValue("cute", new CuteFunctions(), true);
 

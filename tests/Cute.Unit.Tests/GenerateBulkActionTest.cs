@@ -1,4 +1,4 @@
-﻿namespace Cute.Tests;
+﻿namespace Cute.Unit.Tests;
 
 using Cute.Config;
 using Cute.Constants;
@@ -108,14 +108,12 @@ public class GenerateBulkActionTest
             targetEntryId.Should().NotBeNullOrEmpty();
 
             var cuteContentGenerateEntry = await _contentfulConnection
-                .PreviewClient
-                .GetEntry<CuteContentGenerate>(cuteContentGenerateEntryId);
+                .GetPreviewEntryAsync<CuteContentGenerate>(cuteContentGenerateEntryId);
 
             cuteContentGenerateEntry.Should().NotBeNull();
 
             var targetEntry = await _contentfulConnection
-                .ManagementClient
-                .GetEntry(targetEntryId);
+                .GetManagementEntryAsync(targetEntryId);
 
             targetEntry.Should().NotBeNull();
 

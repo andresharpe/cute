@@ -18,9 +18,9 @@ using static Cute.Commands.Content.ContentGenerateTestCommand;
 namespace Cute.Commands.Content;
 
 public class ContentGenerateTestCommand(IConsoleWriter console, ILogger<ContentGenerateCommand> logger,
-    ContentfulConnection contentfulConnection, AppSettings appSettings,
+    AppSettings appSettings,
     GenerateBulkAction generateBulkAction)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly GenerateBulkAction _generateBulkAction = generateBulkAction;
 
@@ -68,9 +68,13 @@ public class ContentGenerateTestCommand(IConsoleWriter console, ILogger<ContentG
 
         var contentMetaTypeId = contentMetaType.SystemProperties.Id;
 
-        var contentLocales = new ContentLocales([DefaultLocaleCode], DefaultLocaleCode);
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
 
-        var apiSyncEntry = CuteContentGenerate.GetByKey(ContentfulClient, settings.Key)
+        var defaultLocaleCode = defaultLocale.Code;
+
+        var contentLocales = new ContentLocales([defaultLocaleCode], defaultLocaleCode);
+
+        var apiSyncEntry = CuteContentGenerate.GetByKey(ContentfulConnection, settings.Key)
             ?? throw new CliException($"No generate entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
 
         var displayActions = new DisplayActions()
@@ -93,7 +97,7 @@ public class ContentGenerateTestCommand(IConsoleWriter console, ILogger<ContentG
         }
 
         _generateBulkAction
-            .WithContentTypes(ContentTypes)
+            .WithContentTypes(await ContentfulConnection.GetContentTypesAsync())
             .WithContentLocales(contentLocales);
 
         await _generateBulkAction.GenerateContent(settings.Key,

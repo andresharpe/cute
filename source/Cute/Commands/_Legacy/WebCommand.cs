@@ -17,7 +17,7 @@ public abstract class WebCommand<TSettings> : LoggedInCommand<TSettings> where T
     private CommandContext? _commandContext;
 
     public WebCommand(IConsoleWriter console, Microsoft.Extensions.Logging.ILogger logger,
-        ContentfulConnection contentfulConnection, AppSettings appSettings)
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;

@@ -18,9 +18,9 @@ using static Cute.Commands.Content.ContentGenerateCommand;
 namespace Cute.Commands.Content;
 
 public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGenerateCommand> logger,
-    ContentfulConnection contentfulConnection, AppSettings appSettings,
+    AppSettings appSettings,
     GenerateBulkAction generateBulkAction, HttpClient httpClient)
-    : BaseLoggedInCommand<Settings>(console, logger, contentfulConnection, appSettings)
+    : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly GenerateBulkAction _generBulkAction = generateBulkAction;
     private readonly HttpClient _httpClient = httpClient;
@@ -56,12 +56,14 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
 
         var contentMetaTypeId = contentMetaType.SystemProperties.Id;
 
-        var contentLocales = new ContentLocales([DefaultLocaleCode], DefaultLocaleCode);
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
 
-        var apiSyncEntry = CuteContentGenerate.GetByKey(ContentfulClient, settings.Key)
+        var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
+
+        var apiSyncEntry = CuteContentGenerate.GetByKey(ContentfulConnection, settings.Key)
             ?? throw new CliException($"No generate entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
 
-        var targetContentType = GetContentTypeOrThrowError(
+        var targetContentType = await GetContentTypeOrThrowError(
                 GraphQLUtilities.GetContentTypeId(apiSyncEntry.CuteDataQueryEntry.Query)
             );
 
@@ -77,7 +79,7 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
         };
 
         _generBulkAction
-            .WithContentTypes(ContentTypes)
+            .WithContentTypes(await ContentfulConnection.GetContentTypesAsync())
             .WithGenerateOperation(settings.Operation)
             .WithContentLocales(contentLocales);
 
@@ -105,9 +107,9 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
 
         await PerformBulkOperations(
             [
-                new PublishBulkAction(_contentfulConnection, _httpClient)
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                         .WithContentType(targetContentType)
-                        .WithContentLocales(ContentLocales)
+                        .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                         .WithVerbosity(settings.Verbosity)
             ]
         );

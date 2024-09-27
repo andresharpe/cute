@@ -1,8 +1,7 @@
 ﻿using Contentful.Core.Models;
 using Cute.Lib.Contentful;
-using Cute.Lib.InputAdapters.EntryAdapters;
 
-namespace Cute.Lib.InputAdapters;
+namespace Cute.Lib.InputAdapters.EntryAdapters;
 
 public class ReplaceFieldsInputAdapter(string locale,
     ContentLocales contentLocales, string[] fields, string[] replaceValues,

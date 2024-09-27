@@ -5,12 +5,12 @@ using FluentAssertions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace Cute.Tests;
+namespace Cute.Unit.Tests;
 
 public class JsonExtensionsTest
 {
     [Fact]
-    public void DeserializeAndCondenseContentfulEntry_Should_ProduceCutEntryStructure()
+    public void DeserializeAndCondenseContentfulEntry_Should_ProduceCuteEntryStructure()
     {
         var entry = JObject.Parse("""
             {

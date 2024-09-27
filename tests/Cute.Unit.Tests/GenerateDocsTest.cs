@@ -3,14 +3,11 @@ using Spectre.Console;
 using Spectre.Console.Rendering;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
-using Xunit.Abstractions;
 
-namespace SpectreCliXmlToMarkdown.Tests;
+namespace Cute.Unit.Tests;
 
-public class XmlToMarkdownTests(ITestOutputHelper output)
+public class XmlToMarkdownTests()
 {
-    private readonly ITestOutputHelper _output = output;
-
     [Fact]
     public void CliXmlDoc_To_Markdown_Test()
     {

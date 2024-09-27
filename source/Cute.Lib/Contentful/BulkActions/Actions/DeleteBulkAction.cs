@@ -1,5 +1,4 @@
 ﻿using Cute.Lib.Contentful.BulkActions.Models;
-using Cute.Lib.RateLimiters;
 
 namespace Cute.Lib.Contentful.BulkActions.Actions;
 
@@ -59,12 +58,10 @@ public class DeleteBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
             FormattableString message = $"...deleting '{_contentTypeId}' item '{itemId}' ({messageProcessed}/{totalCount}) '{displayFieldValue}'";
 
-            tasks[taskNo++] = RateLimiter.SendRequestAsync(
-                    () => _contentfulConnection.ManagementClient.DeleteEntry(itemId, itemVersion),
-                    message,
-                    (m) => NotifyUserInterface(m, progressUpdater),
-                    (e) => NotifyUserInterfaceOfError(e, progressUpdater)
-                );
+            tasks[taskNo++] = _contentfulConnection.DeleteEntryAsync(itemId, itemVersion, message,
+                (m) => NotifyUserInterface(m, progressUpdater),
+                (e) => NotifyUserInterfaceOfError(e, progressUpdater)
+            );
 
             if (taskNo >= tasks.Length)
             {

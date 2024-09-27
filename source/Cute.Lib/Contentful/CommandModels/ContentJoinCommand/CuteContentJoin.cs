@@ -1,6 +1,4 @@
-﻿using Contentful.Core;
-
-namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
+﻿namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
 {
     public class CuteContentJoin
     {
@@ -12,18 +10,10 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
         public string SourceContentType2 { get; set; } = default!;
         public List<string> SourceKeys2 { get; set; } = default!;
 
-        public static CuteContentJoin? GetByKey(ContentfulClient contentfulClient, string key)
+        public static CuteContentJoin? GetByKey(ContentfulConnection contentfulConnection, string key)
         {
-            return ContentfulEntryEnumerator
-                .DeliveryEntries<CuteContentJoin>(
-                    contentfulClient,
-                    "cuteContentJoin",
-                    pageSize: 1,
-                    queryConfigurator: b => b.FieldEquals("fields.key", key)
-                )
-                .ToBlockingEnumerable()
-                .Select(e => e.Entry)
-                .FirstOrDefault();
+            return contentfulConnection
+                .GetPreviewEntryByKey<CuteContentJoin>("cuteContentGenerate", "fields.key", key);
         }
     }
 }
