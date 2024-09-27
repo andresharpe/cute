@@ -1,6 +1,5 @@
 ﻿using Contentful.Core.Search;
 using Cute.Lib.Contentful;
-using Cute.Lib.Contentful.GraphQL;
 using Cute.Lib.Scriban;
 using Cute.Lib.SiteGen.Models;
 using Newtonsoft.Json.Linq;
@@ -18,14 +17,9 @@ public class SiteGenerator
 
     private readonly ContentfulConnection _contentfulConnection;
 
-    private readonly ContentfulGraphQlClient _graphQlClient;
-
-    public SiteGenerator(
-        ContentfulConnection contentfulConnection,
-        ContentfulGraphQlClient graphQlClient)
+    public SiteGenerator(ContentfulConnection contentfulConnection)
     {
         _contentfulConnection = contentfulConnection;
-        _graphQlClient = graphQlClient;
     }
 
     public SiteGenerator WithOutputPath(string outputPath)
@@ -239,7 +233,7 @@ public class SiteGenerator
         {
             if (string.IsNullOrWhiteSpace(query.Query)) continue;
 
-            var result = await _graphQlClient.GetData(query.Query, query.JsonSelector, locale);
+            var result = await _contentfulConnection.GraphQlApi.GetAllData(query.Query, query.JsonSelector, locale);
 
             if (result is null) continue;
 

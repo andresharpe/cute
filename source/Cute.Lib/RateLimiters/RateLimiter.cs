@@ -3,30 +3,49 @@ using System.Diagnostics;
 
 namespace Cute.Lib.RateLimiters;
 
-public static class RateLimiter
+public class RateLimiter
 {
-    private const int _requestsPerBatch = 7;
+    private readonly int _requestsPerBatch;
 
-    private const int _timeSpanPerBatchInSeconds = 1;
+    private readonly int _timeSpanPerBatchInSeconds;
 
-    private const int _retryLimit = 10;
+    private readonly int _retryLimit;
 
-    private static readonly SemaphoreSlim _semaphore = new(_requestsPerBatch, _requestsPerBatch);
+    private readonly SemaphoreSlim _semaphore;
 
-    private static readonly TimeSpan _timeSpanPerBatch = TimeSpan.FromSeconds(_timeSpanPerBatchInSeconds);
+    private readonly TimeSpan _timeSpanPerBatch;
 
-    private static int _requestsSentInBatch = 0;
+    private int _requestsSentInBatch;
 
-    private static DateTime _nextBatchTime = DateTime.UtcNow.Add(_timeSpanPerBatch);
+    private DateTime _nextBatchTime;
 
-    private static readonly object _lockObj = new();
+    private readonly object _lockObj = new();
 
-    private static readonly object _nullObj = new();
+    private readonly object _nullObj = new();
 
-    public static async Task SendRequestAsync(Func<Task> mainAction,
-        FormattableString? actionMessage = null,
-        Action<FormattableString>? actionNotifier = null,
-        Action<FormattableString>? errorNotifier = null)
+    public RateLimiter(int requestsPerBatch = 7,
+        int timeSpanPerBatchInSeconds = 1,
+        int retryLimit = 10)
+    {
+        _requestsPerBatch = requestsPerBatch;
+
+        _timeSpanPerBatchInSeconds = timeSpanPerBatchInSeconds;
+
+        _retryLimit = retryLimit;
+
+        _semaphore = new(_requestsPerBatch, _requestsPerBatch);
+
+        _timeSpanPerBatch = TimeSpan.FromSeconds(_timeSpanPerBatchInSeconds);
+
+        _nextBatchTime = DateTime.UtcNow.Add(_timeSpanPerBatch);
+
+        _requestsSentInBatch = 0;
+    }
+
+    public async Task SendRequestAsync(Func<Task> mainAction,
+            FormattableString? actionMessage = null,
+            Action<FormattableString>? actionNotifier = null,
+            Action<FormattableString>? errorNotifier = null)
     {
         await SendRequestAsync(
             async () =>
@@ -38,7 +57,7 @@ public static class RateLimiter
         );
     }
 
-    public static async Task<T> SendRequestAsync<T>(Func<Task<T>> mainAction,
+    public async Task<T> SendRequestAsync<T>(Func<Task<T>> mainAction,
         FormattableString? actionMessage = null,
         Action<FormattableString>? actionNotifier = null,
         Action<FormattableString>? errorNotifier = null)
@@ -69,7 +88,7 @@ public static class RateLimiter
                 if (retryAttempt > _retryLimit)
                 {
                     errorNotifier?.Invoke($"Too many retries. {ex.Message}.");
-                    throw new CliException($"Too many retries. {ex.Message}",ex);
+                    throw new CliException($"Too many retries. {ex.Message}", ex);
                 }
 
                 retryAttempt++;
@@ -85,7 +104,7 @@ public static class RateLimiter
         }
     }
 
-    private static async Task ThrottleAsync()
+    private async Task ThrottleAsync()
     {
         lock (_lockObj)
         {

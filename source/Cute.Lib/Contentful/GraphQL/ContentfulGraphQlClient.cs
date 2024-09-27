@@ -1,5 +1,4 @@
 ﻿using Cute.Lib.Exceptions;
-using Cute.Lib.RateLimiters;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
@@ -10,8 +9,9 @@ namespace Cute.Lib.Contentful.GraphQL;
 public class ContentfulGraphQlClient
 {
     private readonly HttpClient _httpClient;
-
-    private readonly ContentfulConnection _contentfulConnection;
+    private readonly Uri _baseAddress;
+    private readonly string _deliveryApiKey;
+    private readonly string _previewApiKey;
 
     public ContentfulGraphQlClient(
         ContentfulConnection contentfulConnection,
@@ -20,17 +20,23 @@ public class ContentfulGraphQlClient
         _httpClient = httpClient;
 
         var env = contentfulConnection.Options.Environment;
+
         var space = contentfulConnection.Options.SpaceId;
 
-        _httpClient.BaseAddress = new Uri($"https://graphql.contentful.com/content/v1/spaces/{space}/environments/{env}");
+        _baseAddress = new Uri($"https://graphql.contentful.com/content/v1/spaces/{space}/environments/{env}");
 
-        _contentfulConnection = contentfulConnection;
+        _deliveryApiKey = contentfulConnection.Options.DeliveryApiKey;
+
+        _previewApiKey = contentfulConnection.Options.PreviewApiKey;
     }
 
-    public async Task<JArray?> GetData(string query, string jsonResultsPath, string locale,
+    public async IAsyncEnumerable<JObject> GetDataEnumerable(string query,
+        string jsonResultsPath, string locale,
         int? limit = null, bool preview = false)
     {
-        var apiKey = preview ? _contentfulConnection.Options.PreviewApiKey : _contentfulConnection.Options.DeliveryApiKey;
+        var apiKey = preview ? _previewApiKey : _deliveryApiKey;
+
+        var recCount = 0;
 
         var postBody = new
         {
@@ -44,19 +50,18 @@ public class ContentfulGraphQlClient
             }
         };
 
-        JArray records = [];
-
         while (true)
         {
             var request = new HttpRequestMessage()
             {
+                RequestUri = _baseAddress,
                 Method = HttpMethod.Post,
                 Content = new StringContent(JsonConvert.SerializeObject(postBody), Encoding.UTF8, "application/json")
             };
 
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
-            using var response = await RateLimiter.SendRequestAsync(
+            using var response = await ContentfulConnection.RateLimiter.SendRequestAsync(
                 () => _httpClient.SendAsync(request),
                 $"",
                 (m) => { }, // suppress this message
@@ -69,21 +74,34 @@ public class ContentfulGraphQlClient
 
             var responseObject = JsonConvert.DeserializeObject<JObject>(responseString);
 
-            if (responseObject is null) return null;
+            if (responseObject is null) yield break;
 
-            if (responseObject.SelectToken(jsonResultsPath) is not JArray newRecords) return records;
+            if (responseObject.SelectToken(jsonResultsPath) is not JArray newRecords)
+                yield break;
 
-            if (newRecords.Count == 0) break;
+            if (newRecords.Count == 0) yield break;
 
-            records.Merge(newRecords);
+            foreach (var record in newRecords)
+            {
+                yield return (JObject)record;
+                recCount++;
+                if (limit is not null && recCount >= limit) yield break;
+            }
 
-            if (limit is not null && records.Count >= limit) break;
-
-            if (newRecords.Count < (int)postBody.variables["limit"]) break;
+            if (newRecords.Count < (int)postBody.variables["limit"]) yield break;
 
             postBody.variables["skip"] = (int)postBody.variables["skip"] + (int)postBody.variables["limit"];
         }
+    }
 
-        return records;
+    public async Task<JArray?> GetAllData(string query, string jsonResultsPath, string locale,
+            int? limit = null, bool preview = false)
+    {
+        await Task.Delay(0);
+
+        var enumerable = GetDataEnumerable(query, jsonResultsPath, locale, limit, preview)
+            .ToBlockingEnumerable();
+
+        return new JArray(enumerable);
     }
 }

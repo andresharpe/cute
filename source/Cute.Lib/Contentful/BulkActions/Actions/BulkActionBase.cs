@@ -4,7 +4,6 @@ using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.InputAdapters;
 using Cute.Lib.InputAdapters.EntryAdapters;
-using Cute.Lib.RateLimiters;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Concurrent;
@@ -329,7 +328,7 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.ManagementApiKey);
 
-        using var bulkResponse = await RateLimiter.SendRequestAsync(
+        using var bulkResponse = await ContentfulConnection.RateLimiter.SendRequestAsync(
                 () => _httpClient.SendAsync(bulkRequest),
                 $"Sending bulk {bulkAction} request...",
                 (m) => NotifyUserInterface(m),
@@ -359,7 +358,7 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         bulkRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.ManagementApiKey);
 
-        using var bulkResponse = await RateLimiter.SendRequestAsync(
+        using var bulkResponse = await ContentfulConnection.RateLimiter.SendRequestAsync(
                 () => _httpClient.SendAsync(bulkRequest),
                     $"",
                     (m) => { }, // suppress this message

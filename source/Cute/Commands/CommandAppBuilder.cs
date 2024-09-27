@@ -13,7 +13,6 @@ using Cute.Lib.AiModels;
 using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
-using Cute.Lib.Contentful.GraphQL;
 using Cute.Lib.Exceptions;
 using Cute.Lib.SiteGen;
 using Cute.Services;
@@ -211,7 +210,6 @@ public class CommandAppBuilder
         services.AddSingleton(_appSettings.GetSettings());
         services.AddSingleton<IContentfulOptionsProvider>(_appSettings);
         services.AddTransient<ContentfulConnection>();
-        services.AddTransient<ContentfulGraphQlClient>();
         services.AddSingleton<IAzureOpenAiOptionsProvider>(_appSettings);
         services.AddTransient<AzureTranslator>();
         services.AddTransient<HttpResponseFileCache>();

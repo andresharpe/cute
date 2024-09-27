@@ -32,14 +32,11 @@ public enum GenerateOperation
 public class GenerateBulkAction(
         ContentfulConnection contentfulConnection,
         HttpClient httpClient,
-        ContentfulGraphQlClient graphQlClient,
         IAzureOpenAiOptionsProvider azureOpenAiOptionsProvider,
         IReadOnlyDictionary<string, string?> appSettings)
     : BulkActionBase(contentfulConnection, httpClient)
 
 {
-    private readonly ContentfulGraphQlClient _graphQlClient = graphQlClient;
-
     private readonly IAzureOpenAiOptionsProvider _azureOpenAiOptionsProvider = azureOpenAiOptionsProvider;
 
     private readonly IReadOnlyDictionary<string, string?> _appSettings = appSettings;
@@ -101,40 +98,23 @@ public class GenerateBulkAction(
         displayActions.DisplayFormatted?.Invoke($"Executing query {cuteContentGenerateEntry.CuteDataQueryEntry.Key}...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var queryResult = await GetQueryData(cuteContentGenerateEntry)
-            ?? throw new CliException($"No data found to process. Is your query valid and tested?");
-
-        if (dataFilter is not null)
+        var queryResult = new JArray();
+        var totalRead = 0;
+        await foreach (var entry in GetQueryData(cuteContentGenerateEntry))
         {
-            displayActions.DisplayFormatted?.Invoke($"Applying filter...");
-            displayActions.DisplayBlankLine?.Invoke();
+            progressUpdater?.Invoke(queryResult.Count, ++totalRead);
 
-            var filteredResult = new JArray();
-            foreach (var obj in queryResult.Cast<JObject>())
+            if (!testOnly && dataFilter is not null && !dataFilter.Compare(entry))
             {
-                if (dataFilter.Compare(obj))
-                {
-                    filteredResult.Add(obj);
-                }
+                continue;
             }
-            queryResult = filteredResult;
-        }
 
-        if (!testOnly)
-        {
-            displayActions.DisplayFormatted?.Invoke($"Skipping non-empty {cuteContentGenerateEntry.PromptOutputContentField} entries...");
-            displayActions.DisplayBlankLine?.Invoke();
-
-            var filteredResult = new JArray();
-            foreach (var obj in queryResult.Cast<JObject>())
+            if (!testOnly && EntryHasExistingContent(cuteContentGenerateEntry, entry))
             {
-                if (EntryHasExistingContent(cuteContentGenerateEntry, obj))
-                {
-                    continue;
-                }
-                filteredResult.Add(obj);
+                continue;
             }
-            queryResult = filteredResult;
+
+            queryResult.Add(entry);
         }
 
         displayActions.DisplayFormatted?.Invoke($"Found {queryResult.Count} entries...");
@@ -1139,12 +1119,13 @@ public class GenerateBulkAction(
         return client.GetChatClient(deploymentName);
     }
 
-    private async Task<JArray?> GetQueryData(CuteContentGenerate cuteContentGenerateEntry)
+    private IAsyncEnumerable<JObject> GetQueryData(CuteContentGenerate cuteContentGenerateEntry)
     {
         // Add the target field to the query if it doesn't exist...
-        var query = GraphQLUtilities.EnsureFieldExistsOrAdd(cuteContentGenerateEntry.CuteDataQueryEntry.Query, cuteContentGenerateEntry.PromptOutputContentField);
+        var query = GraphQLUtilities.EnsureFieldExistsOrAdd(cuteContentGenerateEntry.CuteDataQueryEntry.Query,
+            cuteContentGenerateEntry.PromptOutputContentField);
 
-        return await _graphQlClient.GetData(
+        return _contentfulConnection.GraphQlApi.GetDataEnumerable(
             query,
             cuteContentGenerateEntry.CuteDataQueryEntry.JsonSelector,
             cuteContentGenerateEntry.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en",
