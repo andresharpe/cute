@@ -233,7 +233,7 @@ public class SiteGenerator
         {
             if (string.IsNullOrWhiteSpace(query.Query)) continue;
 
-            var result = await _contentfulConnection.GraphQlApi.GetAllData(query.Query, query.JsonSelector, locale);
+            var result = await _contentfulConnection.GraphQL.GetAllData(query.Query, query.JsonSelector, locale);
 
             if (result is null) continue;
 

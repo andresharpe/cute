@@ -10,8 +10,10 @@ public class ContentfulGraphQlClient
 {
     private readonly HttpClient _httpClient;
     private readonly Uri _baseAddress;
+    private readonly string _managementApiLey;
     private readonly string _deliveryApiKey;
     private readonly string _previewApiKey;
+    private readonly ContentfulConnection _contentfulConnection;
 
     public ContentfulGraphQlClient(
         ContentfulConnection contentfulConnection,
@@ -25,10 +27,18 @@ public class ContentfulGraphQlClient
 
         _baseAddress = new Uri($"https://graphql.contentful.com/content/v1/spaces/{space}/environments/{env}");
 
+        _managementApiLey = contentfulConnection.Options.ManagementApiKey;
+
         _deliveryApiKey = contentfulConnection.Options.DeliveryApiKey;
 
         _previewApiKey = contentfulConnection.Options.PreviewApiKey;
+
+        // recursive link! tried to avoid this but it's the only way to make AutoGraphqlQueryBuilder work
+        _contentfulConnection = contentfulConnection;
     }
+
+    public AutoGraphQlQueryBuilder CreateAutoQueryBuilder()
+        => new AutoGraphQlQueryBuilder(_contentfulConnection);
 
     public async IAsyncEnumerable<JObject> GetDataEnumerable(string query,
         string jsonResultsPath, string locale,

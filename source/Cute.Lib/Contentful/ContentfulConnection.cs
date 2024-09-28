@@ -24,7 +24,7 @@ public class ContentfulConnection
     protected ContentfulConnection()
     { }
 
-    private static readonly RateLimiter rateLimiter = new(requestsPerBatch: 10);
+    private static readonly RateLimiter rateLimiter = new(requestsPerBatch: 7);
 
     private HttpClient _httpClient = null!;
     private ContentfulOptions _contentfulOptions = null!;
@@ -58,7 +58,7 @@ public class ContentfulConnection
 
     public static RateLimiter RateLimiter => rateLimiter;
 
-    public ContentfulGraphQlClient GraphQlApi { get; private set; } = null!;
+    public ContentfulGraphQlClient GraphQL { get; private set; } = null!;
 
     public async Task<IEnumerable<ContentType>> GetContentTypesAsync() => await _contentTypes.Value;
 
@@ -384,7 +384,7 @@ public class ContentfulConnection
             contentfulConnection._contentTypesExtended =
                 new(contentfulConnection.GetContentTypesEntriesCount, true);
 
-            contentfulConnection.GraphQlApi = new ContentfulGraphQlClient(contentfulConnection, contentfulConnection._httpClient);
+            contentfulConnection.GraphQL = new ContentfulGraphQlClient(contentfulConnection, contentfulConnection._httpClient);
         }
     }
 
