@@ -36,9 +36,9 @@ public class AutoGraphQlQueryBuilder(ContentfulConnection contentfulConnection)
         return this;
     }
 
-    public bool TryBuildQuery(out string? query)
+    public bool TryBuildQuery(out string query)
     {
-        query = null;
+        query = default!;
         _errors.Clear();
 
         if (_templateContent is null)

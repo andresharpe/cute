@@ -132,16 +132,16 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
             .WithTemplateContent(sb.ToString())
             .WithExtraVariables([[_contentTypeId, _contentType.DisplayField]]);
 
-        if (!autoQueryBuilder.TryBuildQuery(out var query) || query is null)
+        if (!autoQueryBuilder.TryBuildQuery(out var query))
         {
             var errors = string.Join('\n', autoQueryBuilder.Errors);
             throw new CliException($"Error building query: {errors}");
         }
 
         var enumerable = _contentfulConnection.GraphQL.GetDataEnumerable(
-            query,
-            $"data.{autoQueryBuilder.ContentTypeId}Collection.items",
-            _locale,
+            query: query,
+            jsonResultsPath: $"data.{autoQueryBuilder.ContentTypeId}Collection.items",
+            locale: _locale,
             preview: true
         );
 
