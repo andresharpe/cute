@@ -33,8 +33,10 @@ public class ContentfulGraphQlClient
 
         _previewApiKey = contentfulConnection.Options.PreviewApiKey;
 
-        // recursive link! tried to avoid this but it's the only way to make AutoGraphqlQueryBuilder work
-        _contentfulConnection = contentfulConnection;
+        _contentfulConnection = new ContentfulConnection.Builder()
+            .WithOptions(contentfulConnection.Options)
+            .WithHttpClient(httpClient)
+            .Build();
     }
 
     public AutoGraphQlQueryBuilder CreateAutoQueryBuilder()
