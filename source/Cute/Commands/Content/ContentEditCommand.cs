@@ -14,10 +14,11 @@ using static Cute.Commands.Content.ContentEditCommand;
 namespace Cute.Commands.Content;
 
 public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditCommand> logger,
-    AppSettings appSettings, HttpClient httpClient)
+    AppSettings appSettings, HttpClient httpClient, ContentfulConnection contentfulConnection)
     : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
+    private readonly ContentfulConnection _contentfulConnection = contentfulConnection;
 
     public class Settings : LoggedInSettings
     {
@@ -44,10 +45,7 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        var defaultLocale = ContentfulConnection.GetDefaultLocaleAsync().Result;
-        var defaultLocaleCode = defaultLocale.Code;
-
-        settings.Locale ??= defaultLocaleCode;
+        settings.Locale ??= _contentfulConnection.GetDefaultLocaleAsync().Result.Code;
 
         settings.Locale = settings.Locale.ToLower();
 

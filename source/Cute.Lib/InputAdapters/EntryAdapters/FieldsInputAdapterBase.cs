@@ -1,11 +1,13 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Search;
 using Cute.Lib.Contentful;
+using Cute.Lib.Exceptions;
 using Cute.Lib.Scriban;
 using Cute.Lib.Serializers;
 using Newtonsoft.Json.Linq;
 using Scriban;
 using Scriban.Runtime;
+using System.Text;
 
 namespace Cute.Lib.InputAdapters.EntryAdapters;
 
@@ -21,7 +23,7 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
     private readonly string[] _findValues = findValues;
     private readonly string[] _replaceValues = replaceValues;
 
-    private IDictionary<string, object?>? _flatEntry;
+    private JObject? _flatEntry;
 
     private readonly ContentType _contentType = contentType;
 
@@ -56,7 +58,7 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
                 ? null
                 : _compiledReplaceTemplates[i].Render(_scriptObject, memberRenamer: member => member.Name.ToCamelCase());
 
-            var oldFieldValue = _flatEntry[fieldName]?.ToString();
+            var oldFieldValue = _flatEntry.SelectToken(fieldName)?.ToString();
 
             CompareAndEdit(newFlatEntry, fieldName, fieldFindValue, fieldReplaceValue, oldFieldValue);
         }
@@ -65,7 +67,7 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
 
         if (newFlatEntry.Count == 0) return Task.FromResult<IDictionary<string, object?>?>(null);
 
-        newFlatEntry.Add("$id", _flatEntry["$id"]);
+        newFlatEntry.Add("$id", _flatEntry.SelectToken("sys.id"));
 
         var finalFlatEntry = new Dictionary<string, object?>();
         foreach (var (key, value) in newFlatEntry)
@@ -100,7 +102,7 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
         var records = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
                 new EntryQuery.Builder()
                     .WithContentType(_contentTypeId)
-                    .WithPageSize(0)
+                    .WithPageSize(1)
                     .WithIncludeLevels(0)
                     .Build()
             )
@@ -113,17 +115,46 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
 
     public override async IAsyncEnumerable<IDictionary<string, object?>> GetRecordsAsync()
     {
-        var enumerable = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
-            new EntryQuery.Builder()
-                .WithContentType(_contentTypeId)
-                .WithOrderByField(_contentType.DisplayField)
-                .WithIncludeLevels(1)
-                .Build()
-            );
-
-        await foreach (var (entry, _) in enumerable)
+        var sb = new StringBuilder();
+        foreach (var field in _fields.Where(s => !string.IsNullOrWhiteSpace(s)))
         {
-            _flatEntry = GetFlatEntry(entry);
+            sb.AppendLine($"{{{{ {_contentTypeId}.{field} }}}}");
+        }
+        foreach (var field in _findValues.Where(s => !string.IsNullOrWhiteSpace(s)))
+        {
+            sb.AppendLine($"{field}");
+        }
+        foreach (var field in _replaceValues.Where(s => !string.IsNullOrWhiteSpace(s)))
+        {
+            sb.AppendLine($"{field}");
+        }
+        var autoQueryBuilder = _contentfulConnection.GraphQL.CreateAutoQueryBuilder()
+            .WithTemplateContent(sb.ToString())
+            .WithExtraVariables([[_contentTypeId, _contentType.DisplayField]]);
+
+        if (!autoQueryBuilder.TryBuildQuery(out var query))
+        {
+            var errors = string.Join('\n', autoQueryBuilder.Errors);
+            throw new CliException($"Error building query: {errors}");
+        }
+
+        var enumerable = _contentfulConnection.GraphQL.GetDataEnumerable(
+            query: query,
+            jsonResultsPath: $"data.{autoQueryBuilder.ContentTypeId}Collection.items",
+            locale: _locale,
+            preview: true
+        );
+
+        //var enumerable = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
+        //    new EntryQuery.Builder()
+        //        .WithContentType(_contentType)
+        //        .WithIncludeLevels(2)
+        //        .Build()
+        //    );
+
+        await foreach (var entry in enumerable)
+        {
+            _flatEntry = entry;
 
             var record = await GetRecordAsync();
 
@@ -142,69 +173,5 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
         scriptObject.SetValue("cute", new CuteFunctions(), true);
 
         return scriptObject;
-    }
-
-    private Dictionary<string, object?> GetFlatEntry(Entry<JObject> fullEntry)
-    {
-        var fullFlatEntry = _serializer.SerializeEntry(fullEntry);
-
-        var end = $".{_locale}";
-        var endLat = $".{_locale}.lat";
-        var endLon = $".{_locale}.lon";
-
-        var flatEntry = new Dictionary<string, object?>();
-
-        foreach (var (key, value) in fullFlatEntry)
-        {
-            string newKey;
-
-            if (key.EndsWith(end))
-            {
-                newKey = key.Replace(end, string.Empty);
-            }
-            else if (key.EndsWith(endLat) || key.EndsWith(endLon))
-            {
-                newKey = key.Replace(end, string.Empty).Replace(".", "_");
-            }
-            else if (key.Equals("sys.Id"))
-            {
-                newKey = "$id";
-            }
-            else
-            {
-                continue;
-            }
-            flatEntry.Add(newKey, value);
-        }
-
-        var end2 = $".{_contentLocales.DefaultLocale}";
-        var endLat2 = $".{_contentLocales.DefaultLocale}.lat";
-        var endLon2 = $".{_contentLocales.DefaultLocale}.lon";
-
-        foreach (var (key, value) in fullFlatEntry)
-        {
-            string newKey;
-
-            if (key.EndsWith(end2))
-            {
-                newKey = key.Replace(end2, string.Empty);
-            }
-            else if (key.EndsWith(endLat2) || key.EndsWith(endLon2))
-            {
-                newKey = key.Replace(end2, string.Empty).Replace(".", "_");
-            }
-            else
-            {
-                continue;
-            }
-            if (!flatEntry.TryGetValue(newKey, out _))
-            {
-                flatEntry[newKey] = value;
-                continue;
-            }
-            flatEntry[newKey] ??= value;
-        }
-
-        return flatEntry;
     }
 }

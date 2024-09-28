@@ -1125,7 +1125,7 @@ public class GenerateBulkAction(
         var query = GraphQLUtilities.EnsureFieldExistsOrAdd(cuteContentGenerateEntry.CuteDataQueryEntry.Query,
             cuteContentGenerateEntry.PromptOutputContentField);
 
-        return _contentfulConnection.GraphQlApi.GetDataEnumerable(
+        return _contentfulConnection.GraphQL.GetDataEnumerable(
             query,
             cuteContentGenerateEntry.CuteDataQueryEntry.JsonSelector,
             cuteContentGenerateEntry.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en",
