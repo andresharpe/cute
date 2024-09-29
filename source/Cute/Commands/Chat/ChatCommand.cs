@@ -34,8 +34,62 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     public class Settings : LoggedInSettings
     {
         [CommandOption("-k|--key")]
-        [Description("The optional key of the 'cuteContentGenerate' entry for SystemMessage initialization.")]
+        [Description("Optional key for fetching a specific 'cuteContentGenerate' entry.")]
         public string Key { get; set; } = default!;
+
+        [CommandOption("-p|--system-prompt")]
+        [Description("System prompt to initialize the bot's starting context.")]
+        public string SystemPrompt { get; set; } = default!;
+
+        [CommandOption("-m|--max-tokens")]
+        [Description("Maximum number of tokens (words) allowed in the bot's responses.")]
+        public int MaxTokens { get; set; } = 1500;
+
+        [CommandOption("-t|--temperature")]
+        [Description("Controls randomness: higher values generate more creative responses.")]
+        public float Temperature { get; set; } = 0.2f;
+
+        [CommandOption("-f|--frequency-penalty")]
+        [Description("Reduces repetition of frequently used phrases in bot responses.")]
+        public float FrequencyPenalty { get; set; } = 0.1f;
+
+        [CommandOption("--presence-penalty")]
+        [Description("Discourages reusing phrases already present in the conversation.")]
+        public float PresencePenalty { get; set; } = 0.1f;
+
+        [CommandOption("--topP")]
+        [Description("TopP controls diversity by limiting the token pool for bot responses.")]
+        public float TopP { get; set; } = 0.85f;
+    }
+
+    public override ValidationResult Validate(CommandContext context, Settings settings)
+    {
+        if (settings.MaxTokens < 1 || settings.MaxTokens > 4096)
+        {
+            return ValidationResult.Error("MaxTokens must be between 1 and 4096.");
+        }
+
+        if (settings.Temperature < 0 || settings.Temperature > 1)
+        {
+            return ValidationResult.Error("Temperature must be between 0 and 1.");
+        }
+
+        if (settings.FrequencyPenalty < 0 || settings.FrequencyPenalty > 2)
+        {
+            return ValidationResult.Error("FrequencyPenalty must be between 0 and 2.");
+        }
+
+        if (settings.PresencePenalty < 0 || settings.PresencePenalty > 2)
+        {
+            return ValidationResult.Error("PresencePenalty must be between 0 and 2.");
+        }
+
+        if (settings.TopP < 0 || settings.TopP > 1)
+        {
+            return ValidationResult.Error("TopP must be between 0 and 1.");
+        }
+
+        return base.Validate(context, settings);
     }
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
@@ -84,16 +138,31 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         if (settings.Key == null)
         {
             _console.WriteBlankLine();
-            _console.WriteNormalWithHighlights($"I can provide you with info on the types and fields in the '{defaultSpace.Name}' space, or", Globals.StyleHeading);
-            _console.WriteNormalWithHighlights($"assist you with writing GraphQL queries, cli commands, etc.", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights(
+                $"Greetings, traveler of the '{defaultSpace.Name}' space! I'm Douglas, your witty guide to the wonders of Contentful.",
+                Globals.StyleHeading);
             _console.WriteBlankLine();
-            _console.WriteNormalWithHighlights($"Type '{"bye"}' or '{"exit"}' to end our chat.", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights(
+                $"Whether you need to craft precise GraphQL queries, wield the power of the '{"cute"}' CLI, or simply",
+                Globals.StyleHeading);
+            _console.WriteBlankLine();
+            _console.WriteNormalWithHighlights(
+                $"explore the vast content types and fields, I'm here to assist.",
+                Globals.StyleHeading);
+            _console.WriteBlankLine();
+            _console.WriteNormalWithHighlights(
+                $"Remember, type '{"bye"}' or '{"exit"}' to bid me farewell. Ready to embark on this journey?",
+                Globals.StyleHeading);
+            _console.WriteBlankLine();
+            _console.WriteNormalWithHighlights(
+                $"Just type your prompt and press '{"<Enter>"}' twice to set sail!",
+                Globals.StyleHeading);
             _console.WriteBlankLine();
         }
 
         var chatClient = CreateChatClient();
 
-        chatCompletionOptions ??= DefaultChatCompletionOptions();
+        chatCompletionOptions ??= CreateChatCompletionOptions(settings);
 
         systemMessage ??= GetSystemMessage(defaultSpace, defaultEnvironment, currentUser, contentTypes, locales);
 
@@ -113,11 +182,14 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             AnsiConsole.MarkupLine(_console.FormatToMarkup($"Presence Penalty  : {chatCompletionOptions.PresencePenalty}", Globals.StyleDim, Globals.StyleSubHeading));
             _console.WriteBlankLine();
             _console.WriteRuler();
+            _console.WriteBlankLine();
         }
 
-        _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"Press {"<Enter>"} on a blank line to submit your prompt. (i.e. type your prompt and press {"<Enter>"} twice to submit your prompt).", Globals.StyleHeading);
-        _console.WriteBlankLine();
+        if (settings.Key is not null)
+        {
+            _console.WriteNormalWithHighlights($"Press {"<Enter>"} on a blank line to submit your prompt. (i.e. type your prompt and press {"<Enter>"} twice to submit your prompt).", Globals.StyleHeading);
+            _console.WriteBlankLine();
+        }
 
         List<ChatMessage> messages = [new SystemChatMessage(systemMessage)];
 
@@ -262,15 +334,15 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         _console.WriteBlankLine();
     }
 
-    private static ChatCompletionOptions DefaultChatCompletionOptions()
+    private static ChatCompletionOptions CreateChatCompletionOptions(Settings settings)
     {
         return new ChatCompletionOptions()
         {
-            MaxTokens = 1500,
-            Temperature = 0.2f,
-            FrequencyPenalty = 0.1f,
-            PresencePenalty = 0.1f,
-            TopP = (float)0.85,
+            MaxTokens = settings.MaxTokens,
+            Temperature = settings.Temperature,
+            FrequencyPenalty = settings.FrequencyPenalty,
+            PresencePenalty = settings.PresencePenalty,
+            TopP = settings.TopP
         };
     }
 
