@@ -14,10 +14,11 @@ using static Cute.Commands.Content.ContentReplaceCommand;
 namespace Cute.Commands.Content;
 
 public class ContentReplaceCommand(IConsoleWriter console, ILogger<ContentReplaceCommand> logger,
-    AppSettings appSettings, HttpClient httpClient)
+    AppSettings appSettings, HttpClient httpClient, ContentfulConnection contentfulConnection)
     : BaseLoggedInCommand<Settings>(console, logger, appSettings)
 {
     private readonly HttpClient _httpClient = httpClient;
+    private readonly ContentfulConnection _contentfulConnection = contentfulConnection;
 
     public class Settings : LoggedInSettings
     {
@@ -48,7 +49,7 @@ public class ContentReplaceCommand(IConsoleWriter console, ILogger<ContentReplac
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        var defaultLocale = ContentfulConnection.GetDefaultLocaleAsync().Result;
+        var defaultLocale = _contentfulConnection.GetDefaultLocaleAsync().Result;
 
         var defaultLocaleCode = defaultLocale.Code;
 

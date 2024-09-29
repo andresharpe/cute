@@ -144,10 +144,17 @@ public class AutoGraphQlQueryBuilder(ContentfulConnection contentfulConnection)
         TraverseScriptNode(template.Page, variableList);
     }
 
+    private static string[] functionPrefixes = [
+            "cute", "array", "date", "html", "math", "object",
+            "regex", "string", "timespan", "json", "collection"
+        ];
+
     private static void TraverseScriptNode(ScriptNode node, List<string[]> variableList)
     {
         if (node is ScriptMemberExpression globalVariable)
         {
+            if (functionPrefixes.Contains(globalVariable.Target.ToString())) return;
+
             variableList.Add(globalVariable.ToString().Split('.'));
             return;
         }
