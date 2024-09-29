@@ -161,7 +161,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                     var contentTypeId = GraphQLUtilities.GetContentTypeId(botResponse.QueryOrCommand);
                     var jsonPath = $"$.data.{contentTypeId}Collection.items";
                     var localeCode = locales.Where(l => l.Default).First().Code;
-                    result = await ContentfulConnection.GraphQlApi.GetAllData(botResponse.QueryOrCommand,
+                    result = await ContentfulConnection.GraphQL.GetAllData(botResponse.QueryOrCommand,
                         jsonPath, localeCode, preview: true);
                     if (result is not null) _console.WriteTable(result);
                 });
