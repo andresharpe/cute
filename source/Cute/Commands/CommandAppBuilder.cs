@@ -1,5 +1,6 @@
 ﻿using Contentful.Core.Errors;
 using Cute.Commands.App;
+using Cute.Commands.Chat;
 using Cute.Commands.Content;
 using Cute.Commands.Eval;
 using Cute.Commands.Info;
@@ -80,6 +81,10 @@ public class CommandAppBuilder
 
             commandConfig.AddCommand<InfoCommand>("info")
                 .WithDescription("Display information about a Contentfult space.");
+
+            commandConfig.AddCommand<ChatCommand>("chat")
+                .WithDescription("Make the robots do the work! Interact with your space using A.I.");
+
             /*
             commandConfig.AddBranch("profile", branchConfig =>
             {

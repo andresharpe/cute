@@ -7,7 +7,7 @@ using System.ComponentModel;
 namespace Cute.Commands.Logout;
 
 public class LogoutCommand(IConsoleWriter console,
-    IPersistedTokenCache tokenCache) : AsyncCommand<LoginCommand.Settings>
+    IPersistedTokenCache tokenCache) : AsyncCommand<LogoutCommand.Settings>
 {
     private readonly IConsoleWriter _console = console;
     private readonly IPersistedTokenCache _tokenCache = tokenCache;
@@ -19,7 +19,7 @@ public class LogoutCommand(IConsoleWriter console,
         public bool Purge { get; set; } = false;
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, LoginCommand.Settings settings)
+    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
         _tokenCache.Clear(Globals.AppName);
 

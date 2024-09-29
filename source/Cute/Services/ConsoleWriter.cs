@@ -1,6 +1,7 @@
 ﻿#pragma warning disable CA2254 // Template should be a static expression
 
 using Cute.Constants;
+using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using System.Globalization;
@@ -178,6 +179,82 @@ public partial class ConsoleWriter : IConsoleWriter
             }
         });
         Logger?.LogError(ex, "An error occured.");
+    }
+
+    public void WriteTable(JArray jArray)
+    {
+        if (!jArray.Any() || jArray.First is not JObject)
+        {
+            WriteAlert("The data array is empty or does not contain displayable data.");
+            return;
+        }
+
+        var table = new Table()
+            .RoundedBorder()
+            .BorderColor(Globals.StyleDim.Foreground);
+
+        var columns = new HashSet<string>();
+
+        foreach (JObject obj in jArray.Cast<JObject>())
+        {
+            CollectColumns(obj, string.Empty, columns);
+        }
+
+        foreach (var column in columns)
+        {
+            table.AddColumn(new TableColumn(new Text(column, Globals.StyleSubHeading)));
+        }
+
+        foreach (JObject obj in jArray.Cast<JObject>())
+        {
+            var row = columns
+                .Select(column => GetNestedValue(obj, column)?.ToString() ?? string.Empty)
+                .ToArray();
+
+            table.AddRow(row.Select(c => new Markup(c, Globals.StyleNormal)));
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private static void CollectColumns(JObject obj, string prefix, HashSet<string> columns)
+    {
+        foreach (var property in obj.Properties())
+        {
+            string propertyName = string.IsNullOrEmpty(prefix)
+                ? property.Name
+                : $"{prefix}.{property.Name}";
+
+            if (property.Value is JObject nestedObj)
+            {
+                CollectColumns(nestedObj, propertyName, columns);
+            }
+            else switch (property.Value)
+                {
+                    case JArray:
+                        columns.Add(propertyName);
+                        break;
+
+                    default:
+                        columns.Add(propertyName);
+                        break;
+                }
+        }
+    }
+
+    private static JToken GetNestedValue(JObject obj, string path)
+    {
+        var tokens = path.Split('.');
+        JToken current = obj;
+
+        foreach (var token in tokens)
+        {
+            current = current[token]!;
+            if (current == null)
+                return null!;
+        }
+
+        return current;
     }
 
     [GeneratedRegex(@"\{(?<parameter>[\w:.#,]+)\}")]
