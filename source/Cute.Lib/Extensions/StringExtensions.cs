@@ -14,6 +14,16 @@ public static partial class StringExtensions
         return UpperCaseRegex().Replace(input, ";$1").Trim().Split(';');
     }
 
+    public static string? UnQuote(this string? input)
+    {
+        if (input == null) return null;
+        if (input.Length >= 2 && input[0] == '"' && input[^1] == '"')
+        {
+            return input[1..^1]; // Using range syntax to slice the string.
+        }
+        return input;
+    }
+
     public static string RemoveFromEnd(this string original, string toRemove)
     {
         if (original.EndsWith(toRemove))

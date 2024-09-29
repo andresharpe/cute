@@ -1,17 +1,16 @@
-﻿using Cute.Constants;
-using System.Text;
+﻿using System.Text;
 
-namespace Cute.Services;
+namespace Cute.Lib.Contentful;
 
-internal class ContentfulIdGenerator
+public class ContentfulIdGenerator
 {
     private static readonly Random _random = new();
 
     private const string _chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-    public static string NewId()
+    public static string NewId(string prefix = "cute-")
     {
-        var result = new StringBuilder($"{Globals.AppName}-");
+        var result = new StringBuilder($"{prefix}-");
 
         for (int i = 0; i < 22; i++)
         {

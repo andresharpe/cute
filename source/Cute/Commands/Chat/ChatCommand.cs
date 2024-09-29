@@ -8,18 +8,20 @@ using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.AiModels;
 using Cute.Lib.Contentful;
+using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Contentful.GraphQL;
+using Cute.Lib.Enums;
+using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
 using Cute.Services;
+using Cute.Services.CliCommandInfo;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using Spectre.Console.Rendering;
+using System.ComponentModel;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
 
 namespace Cute.Commands.Chat;
 
@@ -31,10 +33,34 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
     public class Settings : LoggedInSettings
     {
+        [CommandOption("-k|--key")]
+        [Description("The optional key of the 'cuteContentGenerate' entry for SystemMessage initialization.")]
+        public string Key { get; set; } = default!;
     }
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
+        string? systemMessage = null;
+
+        ChatCompletionOptions? chatCompletionOptions = null;
+
+        if (settings.Key != null)
+        {
+            var apiSyncEntry = CuteContentGenerate.GetByKey(ContentfulConnection, settings.Key)
+                ?? throw new CliException($"No generate entry '{"cuteContentGenerate"}' with key '{settings.Key}' was found.");
+
+            systemMessage = apiSyncEntry.SystemMessage;
+
+            chatCompletionOptions = new()
+            {
+                MaxTokens = apiSyncEntry.MaxTokenLimit,
+                Temperature = (float)apiSyncEntry.Temperature,
+                FrequencyPenalty = (float)apiSyncEntry.FrequencyPenalty,
+                PresencePenalty = (float)apiSyncEntry.PresencePenalty,
+                TopP = (float)apiSyncEntry.TopP,
+            };
+        }
+
         Space defaultSpace = default!;
         ContentfulEnvironment defaultEnvironment = default!;
         User currentUser = default!;
@@ -53,20 +79,45 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             });
 
         _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"Howdy {currentUser.FirstName},", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"{SayHi()} {currentUser.FirstName},", Globals.StyleHeading);
 
-        _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"I can provide you with info on the types and fields in the '{defaultSpace.Name}' space, or", Globals.StyleHeading);
-        _console.WriteNormalWithHighlights($"assist you with writing GraphQL queries, cli commands, etc.", Globals.StyleHeading);
-        _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"Type '{"bye"}' or '{"exit"}' to end our chat.", Globals.StyleHeading);
-        _console.WriteBlankLine();
+        if (settings.Key == null)
+        {
+            _console.WriteBlankLine();
+            _console.WriteNormalWithHighlights($"I can provide you with info on the types and fields in the '{defaultSpace.Name}' space, or", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"assist you with writing GraphQL queries, cli commands, etc.", Globals.StyleHeading);
+            _console.WriteBlankLine();
+            _console.WriteNormalWithHighlights($"Type '{"bye"}' or '{"exit"}' to end our chat.", Globals.StyleHeading);
+            _console.WriteBlankLine();
+        }
 
         var chatClient = CreateChatClient();
 
-        var chatCompletionOptions = CreateCompletionOptions();
+        chatCompletionOptions ??= DefaultChatCompletionOptions();
 
-        var systemMessage = GetSystemMessage(defaultSpace, defaultEnvironment, currentUser, contentTypes, locales);
+        systemMessage ??= GetSystemMessage(defaultSpace, defaultEnvironment, currentUser, contentTypes, locales);
+
+        if (settings.Verbosity >= Verbosity.Detailed)
+        {
+            _console.WriteBlankLine();
+            _console.WriteRuler("System Prompt");
+            _console.WriteBlankLine();
+            _console.WriteDim(systemMessage);
+            _console.WriteBlankLine();
+            _console.WriteRuler("Model Setings");
+            _console.WriteBlankLine();
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"MaxTokens         : {chatCompletionOptions.MaxTokens}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Temperature       : {chatCompletionOptions.Temperature}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"TopP              : {chatCompletionOptions.TopP}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Frequency Penalty : {chatCompletionOptions.FrequencyPenalty}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Presence Penalty  : {chatCompletionOptions.PresencePenalty}", Globals.StyleDim, Globals.StyleSubHeading));
+            _console.WriteBlankLine();
+            _console.WriteRuler();
+        }
+
+        _console.WriteBlankLine();
+        _console.WriteNormalWithHighlights($"Press {"<Enter>"} on a blank line to submit your prompt. (i.e. type your prompt and press {"<Enter>"} twice to submit your prompt).", Globals.StyleHeading);
+        _console.WriteBlankLine();
 
         List<ChatMessage> messages = [new SystemChatMessage(systemMessage)];
 
@@ -74,12 +125,23 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         {
             _console.WriteBlankLine();
 
-            string input = AnsiConsole.Prompt(
-                new TextPrompt<string>($"[{Globals.StyleNormal.Foreground}]> [/]")
-                    .PromptStyle(Globals.StyleHeading)
-                    .AllowEmpty());
+            var sbInput = new StringBuilder();
+            var prompt = "> ";
+            while (true)
+            {
+                string promptInput = ReadLine.Read(prompt);
+                if (promptInput == "") break;
+                sbInput.AppendLine(promptInput);
+                if (UserWantsToLeave(promptInput)) break;
+                ReadLine.AddHistory(promptInput);
+                prompt = "  ";
+            }
 
-            if (input.Equals("exit", StringComparison.OrdinalIgnoreCase) || input.StartsWith("bye", StringComparison.OrdinalIgnoreCase))
+            var input = sbInput.ToString();
+
+            if (string.IsNullOrWhiteSpace(input)) continue;
+
+            if (UserWantsToLeave(input))
             {
                 _console.WriteBlankLine();
                 _console.WriteAlert($"{SayBye()}!");
@@ -100,43 +162,17 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             messages.Add(new AssistantChatMessage(response));
 
-            var botResponse = DeserializeBotResponse(response);
+            var botResponse = settings.Key == null
+                ? DeserializeBotResponse(response)
+                : new BotResponse() { Answer = response };
 
             _console.WriteBlankLine();
+
             if (botResponse.Answer is not null) _console.WriteSubHeading(botResponse.Answer);
 
             if (botResponse.Question is not null && botResponse.Question.Contains("Shall we give it a shot?"))
             {
-                _console.WriteBlankLine();
-                _console.WriteHeading($"Solution: ({botResponse.Type})");
-                _console.WriteBlankLine();
-                _console.WriteAlertAccent(botResponse.QueryOrCommand);
-
-                _console.WriteBlankLine();
-
-                var promptConfirm = new SelectionPrompt<string>()
-                    .Title($"[{Globals.StyleNormal.Foreground}]{botResponse.Question}[/]")
-                    .PageSize(10)
-                    .AddChoices("Yes", "No")
-                    .HighlightStyle(Globals.StyleSubHeading);
-
-                var confirm = Markup.Remove(_console.Prompt(promptConfirm));
-
-                if (confirm.Equals("Yes"))
-                {
-                    if (botResponse.Type == "GraphQL")
-                    {
-                        await DisplayGraphQlData(locales, botResponse);
-                    }
-                    else if (botResponse.Type == "CLI")
-                    {
-                        await RunSelectedCommand(botResponse);
-                    }
-                    else
-                    {
-                        _console.WriteDim("I'm not sure what to do with this command...");
-                    }
-                }
+                await HandleExecution(locales, botResponse);
 
                 continue;
             }
@@ -146,6 +182,46 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         }
 
         return 0;
+    }
+
+    private static bool UserWantsToLeave(string input)
+    {
+        return input.Equals("exit", StringComparison.OrdinalIgnoreCase)
+                        || input.StartsWith("bye", StringComparison.OrdinalIgnoreCase)
+                        || input.StartsWith("quit", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task HandleExecution(IEnumerable<Locale> locales, BotResponse botResponse)
+    {
+        _console.WriteBlankLine();
+        _console.WriteRuler("Solution");
+        _console.WriteAlertAccent(botResponse.QueryOrCommand);
+        _console.WriteRuler();
+        _console.WriteBlankLine();
+
+        var promptConfirm = new SelectionPrompt<string>()
+            .Title($"[{Globals.StyleNormal.Foreground}]{botResponse.Question}[/]")
+            .PageSize(10)
+            .AddChoices("Yes", "No")
+            .HighlightStyle(Globals.StyleSubHeading);
+
+        var confirm = Markup.Remove(_console.Prompt(promptConfirm));
+
+        if (confirm.Equals("Yes"))
+        {
+            if (botResponse.Type == "GraphQL")
+            {
+                await DisplayGraphQlData(locales, botResponse);
+            }
+            else if (botResponse.Type == "CLI")
+            {
+                await RunSelectedCommand(botResponse);
+            }
+            else
+            {
+                _console.WriteDim("I'm not sure what to do with this command...");
+            }
+        }
     }
 
     private async Task DisplayGraphQlData(IEnumerable<Locale> locales, BotResponse botResponse)
@@ -186,7 +262,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         _console.WriteBlankLine();
     }
 
-    private static ChatCompletionOptions CreateCompletionOptions()
+    private static ChatCompletionOptions DefaultChatCompletionOptions()
     {
         return new ChatCompletionOptions()
         {
@@ -198,13 +274,84 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         };
     }
 
-    private string GetSystemMessage(
+    private static string GetSystemMessage(
         Space defaultSpace,
         ContentfulEnvironment defaultEnvironment,
         User currentUser,
         IEnumerable<ContentType> contentTypes,
         IEnumerable<Locale> locales
      )
+    {
+        return $$""""
+            You are an assistant embedded in a command line interface called "cute".
+            "cute" is an acronym for "Contentful User Terminal Experience" or "Contentful Upload Tool and Extractor". No one is sure.
+            Your name is "Douglas". You never say "Adams". You are a fun and witty assistant.
+            Your name is an acronymn for "Super Agile Lateral Generative and Universally Omni-present Droid", backwards.
+            When asked your name you always quote something profound from HHGTTG.
+            You are here to help users interact with Contentful using GraphQL and the cute cli.
+            You will help retrieve data from Contentful for a non technical user.
+            Structure every response as a JSON document with keys "answer", "question", "queryOrCommand", "type".
+            "answer" is a JSON string and contains your best answer. Keep them punchy.
+            "question" is a JSON string and contains your next question for the user to help them reach their goal.
+            "queryOrCommand" is a JSON string and contains the accurate CLI command or GraphQl query that will achieve the goal.
+            "type" contains "GraphQL" or "CLI" depending on what is in "queryOrCommand".
+            "queryOrCommand" and "type" MUST only supplied when you ask "Shall we give it a shot?" when the goal is clear to you.
+            These fields MUST always contain valid JSON strings. No other data types are allowed in them.
+            Only output the JSON structure, one object per response.
+            Don't write any preamble or any other response text except for the JSON.
+            The user can type "bye" or "exit" to end the conversation at any time.
+
+            When you are certain you have all the details to complete a task, you MUST exactly ask "Shall we give it a shot?" (In the JSON "Question" field only)
+            Ask questions to clarify exactly what the user wants.
+            Make sure the user explicitly confirms EVERYTHING you need to know by asking only one simple question at a time.
+            Make sure you have clarity on all operations. For example for GraphQL queries you would need content type, fields, filters, locale, and entry/record limit. Conirm all this.
+
+            The current Contentful space name is "{{defaultSpace.Name}}".
+            The current Contentful space Id is "{{defaultSpace.Id()}}".
+            The current Contentful environment is "{{defaultEnvironment.Id()}}".
+            The current default Contentful locale is "{{locales.First(l => l.Default).Code}}".
+            You are talking to the current logged in user and address them by their name when appropriate.
+            The user's name is "{{currentUser.FirstName}}".
+            Only allow content types that are available in this space.
+            Field names ending with "Entry" are always links to a single entry in a content type. For example "dataCountryEntry" will be linked to one "dataCountry" content type.
+            Field names ending with "Entries" are links to a multiple entry in a content type. For example "dataCountryEntries" will be linked to zero or more "dataCountry" content type entries.
+            All content type and field names MUST be camel case and match the schema. Correct user input and spelling automatically.
+            For types that contain a "key" and/or "title" field MUST contain these fields in your final query by default.
+            Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
+            Make sure GraohQl queries are correct, fields are cased exactly right and quey is prettified on multiple lines.
+            Always use preview data in the GraphQL query.
+
+            The valid content types and fields that are available in this Contentful space are contained in te following quoted text:
+
+            # CONTENTFUL SCHEMA
+
+            """
+            {{BuildContentTypesPromptInfo(contentTypes)}}
+            """
+
+            When using field names that contain a digit in Graph QL queries, capitalize the first letter if the alpha character following the digit. For example "iso2code" will become "iso2Code". This is just a GraphQL quirk on contentful.
+            Do not use "contentful" in the query structure.
+            Do not GraphQL queries in "query":
+
+            # THE CUTE CLI
+
+            When asked about CUTE CLI command usage, list ALL command options including common options.
+            Also explain why the CLI is great for the specific command usage when responding.
+            The quoted text contains cute cli commands, options and usage:
+
+            """
+            {{GetCliDocs()}}
+            """
+
+            The cute cli "content edit" and "content replace" commands allow Scriban expressions.
+            All Scriban expressions must be enclosed in double curly braces.
+            Variables are always preceded with the contentType and followed by a field name.
+            If a fiels is a Link to another entry then the child entry fields are valid to use.
+
+            """";
+    }
+
+    private static string BuildContentTypesPromptInfo(IEnumerable<ContentType> contentTypes)
     {
         string[] excludePrefix = ["ux", "ui", "cute", "test", "meta"];
 
@@ -253,68 +400,19 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             }
         }
 
-        return $$"""
-            You are an assistant embedded in a command line interface called "cute".
-            "cute" is an acronym for "Contentful User Terminal Experience" or "Contentful Upload Tool and Extractor". No one is sure.
-            Your name is "Douglas". You never say "Adams". You are a fun and witty assistant.
-            Your name is an acronymn for "Super Agile Lateral Generative and Universally Omni-present Droid", backwards.
-            When asked your name you always quote something profound from HHGTTG.
-            You are here to help users interact with Contentful using GraphQL and the cute cli.
-            You will help retrieve data from Contentful for a non technical user.
-            Structure every response as a JSON document with keys "answer", "question", "queryOrCommand", "type".
-            "answer" is a JSON string and contains your best answer. Keep them punchy.
-            "question" is a JSON string and contains your next question for the user to help them reach their goal.
-            "queryOrCommand" is a JSON string and contains the accurate CLI command or GraphQl query that will achieve the goal.
-            "type" contains "GraphQL" or "CLI" depending on what is in "queryOrCommand".
-            "queryOrCommand" and "type" MUST only supplied when you ask "Shall we give it a shot?" when the goal is clear to you.
-            These fields MUST always contain valid JSON strings. No other data types are allowed in them.
-            Only output the JSON structure, one object per response.
-            Don't write any preamble or any other response text except for the JSON.
-            The user can type "bye" or "exit" to end the conversation at any time.
-
-            When you are certain you have all the details to complete a task, you MUST exactly ask "Shall we give it a shot?" (In the JSON "Question" field only)
-            Ask questions to clarify exactly what the user wants.
-            Make sure the user explicitly confirms EVERYTHING you need to know by asking only one simple question at a time.
-            Make sure you have clarity on all operations. For example for GraphQL queries you would need content type, fields, filters, locale, and entry/record limit. Conirm all this.
-
-            The current Contentful space name is "{{defaultSpace.Name}}".
-            The current Contentful space Id is "{{defaultSpace.Id()}}".
-            The current Contentful environment is "{{defaultEnvironment.Id()}}".
-            The current default Contentful locale is "{{locales.First(l => l.Default).Code}}".
-            You are talking to the current logged in user and address them by their name when appropriate.
-            The user's name is "{{currentUser.FirstName}}".
-            Only allow content types that are available in this space.
-            Field names ending with "Entry" are always links to a single entry in a content type. For example "dataCountryEntry" will be linked to one "dataCountry" content type.
-            Field names ending with "Entries" are links to a multiple entry in a content type. For example "dataCountryEntries" will be linked to zero or more "dataCountry" content type entries.
-            All content type and field names MUST be camel case and match the schema. Correct user input and spelling automatically.
-            For types that contain a "key" and/or "title" field MUST contain these fields in your final query by default.
-            Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
-            Make sure GraohQl queries are correct, fields are cased exactly right and quey is prettified on multiple lines.
-            Always use preview data in the GraphQL query.
-
-            The valid content types and fields that are available in this Contentful space are:
-
-            # CONTENTFUL SCHEMA
-
-            {{sbContentTypesInfo}}
-
-            The cute cli content edit and find and replace commands allow Scriban expressions.
-            All Scriban expressions must be enclosed in double curly braces.
-            Variables are always preceded with the contentType and followed by a field name.
-            If a fiels is a Link to another entry then the child entry fields are valid to use.
-
-            # THE CUTE CLI
-
-            When asked about CUTE CLI command usage, list ALL command options including common options.
-            Also explain why the CLI is great for the specific command usage when responding.
-            The cute cli supports the following commands:
-
-            {{GetCliDocs()}}
-
-            """;
+        return sbContentTypesInfo.ToString();
     }
 
-    private string SayBye()
+    private static string SayHi()
+    {
+        string[] phrases = ["Hi", "G'day", "Hola", "Salut", "Ciao", "Hallo", "Hei", "Hej",
+            "Ahoj", "Hej hej", "Oi", "Hei hei", "Yā", "Annyeong", "Nǐ hǎo", "Hallochen", "Hoi",
+            "Shalom", "Merhaba", "Qapla'"];
+
+        return phrases[new Random().Next(phrases.Length)];
+    }
+
+    private static string SayBye()
     {
         string[] phrases = ["À plus tard","Chao","Poka","Bài bài","Ciao",
                 "Ja nee","Tschüss","Tchau","Jal - ga","Ma’a salama","Hej hej",
@@ -355,138 +453,17 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         return sb.ToString();
     }
 
-    internal class CliCommandInfo
-    {
-        public string Name { get; set; } = default!;
-
-        public string Description { get; set; } = default!;
-
-        public List<CliCommandInfo> SubCommands { get; set; } = new();
-
-        public List<CliOptionInfo> Options { get; set; } = new();
-        public Dictionary<string, int> SubOptionCount { get; set; } = new();
-
-        public CliCommandInfo? Parent = null;
-
-        public int Descendants = 0;
-    }
-
-    internal class CliOptionInfo
-    {
-        public string ShortName { get; set; } = default!;
-
-        public string LongName { get; set; } = default!;
-
-        public string Description { get; set; } = default!;
-    }
-
     internal static string GetCliDocs()
     {
-        using var xmlWriter = new StringWriter();
-
-        var console = new StringWriterConsole(xmlWriter);
-
-        var app = new CommandAppBuilder([]).Build(config => config.Settings.Console = console);
-
-        var exitCode = app.Run(["cli", "xmldoc"]);
-
-        var xmlOutput = xmlWriter.ToString();
-
-        XDocument xmlDoc = XDocument.Parse(xmlOutput);
-
-        var commandInfos = new CliCommandInfo()
-        {
-            Name = string.Empty,
-            Description = "The cute cli is a command line interface for interacting with Contentful.",
-        };
-
-        ProcessCliXml(xmlDoc, commandInfos);
-
-        ExtractCommonOptions(commandInfos);
-
-        PruneCommonOptions(commandInfos);
-
         var sb = new StringBuilder();
+        var xml = CliCommandInfoExtractor.GetXmlCommandInfo();
 
-        ConvertToDocs(commandInfos, sb);
+        var rootCommand = CliCommandInfoXmlParser.FromXml(xml,
+            "The cute cli is a command line interface for interacting with Contentful.");
 
-        var ret = sb.ToString();
+        ConvertToDocs(rootCommand, sb);
 
-        return ret;
-    }
-
-    private static void ProcessCliXml(XDocument xmlDoc, CliCommandInfo commandInfos)
-    {
-        var rootCommands = xmlDoc.Element("Model")?.Elements("Command");
-        if (rootCommands != null)
-        {
-            foreach (var command in rootCommands)
-            {
-                ProcessCommand(command, "", 0, commandInfos);
-            }
-        }
-        else
-        {
-            throw new Exception("No commands found in the XML.");
-        }
-    }
-
-    private static void ExtractCommonOptions(CliCommandInfo currentCommand, CliCommandInfo? parent = null)
-    {
-        if (currentCommand.SubCommands.Any())
-        {
-            foreach (var subCommand in currentCommand.SubCommands)
-            {
-                ExtractCommonOptions(subCommand, currentCommand);
-            }
-        }
-
-        var currentParent = currentCommand.Parent;
-
-        while (currentParent is not null)
-        {
-            if (currentCommand.Options.Count > 0) currentParent.Descendants++;
-
-            foreach (var option in currentCommand.Options)
-            {
-                if (!currentParent.SubOptionCount.ContainsKey(option.LongName))
-                {
-                    currentParent.SubOptionCount.Add(option.LongName, 0);
-                    currentParent.Options.Add(option);
-                }
-                currentParent.SubOptionCount[option.LongName]++;
-            }
-            currentParent = currentParent.Parent;
-        }
-    }
-
-    private static void PruneCommonOptions(CliCommandInfo currentCommand)
-    {
-        if (currentCommand.SubCommands.Any())
-        {
-            var removeOptions = currentCommand.SubOptionCount
-                .Where(kvp => kvp.Value < currentCommand.Descendants)
-                .Select(kvp => kvp.Key)
-                .ToList();
-
-            currentCommand.Options.RemoveAll(o => removeOptions.Contains(o.LongName));
-
-            foreach (var subCommand in currentCommand.SubCommands)
-            {
-                PruneCommonOptions(subCommand);
-            }
-        }
-
-        var currentParent = currentCommand.Parent;
-
-        while (currentParent is not null)
-        {
-            currentCommand.Options.RemoveAll(o => currentParent.Options.Where(p => o.LongName == p.LongName).Any());
-
-            currentParent = currentParent.Parent;
-        }
-        currentCommand.Parent = null!;
-        currentCommand.SubOptionCount = null!;
+        return sb.ToString();
     }
 
     private static void ConvertToDocs(CliCommandInfo commandInfo, StringBuilder sb)
@@ -495,7 +472,9 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         sb.AppendLine($"COMMAND: {Globals.AppName} {commandInfo.Name}");
         sb.AppendLine($"  - DESCRIPTION: {commandInfo.Description}");
 
-        if (commandInfo.Options.Count != 0)
+        var allOptions = commandInfo.GetAllOptions();
+
+        if (allOptions.Count != 0)
         {
             if (commandInfo.SubCommands.Count > 0)
             {
@@ -503,7 +482,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                 sb.AppendLine("  [COMMON OPTIONS FOR ALL SUB-COMMANDS]");
             }
 
-            foreach (var option in commandInfo.Options)
+            foreach (var option in allOptions)
             {
                 sb.AppendLine();
                 sb.AppendLine($"  - OPTION: --{option.LongName}");
@@ -518,101 +497,6 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         }
     }
 
-    private static void ProcessCommand(XElement commandNode,
-        string commandPath, int level, CliCommandInfo parentCommandInfo)
-    {
-        var currentCommandName = commandNode.Attribute("Name")?.Value ?? "";
-
-        var fullCommandPath = string.IsNullOrEmpty(commandPath) ? currentCommandName : $"{commandPath} {currentCommandName}";
-
-        var headingLevel = new string('#', level + 2);
-
-        var commandDescription = GetDescriptionText(commandNode.Element("Description"));
-
-        var commandInfo = new CliCommandInfo
-        {
-            Name = fullCommandPath,
-        };
-
-        parentCommandInfo.SubCommands.Add(commandInfo);
-
-        commandInfo.Parent = parentCommandInfo;
-
-        if (!string.IsNullOrEmpty(commandDescription))
-        {
-            commandInfo.Description = commandDescription;
-        }
-
-        var parametersNode = commandNode.Element("Parameters");
-
-        if (parametersNode != null && parametersNode.Elements("Option").Any())
-        {
-            foreach (var param in parametersNode.Elements("Option"))
-            {
-                var shortName = param.Attribute("Short")?.Value;
-                var longName = param.Attribute("Long")?.Value;
-                var value = param.Attribute("Value")?.Value;
-                var paramDescription = GetDescriptionText(param.Element("Description"));
-
-                // Escape pipes and line breaks in descriptions
-                paramDescription = paramDescription.Replace("|", "\\|").Replace("\n", " ").Replace("\r", "");
-
-                var optionInfo = new CliOptionInfo
-                {
-                    ShortName = shortName ?? "",
-                    LongName = longName ?? "",
-                    Description = paramDescription,
-                };
-
-                commandInfo.Options.Add(optionInfo);
-            }
-        }
-
-        // Process subcommands
-        var subCommands = commandNode.Elements("Command");
-        if (subCommands != null && subCommands.Any())
-        {
-            foreach (var subcommand in subCommands)
-            {
-                ProcessCommand(subcommand, fullCommandPath, level + 1, commandInfo);
-            }
-        }
-    }
-
-    private static string GetDescriptionText(XElement? descriptionNode)
-    {
-        if (descriptionNode == null)
-            return "";
-
-        // Get all text nodes within the Description element
-        var textNodes = descriptionNode.DescendantNodes().OfType<XText>();
-        if (textNodes != null && textNodes.Any())
-        {
-            var text = string.Concat(textNodes.Select(t => t.Value));
-            var cleanText = CleanDescription(text);
-            return cleanText.Trim();
-        }
-        else
-        {
-            var text = descriptionNode.Value;
-            var cleanText = CleanDescription(text);
-            return cleanText.Trim();
-        }
-    }
-
-    private static readonly Regex _spectreMarkup = new(@"\[(\/?)(?!\*)[^\]]+\]", RegexOptions.Compiled);
-
-    private static string CleanDescription(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return "";
-
-        // Remove color specifications like [LightSkyBlue3]
-        text = _spectreMarkup.Replace(text, "");
-
-        return text.Trim();
-    }
-
     public BotResponse DeserializeBotResponse(string json)
     {
         var span = json.AsSpan();
@@ -623,10 +507,10 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         try
         {
             var response = JsonConvert.DeserializeObject<BotResponse>(json[start..end])!;
-            if (!string.IsNullOrWhiteSpace(response.Type) && response.Type[0] == '"') response.Type = response.Type.Trim('"');
-            if (!string.IsNullOrWhiteSpace(response.Question) && response.Question[0] == '"') response.Question = response.Question.Trim('"');
-            if (!string.IsNullOrWhiteSpace(response.Answer) && response.Answer[0] == '"') response.Answer = response.Answer.Trim('"');
-            if (!string.IsNullOrWhiteSpace(response.QueryOrCommand) && response.QueryOrCommand[0] == '"') response.QueryOrCommand = response.QueryOrCommand.Trim('"');
+            response.Type = response.Type.UnQuote()!;
+            response.Question = response.Question.UnQuote()!;
+            response.Answer = response.Answer.UnQuote()!;
+            response.QueryOrCommand = response.QueryOrCommand.UnQuote()!;
             return response;
         }
         catch (Exception ex)
@@ -645,51 +529,4 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         return new BotResponse();
     }
-
-    // Custom IAnsiConsole implementation
-    public class StringWriterConsole(StringWriter writer) : IAnsiConsole
-    {
-        private readonly StringWriter _writer = writer;
-
-        public IAnsiConsoleCursor Cursor { get; } = null!;
-
-        public IAnsiConsoleInput Input { get; } = null!;
-
-        public RenderPipeline Pipeline { get; } = null!;
-
-        public IExclusivityMode ExclusivityMode => null!;
-
-        Spectre.Console.Profile IAnsiConsole.Profile => throw new NotImplementedException();
-
-        public void Clear(bool home) => throw new NotImplementedException();
-
-        public void Write(Segment segment)
-        {
-            _writer.Write(segment.Text);
-        }
-
-        public void WriteLine()
-        {
-            _writer.WriteLine();
-        }
-
-        public void Write(IRenderable renderable)
-        {
-            var segments = renderable.Render(new RenderOptions(null!, new Spectre.Console.Size(1024, 1024)), 1024);
-
-            // Write the segments
-            foreach (var segment in segments)
-            {
-                Write(segment);
-            }
-        }
-    }
-}
-
-public class BotResponse
-{
-    public string Answer { get; set; } = default!;
-    public string Question { get; set; } = default!;
-    public string QueryOrCommand { get; set; } = default!;
-    public string Type { get; set; } = default!;
 }

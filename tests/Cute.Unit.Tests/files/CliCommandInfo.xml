@@ -1,0 +1,1361 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Model>
+  <!--LOGIN-->
+  <Command Name="login" IsBranch="false" ClrType="Cute.Commands.Login.LoginCommand"
+Settings="Cute.Commands.Login.LoginCommand+Settings">
+    <Description>Log in to Contentful. Run this first.</Description>
+    <Parameters>
+      <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+      </Option>
+      <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Specifies whether warning prompts should be bypassed</Description>
+      </Option>
+      <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Outputs logs to the console instead of the standard messages.</Description>
+      </Option>
+      <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Do not display the startup banner or the copyright message.</Description>
+      </Option>
+      <Option Short="n" Long="openai-deployment-name" Value="NAME" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Azure OpenAI deployment name.</Description>
+      </Option>
+      <Option Short="a" Long="openai-endpoint" Value="ENDPOINT" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Azure OpenAI endpoint.</Description>
+      </Option>
+      <Option Short="k" Long="openai-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Azure OpenAI Api key.</Description>
+      </Option>
+      <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+      </Option>
+      <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+        <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+      </Option>
+    </Parameters>
+  </Command>
+  <!--LOGOUT-->
+  <Command Name="logout" IsBranch="false" ClrType="Cute.Commands.Logout.LogoutCommand"
+Settings="Cute.Commands.Logout.LogoutCommand+Settings">
+    <Description>Log out of contentful.</Description>
+    <Parameters>
+      <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+      </Option>
+      <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Specifies whether warning prompts should be bypassed</Description>
+      </Option>
+      <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Outputs logs to the console instead of the standard messages.</Description>
+      </Option>
+      <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Do not display the startup banner or the copyright message.</Description>
+      </Option>
+      <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="" Long="purge" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Specifies the content type to bulk edit.</Description>
+      </Option>
+      <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+      </Option>
+      <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+        <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+      </Option>
+    </Parameters>
+  </Command>
+  <!--INFO-->
+  <Command Name="info" IsBranch="false" ClrType="Cute.Commands.Info.InfoCommand"
+Settings="Cute.Commands.Info.InfoCommand+Settings">
+    <Description>Display information about a Contentfult space.</Description>
+    <Parameters>
+      <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+      </Option>
+      <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Specifies whether warning prompts should be bypassed</Description>
+      </Option>
+      <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Outputs logs to the console instead of the standard messages.</Description>
+      </Option>
+      <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Do not display the startup banner or the copyright message.</Description>
+      </Option>
+      <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+      </Option>
+      <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+        <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+      </Option>
+    </Parameters>
+  </Command>
+  <!--CHAT-->
+  <Command Name="chat" IsBranch="false" ClrType="Cute.Commands.Chat.ChatCommand"
+Settings="Cute.Commands.Chat.ChatCommand+Settings">
+    <Description>Make the robots do the work! Interact with your space using A.I.</Description>
+    <Parameters>
+      <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+      </Option>
+      <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Specifies whether warning prompts should be bypassed</Description>
+      </Option>
+      <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Outputs logs to the console instead of the standard messages.</Description>
+      </Option>
+      <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+        <Description>Do not display the startup banner or the copyright message.</Description>
+      </Option>
+      <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+      </Option>
+      <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+        <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+      </Option>
+      <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+        <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+      </Option>
+    </Parameters>
+  </Command>
+  <!--CONTENT-->
+  <Command Name="content" IsBranch="true" Settings="Spectre.Console.Cli.CommandSettings">
+    <Description>Manage content entries in bulk.</Description>
+    <!--DOWNLOAD-->
+    <Command Name="download" IsBranch="false" ClrType="Cute.Commands.Content.ContentDownloadCommand"
+Settings="Cute.Commands.Content.ContentDownloadCommand+Settings">
+      <Description>Download Contentful entries to a local csv/tsv/yaml/json/excel file.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful content type id.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="f" Long="format" Value="FORMAT" Required="false" Kind="scalar"
+ClrType="System.Nullable`1[[Cute.Lib.Enums.OutputFileFormat, Cute.Lib, Version=2.0.8.0, Culture=neutral,
+PublicKeyToken=null]]">
+          <Description>The output format for the download operation (Excel/Csv/Tsv/Json/Yaml)</Description>
+        </Option>
+        <Option Short="l" Long="locale" Value="CODE" Required="false" Kind="vector" ClrType="System.String[]">
+          <Description>The locale code (eg. 'en') to apply the command to. Default is all.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="p" Long="path" Value="PATH" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The output path and filename for the download operation</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--UPLOAD-->
+    <Command Name="upload" IsBranch="false" ClrType="Cute.Commands.Content.ContentUploadCommand"
+Settings="Cute.Commands.Content.ContentUploadCommand+Settings">
+      <Description>Upload and sync Contentful entries from a local csv/tsv/yaml/json/excel file.</Description>
+      <Parameters>
+        <Option Short="a" Long="apply" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Apply and publish all the calculated changes. The default behaviour is to only list the detected
+changes.</Description>
+        </Option>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful content type id.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="f" Long="format" Value="FORMAT" Required="false" Kind="scalar"
+ClrType="System.Nullable`1[[Cute.Lib.Enums.InputFileFormat, Cute.Lib, Version=2.0.8.0, Culture=neutral,
+PublicKeyToken=null]]">
+          <Description>The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)</Description>
+        </Option>
+        <Option Short="l" Long="locale" Value="CODE" Required="false" Kind="vector" ClrType="System.String[]">
+          <Description>The locale code (eg. 'en') to apply the command to. Default is all.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="m" Long="match-field" Value="NAME" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The optional name of the field to match in addition to the entry id.</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="p" Long="path" Value="PATH" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The local path to the file containg the data to sync</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--EDIT-->
+    <Command Name="edit" IsBranch="false" ClrType="Cute.Commands.Content.ContentEditCommand"
+Settings="Cute.Commands.Content.ContentEditCommand+Settings">
+      <Description>Edit Contentful entries in bulk with an optional filter.</Description>
+      <Parameters>
+        <Option Short="a" Long="apply" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Apply and publish all the required edits. The default behaviour is to only list the detected
+changes.</Description>
+        </Option>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful content type id.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="f" Long="field" Value="NULL" Required="false" Kind="vector" ClrType="System.String[]">
+          <Description>The field to update.</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="l" Long="locale" Value="CODE" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The locale code (eg. 'en') to apply the command to.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="r" Long="replace" Value="NULL" Required="false" Kind="vector" ClrType="System.String[]">
+          <Description>The value to update it with. Can contain an expression.</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--REPLACE-->
+    <Command Name="replace" IsBranch="false" ClrType="Cute.Commands.Content.ContentReplaceCommand"
+Settings="Cute.Commands.Content.ContentReplaceCommand+Settings">
+      <Description>Find and Replace values in Contentful entries in bulk with an optional filter.</Description>
+      <Parameters>
+        <Option Short="a" Long="apply" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Apply and publish all the required edits. The default behaviour is to only list the detected
+changes.</Description>
+        </Option>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful content type id.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="f" Long="field" Value="NULL" Required="false" Kind="vector" ClrType="System.String[]">
+          <Description>The field to update.</Description>
+        </Option>
+        <Option Short="i" Long="find" Value="NULL" Required="false" Kind="vector" ClrType="System.String[]">
+          <Description>The text to find.</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="l" Long="locale" Value="CODE" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The locale code (eg. 'en') to apply the command to.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="r" Long="replace" Value="NULL" Required="false" Kind="vector" ClrType="System.String[]">
+          <Description>The value to update it with. Can contain an expression.</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--PUBLISH-->
+    <Command Name="publish" IsBranch="false" ClrType="Cute.Commands.Content.ContentPublishCommand"
+Settings="Cute.Commands.Content.ContentPublishCommand+Settings">
+      <Description>Bulk publish all unpublished Contentful entries.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful content type id.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--UNPUBLISH-->
+    <Command Name="unpublish" IsBranch="false" ClrType="Cute.Commands.Content.ContentUnpublishCommand"
+Settings="Cute.Commands.Content.ContentUnpublishCommand+Settings">
+      <Description>Unpublish all published Contentful entries.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful content type id.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--DELETE-->
+    <Command Name="delete" IsBranch="false" ClrType="Cute.Commands.Content.ContentDeleteCommand"
+Settings="Cute.Commands.Content.ContentDeleteCommand+Settings">
+      <Description>Unpublish and delete all Contentful entries.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful content type id.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--SYNC-API-->
+    <Command Name="sync-api" IsBranch="false" ClrType="Cute.Commands.Content.ContentSyncApiCommand"
+Settings="Cute.Commands.Content.ContentSyncApiCommand+Settings">
+      <Description>Synchromise data to Contentful from an API.</Description>
+      <Parameters>
+        <Option Short="a" Long="apply" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Apply and publish all the required edits.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="k" Long="key" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The key of the cuteContentSyncApi entry.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="u" Long="use-filecache" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Whether or not to cache responses to a local file cache for subsequent calls.</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--SEED-GEO-->
+    <Command Name="seed-geo" IsBranch="false" ClrType="Cute.Commands.Content.ContentSeedGeoDataCommand"
+Settings="Cute.Commands.Content.ContentSeedGeoDataCommand+Settings">
+      <Description>Synchromise data to Contentful from an API.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-prefix" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The id of the content type containing location data.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="h" Long="huge-population" Value="NULL" Required="false" Kind="scalar" ClrType="System.Int32">
+          <Description>The city or town minimum population for large cities</Description>
+        </Option>
+        <Option Short="i" Long="input-file" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The path to the input file.</Description>
+        </Option>
+        <Option Short="l" Long="large-kilometer-radius" Value="NULL" Required="false" Kind="scalar"
+ClrType="System.Int32">
+          <Description>The distance in kilometers for large city to nearest location</Description>
+        </Option>
+        <Option Short="n" Long="large-population" Value="NULL" Required="false" Kind="scalar" ClrType="System.Int32">
+          <Description>The city or town minimum population for large cities</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="o" Long="output-folder" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The output folder.</Description>
+        </Option>
+        <Option Short="p" Long="password" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The password to protect the Zip file with</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="m" Long="small-kilometer-radius" Value="NULL" Required="false" Kind="scalar"
+ClrType="System.Int32">
+          <Description>The distance in kilometers for small city to nearest location</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="u" Long="upload" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Uploads the csv file to Contentful.</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+        <Option Short="z" Long="zip" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Output a zip file instead of a csv. Can be password protected with '--password'.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--SYNC-DB-->
+    <Command Name="sync-db" IsBranch="false" ClrType="Cute.Commands.Content.ContentSyncDatabaseCommand"
+Settings="Cute.Commands.Login.LoggedInSettings">
+      <Description>Synchronize data to Contentful from a database.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--GENERATE-->
+    <Command Name="generate" IsBranch="false" ClrType="Cute.Commands.Content.ContentGenerateCommand"
+Settings="Cute.Commands.Content.ContentGenerateCommand+Settings">
+      <Description>Generate content using a Large Language Model (LLM).</Description>
+      <Parameters>
+        <Option Short="a" Long="apply" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Apply and publish all the required edits.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="k" Long="key" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The key of the 'cuteContentGenerate' entry.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="o" Long="operation" Value="NULL" Required="false" Kind="scalar"
+ClrType="Cute.Lib.Contentful.BulkActions.Actions.GenerateOperation">
+          <Description>Specify the generation operation to perform. (GenerateSingle, GenerateParallel, GenerateBatch or
+ListBatches)</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--GENERATE-TEST-->
+    <Command Name="generate-test" IsBranch="false" ClrType="Cute.Commands.Content.ContentGenerateTestCommand"
+Settings="Cute.Commands.Content.ContentGenerateTestCommand+Settings">
+      <Description>Test generation of content using a Large Language Model (LLM).</Description>
+      <Parameters>
+        <Option Short="o" Long="comparison-operation" Value="NULL" Required="false" Kind="scalar"
+ClrType="Cute.Lib.Enums.ComparisonOperation">
+          <Description>The comparison operator to apply to the field.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="m" Long="deployment-models" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The deployment models to test.</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="f" Long="field-id" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The field id to filter on.</Description>
+        </Option>
+        <Option Short="v" Long="field-value" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The field value to filter on.</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="k" Long="key" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The key of the 'cuteContentGenerate' entry.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--TRANSLATE-->
+    <Command Name="translate" IsBranch="false" ClrType="Cute.Commands.Content.ContentTranslateCommand"
+Settings="Cute.Commands.Login.LoggedInSettings">
+      <Description>Translate content using an LLM or Translation Service.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--TESTDATA-->
+    <Command Name="testdata" IsBranch="false" ClrType="Cute.Commands.Content.ContentTestDataCommand"
+Settings="Cute.Commands.Content.ContentTestDataCommand+Settings">
+      <Description>Generate test data.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="n" Long="number" Value="NULL" Required="false" Kind="scalar" ClrType="System.Int32">
+          <Description>The number of user entries to generate. (default=1000).</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--JOIN-->
+    <Command Name="join" IsBranch="false" ClrType="Cute.Commands.Content.ContentJoinCommand"
+Settings="Cute.Commands.Content.ContentJoinCommand+Settings">
+      <Description>Join multiple content types to a destination content type.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="i" Long="entry-id" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Id of source 2 entry to join content for.</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="k" Long="key" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The id of the Contentful join entry to generate content for.</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+  </Command>
+  <!--TYPE-->
+  <Command Name="type" IsBranch="true" Settings="Spectre.Console.Cli.CommandSettings">
+    <Description>Manage Contentful content types (models).</Description>
+    <!--SCAFFOLD-->
+    <Command Name="scaffold" IsBranch="false" ClrType="Cute.Commands.Type.TypeScaffoldCommand"
+Settings="Cute.Commands.Type.TypeScaffoldCommand+Settings">
+      <Description>Automatically scaffold Typescript or c# classes from Contentful.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Specifies the content type to generate types for. Default is all.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="l" Long="language" Value="NULL" Required="false" Kind="scalar"
+ClrType="Cute.Lib.Enums.GenTypeLanguage">
+          <Description>The language to generate types for (TypeScript/CSharp/Excel).</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="n" Long="namespace" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The optional namespace for the generated type.</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="o" Long="output" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The local path to output the generated types to.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--DIFF-->
+    <Command Name="diff" IsBranch="false" ClrType="Cute.Commands.Type.TypeDiffCommand"
+Settings="Cute.Commands.Type.TypeDiffCommand+Settings">
+      <Description>Compare content types across two environments and view with VS Code.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Specifies the content type id to generate types for. Default is all.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="source-environment-id" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Specifies the source environment id to do comparison against</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--CLONE-->
+    <Command Name="clone" IsBranch="false" ClrType="Cute.Commands.Type.TypeCloneCommand"
+Settings="Cute.Commands.Type.TypeCloneCommand+Settings">
+      <Description>Clone a content type and its entries between environments.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Specifies the content type id to generate types for.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="b" Long="entries-per-batch" Value="NULL" Required="false" Kind="scalar" ClrType="System.Int32">
+          <Description>Number of entries processed in parallel.</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="p" Long="publish" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Whether to publish the created content or not. Useful if no circular references
+exist.</Description>
+        </Option>
+        <Option Short="" Long="source-environment-id" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Specifies the source environment id.</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--RENAME-->
+    <Command Name="rename" IsBranch="false" ClrType="Cute.Commands.Type.TypeRenameCommand"
+Settings="Cute.Commands.Type.TypeRenameCommand+Settings">
+      <Description>Rename a content type including all references to it.</Description>
+      <Parameters>
+        <Option Short="a" Long="apply-naming-convention" Value="NULL" Required="false" Kind="flag"
+ClrType="System.Boolean">
+          <Description>The id to rename the content type to.</Description>
+        </Option>
+        <Option Short="c" Long="content-type" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Specifies the content type to generate types for. Default is all.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="n" Long="new-id" Value="NULL" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The id to rename the content type to.</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="p" Long="publish" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Whether to publish the created content or not. Useful if no circular references
+exist.</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--DELETE-->
+    <Command Name="delete" IsBranch="false" ClrType="Cute.Commands.Type.TypeDeleteCommand"
+Settings="Cute.Commands.Type.TypeDeleteCommand+Settings">
+      <Description>Delete a content type and its entries.</Description>
+      <Parameters>
+        <Option Short="c" Long="content-type-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Specifies the content type id to be deleted.</Description>
+        </Option>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+  </Command>
+  <!--APP-->
+  <Command Name="app" IsBranch="true" Settings="Spectre.Console.Cli.CommandSettings">
+    <Description>Generate a website or app from Contentful.</Description>
+    <!--GENERATE-->
+    <Command Name="generate" IsBranch="false" ClrType="Cute.Commands.App.AppGenerateCommand"
+Settings="Cute.Commands.Login.LoggedInSettings">
+      <Description>Generate an app or website based on configuration in Contentful.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+  </Command>
+  <!--EVAL-->
+  <Command Name="eval" IsBranch="true" Settings="Spectre.Console.Cli.CommandSettings">
+    <Description>Tools to evaluate the quality the site and of LLM and translation output.</Description>
+    <!--CONTENT-GENERATOR-->
+    <Command Name="content-generator" IsBranch="false" ClrType="Cute.Commands.Eval.EvalContentGeneratorCommand"
+Settings="Cute.Commands.Login.LoggedInSettings">
+      <Description>Use deepeval to measure the quality of content generation.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--CONTENT-TRANSLATOR-->
+    <Command Name="content-translator" IsBranch="false" ClrType="Cute.Commands.Eval.EvalContentTranslatorCommand"
+Settings="Cute.Commands.Login.LoggedInSettings">
+      <Description>Measure the quality of translation engine output.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+    <!--NAMING-->
+    <Command Name="naming" IsBranch="false" ClrType="Cute.Commands.Eval.EvalNamingConventions"
+Settings="Cute.Commands.Login.LoggedInSettings">
+      <Description>Check and remediate violations of site naming conventions.</Description>
+      <Parameters>
+        <Option Short="" Long="delivery-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Delivery API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="e" Long="environment-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful environment identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/concepts/multiple-environments/[/]</Description>
+        </Option>
+        <Option Short="" Long="force" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Specifies whether warning prompts should be bypassed</Description>
+        </Option>
+        <Option Short="" Long="log-output" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Outputs logs to the console instead of the standard messages.</Description>
+        </Option>
+        <Option Short="" Long="management-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful management API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="" Long="no-banner" Value="NULL" Required="false" Kind="flag" ClrType="System.Boolean">
+          <Description>Do not display the startup banner or the copyright message.</Description>
+        </Option>
+        <Option Short="" Long="preview-token" Value="TOKEN" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>Your Contentful Content Preview API token. See [italic
+LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]</Description>
+        </Option>
+        <Option Short="s" Long="space-id" Value="ID" Required="false" Kind="scalar" ClrType="System.String">
+          <Description>The Contentful space identifier. See [italic
+LightSkyBlue3]https://www.contentful.com/help/spaces-and-organizations/[/]</Description>
+        </Option>
+        <Option Short="" Long="verbosity" Value="LEVEL" Required="false" Kind="scalar" ClrType="Cute.Lib.Enums.Verbosity">
+          <Description>Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and
+(di)agnostic.</Description>
+        </Option>
+      </Parameters>
+    </Command>
+  </Command>
+  <!--VERSION-->
+  <Command Name="version" IsBranch="false" ClrType="Cute.Commands.Version.VersionCommand"
+Settings="Cute.Commands.Version.VersionCommand+Settings">
+    <Description>Display the current version of the CLI.</Description>
+  </Command>
+</Model>
