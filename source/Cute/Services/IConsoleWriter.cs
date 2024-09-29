@@ -1,4 +1,5 @@
-﻿using Spectre.Console;
+﻿using Newtonsoft.Json.Linq;
+using Spectre.Console;
 using Spectre.Console.Rendering;
 
 namespace Cute.Services;
@@ -41,4 +42,5 @@ public interface IConsoleWriter
 
     void WriteHeadingWithHighlights(FormattableString text, Style highlightStyle);
     string FormatToMarkup(FormattableString text, Style? normalStyle = null, Style? highlightStyle = null);
+    void WriteTable(JArray jArray);
 }

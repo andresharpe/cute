@@ -60,6 +60,24 @@ Display information about a Contentfult space.
 | --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
 | --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
 
+## cute chat
+
+Make the robots do the work! Interact with your space using A.I.
+
+### Parameters
+
+| Option | Description |
+|--------|-------------|
+| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
+| --force | Specifies whether warning prompts should be bypassed |
+| --log-output | Outputs logs to the console instead of the standard messages. |
+| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --no-banner | Do not display the startup banner or the copyright message. |
+| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
+| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
+
 ## cute content
 
 Manage content entries in bulk.
