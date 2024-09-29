@@ -260,6 +260,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     {
         return input.Equals("exit", StringComparison.OrdinalIgnoreCase)
                         || input.StartsWith("bye", StringComparison.OrdinalIgnoreCase)
+                        || input.StartsWith("goodbye", StringComparison.OrdinalIgnoreCase)
                         || input.StartsWith("quit", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -267,7 +268,9 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     {
         _console.WriteBlankLine();
         _console.WriteRuler("Solution");
+        _console.WriteBlankLine();
         _console.WriteAlertAccent(botResponse.QueryOrCommand);
+        _console.WriteBlankLine();
         _console.WriteRuler();
         _console.WriteBlankLine();
 
@@ -325,13 +328,24 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
     private async Task RunSelectedCommand(BotResponse botResponse)
     {
-        var parameters = botResponse.QueryOrCommand.Split(' ').ToList();
-        if (parameters[0] == "cute") parameters.RemoveAt(0);
-        parameters.Add("--no-banner");
-        var args = parameters.ToArray();
-        var command = new CommandAppBuilder(args).Build();
-        await command.RunAsync(args);
-        _console.WriteBlankLine();
+        try
+        {
+            var splitter = System.CommandLine.Parsing.CommandLineStringSplitter.Instance;
+            var parameters = splitter.Split(botResponse.QueryOrCommand).ToList();
+            if (parameters[0] == "cute") parameters.RemoveAt(0);
+            parameters.Add("--no-banner");
+            var args = parameters.ToArray();
+            var command = new CommandAppBuilder(args).Build();
+            await command.RunAsync(args);
+            _console.WriteBlankLine();
+        }
+        catch (Exception ex)
+        {
+            _console.WriteBlankLine();
+            _console.WriteAlert($"Oops! Something went wrong executing the query...");
+            _console.WriteAlert(ex.Message);
+            _console.WriteBlankLine();
+        }
     }
 
     private static ChatCompletionOptions CreateChatCompletionOptions(Settings settings)
@@ -408,7 +422,6 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             # THE CUTE CLI
 
             When asked about CUTE CLI command usage, list ALL command options including common options.
-            Also explain why the CLI is great for the specific command usage when responding.
             The quoted text contains cute cli commands, options and usage:
 
             """
@@ -420,12 +433,16 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             Variables are always preceded with the contentType and followed by a field name.
             If a fiels is a Link to another entry then the child entry fields are valid to use.
 
+            When generating CLI commands with parameters, the use of single quotes (') to delimit a string is NOT supported.
+            Always use doube quotes (") to delimit strings for commands and escape any double quotes with a slash (\")
+            Never escape double quotes unless they are inside unescaped quotes on the command line
+            Regex expressions are currently NOT supported in edit or find or replace expressions. Don't suggest them
             """";
     }
 
     private static string BuildContentTypesPromptInfo(IEnumerable<ContentType> contentTypes)
     {
-        string[] excludePrefix = ["ux", "ui", "cute", "test", "meta"];
+        string[] excludePrefix = ["ux", "ui", "cute", "meta"];
 
         var sbContentTypesInfo = new StringBuilder();
         foreach (var contentType in contentTypes.OrderBy(ct => ct.Id()))
@@ -434,7 +451,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             sbContentTypesInfo.AppendLine();
 
-            sbContentTypesInfo.AppendLine($"Content type: {contentType.Name}");
+            sbContentTypesInfo.AppendLine($"CONTENT TYPE: {contentType.Name}");
             foreach (var field in contentType.Fields)
             {
                 sbContentTypesInfo.Append($"  - {field.Id} ({field.Type})");
@@ -533,15 +550,19 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         var rootCommand = CliCommandInfoXmlParser.FromXml(xml,
             "The cute cli is a command line interface for interacting with Contentful.");
 
-        ConvertToDocs(rootCommand, sb);
+        var nameStack = new Stack<string>();
+
+        ConvertToDocs(rootCommand, sb, nameStack);
 
         return sb.ToString();
     }
 
-    private static void ConvertToDocs(CliCommandInfo commandInfo, StringBuilder sb)
+    private static void ConvertToDocs(CliCommandInfo commandInfo, StringBuilder sb, Stack<string> nameStack)
     {
+        nameStack.Push(commandInfo.Name == "" ? Globals.AppName : commandInfo.Name);
+
         sb.AppendLine();
-        sb.AppendLine($"COMMAND: {Globals.AppName} {commandInfo.Name}");
+        sb.AppendLine($"COMMAND: {string.Join(' ', nameStack.Reverse())}");
         sb.AppendLine($"  - DESCRIPTION: {commandInfo.Description}");
 
         var allOptions = commandInfo.GetAllOptions();
@@ -565,8 +586,10 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         foreach (var subCommand in commandInfo.SubCommands)
         {
-            ConvertToDocs(subCommand, sb);
+            ConvertToDocs(subCommand, sb, nameStack);
         }
+
+        nameStack.Pop();
     }
 
     public BotResponse DeserializeBotResponse(string json)
