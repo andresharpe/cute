@@ -75,6 +75,11 @@ public partial class ConsoleWriter : IConsoleWriter
         Console?.Write(new Rule() { Style = Globals.StyleDim });
     }
 
+    public void WriteRuler(string heading)
+    {
+        Console?.Write(new Rule($"[{Globals.StyleSubHeading.Foreground}]{heading}[/]") { Style = Globals.StyleDim, Justification = Justify.Left });
+    }
+
     public void WriteBlankLine()
     {
         Console?.WriteLine();
@@ -202,16 +207,24 @@ public partial class ConsoleWriter : IConsoleWriter
 
         foreach (var column in columns)
         {
-            table.AddColumn(new TableColumn(new Text(column, Globals.StyleSubHeading)));
+            var firstValue = GetNestedValue((JObject)jArray.First(), column);
+
+            if (firstValue != null && (firstValue.Type == JTokenType.Integer || firstValue.Type == JTokenType.Float))
+            {
+                table.AddColumn(new TableColumn(column).RightAligned());
+            }
+            else
+            {
+                table.AddColumn(new TableColumn(column));
+            }
         }
 
         foreach (JObject obj in jArray.Cast<JObject>())
         {
             var row = columns
-                .Select(column => GetNestedValue(obj, column)?.ToString() ?? string.Empty)
-                .ToArray();
+                .Select(column => FormatCell(GetNestedValue(obj, column)));
 
-            table.AddRow(row.Select(c => new Markup(c, Globals.StyleNormal)));
+            table.AddRow(row);
         }
 
         AnsiConsole.Write(table);
@@ -255,6 +268,20 @@ public partial class ConsoleWriter : IConsoleWriter
         }
 
         return current;
+    }
+
+    private static Markup FormatCell(JToken token)
+    {
+        if (token == null)
+            return new Markup(string.Empty);
+
+        if (token.Type == JTokenType.Integer || token.Type == JTokenType.Float)
+        {
+            return new Markup(Convert.ToDecimal(token).ToString("N0", CultureInfo.InvariantCulture), Globals.StyleNormal).RightJustified();
+        }
+
+        // Return other values as is
+        return new Markup(token.ToString(), Globals.StyleNormal);
     }
 
     [GeneratedRegex(@"\{(?<parameter>[\w:.#,]+)\}")]
