@@ -164,7 +164,7 @@ public class ContentfulConnection
     public T? GetPreviewEntryByKey<T>(string fieldName, string fieldValue) where T : class, new()
     => GetPreviewEntries<T>(
         new EntryQuery.Builder()
-            .WithContentType(nameof(T).ToCamelCase())
+            .WithContentType(typeof(T).Name.ToCamelCase())
             .WithQueryConfig(qb => qb.FieldEquals(FixFieldName(fieldName), fieldValue))
             .WithLimit(1)
             .Build()
@@ -174,7 +174,7 @@ public class ContentfulConnection
         .FirstOrDefault();
 
     public IEnumerable<T> GetAllPreviewEntries<T>() where T : class, new()
-    => GetPreviewEntries<T>(nameof(T).ToCamelCase())
+    => GetPreviewEntries<T>(typeof(T).Name.ToCamelCase())
         .ToBlockingEnumerable()
         .Select(e => e.Entry);
 
