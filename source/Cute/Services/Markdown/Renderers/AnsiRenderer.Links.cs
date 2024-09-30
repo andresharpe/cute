@@ -60,7 +60,7 @@ public partial class AnsiRenderer
 
     private void WriteInlineTextLink(string label, string url)
     {
-        _console.Markup($"[{_highlighted} link={url}]{label.EscapeMarkup()}[/]");
+        _console.Markup($"[{_accentColor} link={url}]{label.EscapeMarkup()}[/]");
     }
 
     private void WriteInlineImageLink(string label, string url)
@@ -92,7 +92,7 @@ public partial class AnsiRenderer
     private void WriteInlineLinkFallback(string label, string uri)
     {
         var exceptionMessage = $"Cannot create image link from uri: {uri}.  Falling back to plain text.";
-        var fallbackMarkup = new Markup($"[{_highlighted} italic]{label.EscapeMarkup()}[/]");
+        var fallbackMarkup = new Markup($"[{_accentColor} italic]{label.EscapeMarkup()}[/]");
         ThrowOrFallbackToPlainText(exceptionMessage, fallbackMarkup);
     }
 

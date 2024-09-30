@@ -1,5 +1,7 @@
+using Cute.Constants;
 using Markdig.Syntax;
 using Spectre.Console;
+using System.Text.RegularExpressions;
 using MarkdownTable = Markdig.Extensions.Tables;
 
 namespace Cute.Services.Markdown.Console.Renderers;
@@ -10,51 +12,68 @@ public partial class AnsiRenderer
     {
         var table = new Table().Border(TableBorder.Rounded);
 
-        foreach (var item in block)
+        using var buffer = new StringWriter();
+
+        var subRenderer = new AnsiRendererBuilder()
+            .RedirectOutput(buffer)
+            .Build();
+
+        foreach (var row in block.OfType<MarkdownTable.TableRow>())
         {
-            if (item is MarkdownTable.TableRow row)
+            if (row.IsHeader)
             {
-                var rows = new List<Markup>();
-
-                foreach (var cellItem in row)
+                foreach (var cell in row.OfType<MarkdownTable.TableCell>())
                 {
-                    if (cellItem is MarkdownTable.TableCell cell)
+                    foreach (var paragraph in cell.OfType<ParagraphBlock>())
                     {
-                        foreach (var paragraphItem in cell)
-                        {
-                            if (paragraphItem is ParagraphBlock paragraph)
-                            {
-                                // We use a new instace of this class to generate the contents of
-                                // each cell.  This is because we need to avoid calling write and
-                                // markup methods while building our table.
-                                var buffer = new StringWriter();
-                                var subRenderer = new AnsiRendererBuilder()
-                                    .RedirectOutput(buffer)
-                                    .Build();
-                                subRenderer.WriteParagraphBlock(paragraph, suppressNewLine: true);
+                        buffer.GetStringBuilder().Clear();
 
-                                var escapedBuffer = buffer.ToString().EscapeMarkup();
-                                if (row.IsHeader)
-                                {
-                                    table.AddColumn($"[{_highlighted}]{escapedBuffer}[/]");
-                                }
-                                else
-                                {
-                                    rows.Add(new Markup(escapedBuffer));
-                                }
-                            }
-                        }
+                        subRenderer.WriteParagraphBlock(paragraph, suppressNewLine: true);
+
+                        var escapedBuffer = AnsiConsoleToTextOnly(buffer.ToString()).EscapeMarkup();
+
+                        table.AddColumn(new TableColumn(new Text(escapedBuffer, Globals.StyleAlertAccent)));
+
+                        break;
                     }
-
                 }
+                continue;
+            }
 
-                if (rows.Any())
+            var rowValues = new List<Markup>();
+
+            foreach (var cell in row.OfType<MarkdownTable.TableCell>())
+            {
+                foreach (var paragraph in cell.OfType<ParagraphBlock>())
                 {
-                    table.AddRow(rows);
+                    buffer.GetStringBuilder().Clear();
+
+                    subRenderer.WriteParagraphBlock(paragraph, suppressNewLine: true);
+
+                    var escapedBuffer = AnsiConsoleToTextOnly(buffer.ToString()).EscapeMarkup();
+
+                    rowValues.Add(new Markup(escapedBuffer, Globals.StyleSubHeading));
                 }
+            }
+
+            if (rowValues.Count > 0)
+            {
+                table.AddRow(rowValues);
             }
         }
 
         _console.Write(table);
     }
+
+    private static string AnsiConsoleToTextOnly(string input)
+    {
+        string cleanOutput = AnsiControlCodes().Replace(input, string.Empty);
+
+        return cleanOutput;
+    }
+
+    [GeneratedRegex(@"\u001b\[[0-9;]*[a-zA-Z]")]
+    private static partial Regex AnsiControlCodes();
 }
+
+// end of class

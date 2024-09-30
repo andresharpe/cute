@@ -13,11 +13,11 @@ public partial class AnsiRenderer
         foreach (var item in block)
         {
             var indentation = new string(' ', indent * 3);
-            var listBullet = $"{indentation} [{_highlighted}]{_characterSet.ListBullet}[/]  ";
+            var listBullet = $"{indentation} [{_accentColor}]{_characterSet.ListBullet}[/]  ";
             var bullet = (block.BulletType) switch
             {
                 '-' => IsTaskList(item) ? "{indentation}  " : listBullet,
-                '1' => $"{indentation} [{_highlighted}]{_numberFormatter.Format(numberedListCounter++, _characterSet)}. [/]",
+                '1' => $"{indentation} [{_accentColor}]{(numberedListCounter < 10 ? " " : string.Empty)}{_numberFormatter.Format(numberedListCounter++, _characterSet)}. [/]",
                 _ => listBullet
             };
 

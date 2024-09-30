@@ -25,6 +25,7 @@
 		<PackageIcon>cute.png</PackageIcon>
 		<PackageTags>cli;contentful;csv;excel;tsv;yaml;json;openai;chatgpt;ai;javascript</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<UserSecretsId>i don't like the space</UserSecretsId>
 	</PropertyGroup>
 	<ItemGroup>
 		<None Include="..\..\docs\images\cute.png" Pack="true" PackagePath="\" />
