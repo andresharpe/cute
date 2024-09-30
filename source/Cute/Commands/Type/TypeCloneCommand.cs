@@ -79,6 +79,11 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
         }
         catch { }
 
+        if (!ConfirmWithPromptChallenge($"clone {contentTypeId} from {settings.SourceEnvironmentId} to {contentfulEnvironment.Id()}"))
+        {
+            return -1;
+        }
+
         if (targetContentType is null)
         {
             _console.WriteNormalWithHighlights($"The content type {contentTypeId} does not exist in {contentfulEnvironment.Id()}", Globals.StyleHeading);

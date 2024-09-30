@@ -55,6 +55,11 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
         var source2ContentType = await GetContentTypeOrThrowError(joinEntry.SourceContentType2);
         var targetContentType = await GetContentTypeOrThrowError(joinEntry.TargetContentType);
 
+        if (!ConfirmWithPromptChallenge($"{"JOIN"} {joinEntry.SourceContentType1} and {joinEntry.SourceContentType2} entries for '{joinEntry.TargetContentType}'"))
+        {
+            return -1;
+        }
+
         // Load Entries
         await PerformBulkOperations(
             [

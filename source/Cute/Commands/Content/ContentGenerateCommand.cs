@@ -67,6 +67,11 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
                 GraphQLUtilities.GetContentTypeId(apiSyncEntry.CuteDataQueryEntry.Query)
             );
 
+        if (!ConfirmWithPromptChallenge($"generate content for '{targetContentType.SystemProperties.Id}'"))
+        {
+            return -1;
+        }
+
         var displayActions = new DisplayActions()
         {
             DisplayNormal = _console.WriteNormal,

@@ -80,6 +80,11 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         var contentType = await GetContentTypeOrThrowError(adapter.ContentType, $"Syncing '{contentMetaTypeId}' entry with key '{settings.Key}'.");
 
+        if (!ConfirmWithPromptChallenge($"sync content for '{contentType.SystemProperties.Id}'"))
+        {
+            return -1;
+        }
+
         await PerformBulkOperations([
 
             new UpsertBulkAction(ContentfulConnection, _httpClient)
