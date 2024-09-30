@@ -15,6 +15,7 @@ using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
 using Cute.Services;
 using Cute.Services.CliCommandInfo;
+using Cute.Services.Markdown;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
@@ -182,12 +183,13 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             AnsiConsole.MarkupLine(_console.FormatToMarkup($"Presence Penalty  : {chatCompletionOptions.PresencePenalty}", Globals.StyleDim, Globals.StyleSubHeading));
             _console.WriteBlankLine();
             _console.WriteRuler();
-            _console.WriteBlankLine();
         }
+
+        _console.WriteBlankLine();
 
         if (settings.Key is not null)
         {
-            _console.WriteNormalWithHighlights($"Press {"<Enter>"} on a blank line to submit your prompt. (i.e. type your prompt and press {"<Enter>"} twice to submit your prompt).", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"Press {"<Enter>"} on a blank line to submit your prompt. (i.e. type your prompt and press {"<Enter>"} twice).", Globals.StyleHeading);
             _console.WriteBlankLine();
         }
 
@@ -240,7 +242,25 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             _console.WriteBlankLine();
 
-            if (botResponse.Answer is not null) _console.WriteSubHeading(botResponse.Answer);
+            if (botResponse.Answer is not null)
+            {
+                if (settings.Key == null)
+                {
+                    _console.WriteSubHeading(botResponse.Answer);
+                }
+                else
+                {
+                    MarkdownConsole.Write(botResponse.Answer);
+                }
+            }
+
+            if (botResponse.Type == "Exit")
+            {
+                _console.WriteBlankLine();
+                _console.WriteAlert($"{SayBye()}!");
+                _console.WriteBlankLine();
+                break;
+            }
 
             if (botResponse.Question is not null && botResponse.Question.Contains("Shall we give it a shot?"))
             {
@@ -249,8 +269,11 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                 continue;
             }
 
-            _console.WriteBlankLine();
-            if (botResponse.Question is not null) _console.WriteSubHeading(botResponse.Question);
+            if (botResponse.Question is not null)
+            {
+                _console.WriteBlankLine();
+                _console.WriteSubHeading(botResponse.Question);
+            }
         }
 
         return 0;
@@ -380,7 +403,8 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             "answer" is a JSON string and contains your best answer. Keep them punchy.
             "question" is a JSON string and contains your next question for the user to help them reach their goal.
             "queryOrCommand" is a JSON string and contains the accurate CLI command or GraphQl query that will achieve the goal.
-            "type" contains "GraphQL" or "CLI" depending on what is in "queryOrCommand".
+            "type" contains "GraphQL" or "CLI" to execte commands depending on what is in "queryOrCommand".
+            "type" contains "Exit" if the user wants to leave the conversation or quit the app.
             "queryOrCommand" and "type" MUST only supplied when you ask "Shall we give it a shot?" when the goal is clear to you.
             These fields MUST always contain valid JSON strings. No other data types are allowed in them.
             Only output the JSON structure, one object per response.
@@ -436,13 +460,13 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             When generating CLI commands with parameters, the use of single quotes (') to delimit a string is NOT supported.
             Always use doube quotes (") to delimit strings for commands and escape any double quotes with a slash (\")
             Never escape double quotes unless they are inside unescaped quotes on the command line
-            Regex expressions are currently NOT supported in edit or find or replace expressions. Don't suggest them
+            Regex expressions are NOT supported in edit or find or replace expressions. Don't suggest them ever.
             """";
     }
 
     private static string BuildContentTypesPromptInfo(IEnumerable<ContentType> contentTypes)
     {
-        string[] excludePrefix = ["ux", "ui", "cute", "meta"];
+        string[] excludePrefix = ["ux", "ui", "meta"];
 
         var sbContentTypesInfo = new StringBuilder();
         foreach (var contentType in contentTypes.OrderBy(ct => ct.Id()))
