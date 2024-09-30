@@ -60,12 +60,17 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
 
         var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
 
-        var apiSyncEntry = CuteContentGenerate.GetByKey(ContentfulConnection, settings.Key)
+        var apiSyncEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentGenerate>(settings.Key)
             ?? throw new CliException($"No generate entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
 
         var targetContentType = await GetContentTypeOrThrowError(
                 GraphQLUtilities.GetContentTypeId(apiSyncEntry.CuteDataQueryEntry.Query)
             );
+
+        if (!ConfirmWithPromptChallenge($"generate content for '{targetContentType.SystemProperties.Id}'"))
+        {
+            return -1;
+        }
 
         var displayActions = new DisplayActions()
         {

@@ -9,11 +9,5 @@
         public List<string> SourceKeys1 { get; set; } = default!;
         public string SourceContentType2 { get; set; } = default!;
         public List<string> SourceKeys2 { get; set; } = default!;
-
-        public static CuteContentJoin? GetByKey(ContentfulConnection contentfulConnection, string key)
-        {
-            return contentfulConnection
-                .GetPreviewEntryByKey<CuteContentJoin>("cuteContentGenerate", "fields.key", key);
-        }
     }
 }

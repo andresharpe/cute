@@ -152,10 +152,19 @@ public class ContentfulConnection
                 .Build(),
             q => _contentfulPreviewClient.GetEntries<T>(queryString: q));
 
-    public T? GetPreviewEntryByKey<T>(string contentTypeId, string fieldName, string fieldValue) where T : class, new()
+    /// <summary>
+    /// by default, the key field is "fields.key"
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="fieldValue"></param>
+    /// <returns></returns>
+    public T? GetPreviewEntryByKey<T>(string fieldValue) where T : class, new()
+        => GetPreviewEntryByKey<T>("fields.key", fieldValue);
+
+    public T? GetPreviewEntryByKey<T>(string fieldName, string fieldValue) where T : class, new()
     => GetPreviewEntries<T>(
         new EntryQuery.Builder()
-            .WithContentType(contentTypeId)
+            .WithContentType(nameof(T).ToCamelCase())
             .WithQueryConfig(qb => qb.FieldEquals(FixFieldName(fieldName), fieldValue))
             .WithLimit(1)
             .Build()
@@ -164,8 +173,8 @@ public class ContentfulConnection
         .Select(e => e.Entry)
         .FirstOrDefault();
 
-    public IEnumerable<T> GetAllPreviewEntries<T>(string contentTypeId) where T : class, new()
-    => GetPreviewEntries<T>(contentTypeId)
+    public IEnumerable<T> GetAllPreviewEntries<T>() where T : class, new()
+    => GetPreviewEntries<T>(nameof(T).ToCamelCase())
         .ToBlockingEnumerable()
         .Select(e => e.Entry);
 

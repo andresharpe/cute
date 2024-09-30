@@ -124,17 +124,4 @@ public class CuteContentGenerateBatch
             }
         }
     };
-
-    public static CuteContentGenerateBatch? GetByKey(ContentfulConnection contentfulConnection, string key)
-    {
-        return contentfulConnection
-            .GetPreviewEntryByKey<CuteContentGenerateBatch>("cuteContentGenerateBatch", "fields.key", key);
-    }
-
-    public static IReadOnlyList<CuteContentGenerateBatch> GetAll(ContentfulConnection contentfulConnection)
-    {
-        return contentfulConnection
-            .GetAllPreviewEntries<CuteContentGenerateBatch>("cuteContentGenerateBatch")
-            .ToList();
-    }
 }

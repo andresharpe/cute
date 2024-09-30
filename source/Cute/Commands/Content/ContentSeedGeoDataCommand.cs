@@ -132,6 +132,11 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
             var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
 
+            if (!ConfirmWithPromptChallenge($"upload the extracted data to {contentTypeId}"))
+            {
+                return -1;
+            }
+
             await PerformBulkOperations([
 
                 new UpsertBulkAction(ContentfulConnection, _httpClient)

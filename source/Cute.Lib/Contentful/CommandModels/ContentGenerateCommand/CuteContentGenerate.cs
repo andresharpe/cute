@@ -20,17 +20,4 @@ public class CuteContentGenerate
     public string PromptOutputContentField { get; set; } = default!;
     public DataLanguage GeneratorTargetDataLanguageEntry { get; set; } = default!;
     public List<DataLanguage> TranslatorTargetDataLanguageEntries { get; set; } = default!;
-
-    public static CuteContentGenerate? GetByKey(ContentfulConnection contentfulConnection, string key)
-    {
-        return contentfulConnection
-            .GetPreviewEntryByKey<CuteContentGenerate>("cuteContentGenerate", "fields.key", key);
-    }
-
-    public static IReadOnlyList<CuteContentGenerate> GetAll(ContentfulConnection contentfulConnection)
-    {
-        return contentfulConnection
-            .GetAllPreviewEntries<CuteContentGenerate>("cuteContentGenerate")
-            .ToList();
-    }
 }

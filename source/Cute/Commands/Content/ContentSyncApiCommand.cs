@@ -66,7 +66,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
 
-        var apiSyncEntry = CuteContentSyncApi.GetByKey(ContentfulConnection, settings.Key)
+        var apiSyncEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentSyncApi>(settings.Key)
             ?? throw new CliException($"No API sync entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
 
         var yamlDeserializer = new DeserializerBuilder()
@@ -79,6 +79,11 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
         adapter.Id = settings.Key;
 
         var contentType = await GetContentTypeOrThrowError(adapter.ContentType, $"Syncing '{contentMetaTypeId}' entry with key '{settings.Key}'.");
+
+        if (!ConfirmWithPromptChallenge($"sync content for '{contentType.SystemProperties.Id}'"))
+        {
+            return -1;
+        }
 
         await PerformBulkOperations([
 
