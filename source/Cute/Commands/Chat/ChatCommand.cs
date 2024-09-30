@@ -101,7 +101,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         if (settings.Key != null)
         {
-            var apiSyncEntry = CuteContentGenerate.GetByKey(ContentfulConnection, settings.Key)
+            var apiSyncEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentGenerate>(settings.Key)
                 ?? throw new CliException($"No generate entry '{"cuteContentGenerate"}' with key '{settings.Key}' was found.");
 
             systemMessage = apiSyncEntry.SystemMessage;

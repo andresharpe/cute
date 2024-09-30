@@ -86,7 +86,7 @@ public class GenerateBulkAction(
         displayActions.DisplayFormatted?.Invoke($"Reading prompt entry {metaPromptKey}...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var cuteContentGenerateEntry = CuteContentGenerate.GetByKey(_contentfulConnection, metaPromptKey)
+        var cuteContentGenerateEntry = _contentfulConnection.GetPreviewEntryByKey<CuteContentGenerate>(metaPromptKey)
             ?? throw new CliException($"No 'cuteContentGenerate' entry with key '{metaPromptKey}' found.");
 
         if (_operation == GenerateOperation.ListBatches)
@@ -153,8 +153,8 @@ public class GenerateBulkAction(
 
     private async Task<CuteContentGenerateBatch?> GetOpenBatchEntry(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult, DisplayActions displayActions, Action<int, int>? progressUpdater, bool testOnly)
     {
-        var batchEntry = CuteContentGenerateBatch
-            .GetAll(_contentfulConnection)
+        var batchEntry = _contentfulConnection
+            .GetAllPreviewEntries<CuteContentGenerateBatch>()
             .Where(cb => cb.CompletedAt is null && cb.CancelledAt is null && cb.ExpiredAt is null && cb.FailedAt is null)
             .Where(cb => cb.CuteContentGenerateEntry.Sys.Id == cuteContentGenerateEntry.Sys.Id)
             .SingleOrDefault();
@@ -293,8 +293,8 @@ public class GenerateBulkAction(
 
         static DateTime? dd(int? i) => i is null ? null : DateTimeOffset.FromUnixTimeSeconds(i.Value).UtcDateTime;
 
-        var batchEntries = CuteContentGenerateBatch
-            .GetAll(_contentfulConnection)
+        var batchEntries = _contentfulConnection
+            .GetAllPreviewEntries<CuteContentGenerateBatch>()
             .Where(cb => cb.CuteContentGenerateEntry.Sys.Id == cuteContentGenerateEntry.Sys.Id)
             .ToDictionary(be => be.Key);
 

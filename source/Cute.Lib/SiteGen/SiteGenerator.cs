@@ -39,7 +39,7 @@ public class SiteGenerator
         var scriptObject = CreateScriptObject(appSettings);
 
         var appPlatform = _contentfulConnection
-            .GetPreviewEntryByKey<UiAppPlatform>("uiAppPlatform", "fields.key", appPlatformKey);
+            .GetPreviewEntryByKey<UiAppPlatform>(appPlatformKey);
 
         if (appPlatform is null)
         {

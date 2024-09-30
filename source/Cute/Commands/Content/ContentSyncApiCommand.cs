@@ -66,7 +66,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
 
-        var apiSyncEntry = CuteContentSyncApi.GetByKey(ContentfulConnection, settings.Key)
+        var apiSyncEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentSyncApi>(settings.Key)
             ?? throw new CliException($"No API sync entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
 
         var yamlDeserializer = new DeserializerBuilder()

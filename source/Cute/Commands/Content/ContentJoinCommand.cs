@@ -42,7 +42,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var joinEntry = CuteContentJoin.GetByKey(ContentfulConnection, settings.JoinId);
+        var joinEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentJoin>(settings.JoinId);
 
         if (joinEntry == null)
         {
