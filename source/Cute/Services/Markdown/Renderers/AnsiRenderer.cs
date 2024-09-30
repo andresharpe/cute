@@ -1,4 +1,3 @@
-using Cute.Constants;
 using Cute.Services.Markdown.Console.Formatters;
 using Cute.Services.Markdown.Console.Options;
 using Cute.Services.Markdown.Console.Parsers;
@@ -22,8 +21,6 @@ public partial class AnsiRenderer
     private readonly IAnsiConsole _console;
 
     private string _markdown = string.Empty;
-
-    private string _highlighted = Globals.StyleAlertAccent.Foreground.ToString();
 
     internal AnsiRenderer(
         MarkdownParser markdownParser,

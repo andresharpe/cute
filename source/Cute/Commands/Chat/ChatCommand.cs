@@ -61,6 +61,10 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         [CommandOption("--topP")]
         [Description("TopP controls diversity by limiting the token pool for bot responses.")]
         public float TopP { get; set; } = 0.85f;
+
+        [CommandOption("--memory-length")]
+        [Description("The total number of user and agent messages to keep in memory and send with new prompt.")]
+        public int Memory { get; set; } = 12;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -96,6 +100,8 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
         string? systemMessage = null;
+
+        bool isDouglas = settings.Key == null;
 
         ChatCompletionOptions? chatCompletionOptions = null;
 
@@ -134,9 +140,9 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             });
 
         _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"{SayHi()} {currentUser.FirstName},", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"{(isDouglas ? SayHi() : "Hi")} {currentUser.FirstName},", Globals.StyleHeading);
 
-        if (settings.Key == null)
+        if (isDouglas)
         {
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights(
@@ -187,7 +193,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         _console.WriteBlankLine();
 
-        if (settings.Key is not null)
+        if (!isDouglas)
         {
             _console.WriteNormalWithHighlights($"Press {"<Enter>"} on a blank line to submit your prompt. (i.e. type your prompt and press {"<Enter>"} twice).", Globals.StyleHeading);
             _console.WriteBlankLine();
@@ -197,6 +203,13 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         while (true)
         {
+            if (messages.Count > settings.Memory)
+            {
+                var messagesToRemove = messages.Count - settings.Memory;
+                // leave system message at element zero always!
+                messages.RemoveRange(1, messagesToRemove);
+            }
+
             _console.WriteBlankLine();
 
             var sbInput = new StringBuilder();
@@ -218,7 +231,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             if (UserWantsToLeave(input))
             {
                 _console.WriteBlankLine();
-                _console.WriteAlert($"{SayBye()}!");
+                _console.WriteAlert(isDouglas ? $"{SayBye()}!" : "Thank you for trying \"cute chat\". Good bye.");
                 _console.WriteBlankLine();
                 break;
             }
@@ -229,14 +242,14 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             await AnsiConsole.Status()
             .Spinner(Spinner.Known.BouncingBall)
-            .StartAsync("thinking...", async ctx =>
+            .StartAsync(isDouglas ? SayThinking() : "thinking...", async ctx =>
             {
                 response = await SendPromptToModel(chatClient, chatCompletionOptions, messages);
             });
 
             messages.Add(new AssistantChatMessage(response));
 
-            var botResponse = settings.Key == null
+            var botResponse = isDouglas
                 ? DeserializeBotResponse(response)
                 : new BotResponse() { Answer = response };
 
@@ -244,12 +257,18 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             if (botResponse.Answer is not null)
             {
-                if (settings.Key == null)
+                if (isDouglas)
                 {
                     _console.WriteSubHeading(botResponse.Answer);
                 }
                 else
                 {
+                    if (settings.Verbosity >= Verbosity.Diagnostic)
+                    {
+                        _console.WriteDim(botResponse.Answer);
+                        _console.WriteBlankLine();
+                    }
+
                     MarkdownConsole.Write(botResponse.Answer);
                 }
             }
@@ -257,7 +276,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             if (botResponse.Type == "Exit")
             {
                 _console.WriteBlankLine();
-                _console.WriteAlert($"{SayBye()}!");
+                _console.WriteAlert(isDouglas ? $"{SayBye()}!" : "Thank you for trying \"cute chat\". Good bye.");
                 _console.WriteBlankLine();
                 break;
             }
@@ -277,14 +296,6 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         }
 
         return 0;
-    }
-
-    private static bool UserWantsToLeave(string input)
-    {
-        return input.Equals("exit", StringComparison.OrdinalIgnoreCase)
-                        || input.StartsWith("bye", StringComparison.OrdinalIgnoreCase)
-                        || input.StartsWith("goodbye", StringComparison.OrdinalIgnoreCase)
-                        || input.StartsWith("quit", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task HandleExecution(IEnumerable<Locale> locales, BotResponse botResponse)
@@ -416,6 +427,8 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             Make sure the user explicitly confirms EVERYTHING you need to know by asking only one simple question at a time.
             Make sure you have clarity on all operations. For example for GraphQL queries you would need content type, fields, filters, locale, and entry/record limit. Conirm all this.
 
+            Today is {{DateTime.UtcNow:R}}.
+
             The current Contentful space name is "{{defaultSpace.Name}}".
             The current Contentful space Id is "{{defaultSpace.Id()}}".
             The current Contentful environment is "{{defaultEnvironment.Id()}}".
@@ -516,24 +529,70 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         return sbContentTypesInfo.ToString();
     }
 
-    private static string SayHi()
+    private static readonly string[] _exitPhrases = ["exit", "bye", "goodbye", "quit"];
+
+    private static bool UserWantsToLeave(string input)
     {
-        string[] phrases = ["Hi", "G'day", "Hola", "Salut", "Ciao", "Hallo", "Hei", "Hej",
+        return _exitPhrases.Any(p => input.Trim().Equals(p, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static readonly string[] _hiPhrases = ["Hi", "G'day", "Hola", "Salut", "Ciao", "Hallo", "Hei", "Hej",
             "Ahoj", "Hej hej", "Oi", "Hei hei", "Yā", "Annyeong", "Nǐ hǎo", "Hallochen", "Hoi",
             "Shalom", "Merhaba", "Qapla'"];
 
-        return phrases[new Random().Next(phrases.Length)];
+    private static string SayHi()
+    {
+        return _hiPhrases[new Random().Next(_hiPhrases.Length)];
     }
 
-    private static string SayBye()
-    {
-        string[] phrases = ["À plus tard","Chao","Poka","Bài bài","Ciao",
+    private static readonly string[] _byePhrases = ["À plus tard","Chao","Poka","Bài bài","Ciao",
                 "Ja nee","Tschüss","Tchau","Jal - ga","Ma’a salama","Hej hej",
                 "Baadaye","Dag","Adios Amigo","I'll be baaack","Hasta la vista",
                 "Yah - soo","Cześć","Bai","Namaste","Ha det","Totsiens","Güle güle",
                 "Sayonara","Zai jian","Bye","Hej då"];
 
-        return phrases[new Random().Next(phrases.Length)];
+    private static string SayBye()
+    {
+        return _byePhrases[new Random().Next(_byePhrases.Length)];
+    }
+
+    private static readonly string[] _thinkingPhrases =
+        [
+            "pondering 42...",
+            "contemplating life...",
+            "questioning existence...",
+            "deciphering babel fish...",
+            "analyzing vogon poetry...",
+            "exploring magrathea...",
+            "navigating infinite improbability...",
+            "understanding deep thought...",
+            "wondering about towels...",
+            "reflecting on earth...",
+            "considering pan galactic...",
+            "investigating heart of gold...",
+            "mulling over krikkit...",
+            "examining slartibartfast...",
+            "delving into ravenous bugblatter...",
+            "debating mostly harmless...",
+            "reviewing joo janta...",
+            "speculating ford prefect...",
+            "scrutinizing zaphod beeblebrox...",
+            "probing vogosphere...",
+            "pondering hitchhiking...",
+            "imagining arthur dent...",
+            "studying trillian...",
+            "interpreting vogons...",
+            "evaluating hyperspace...",
+            "perceiving mice...",
+            "musing about dolphins...",
+            "dissecting the answer...",
+            "envisioning the universe...",
+            "philosophizing about tea..."
+        ];
+
+    private static string SayThinking()
+    {
+        return _thinkingPhrases[new Random().Next(_thinkingPhrases.Length)];
     }
 
     private ChatClient CreateChatClient()

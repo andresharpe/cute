@@ -66,7 +66,7 @@ public static partial class StringExtensions
 
     public static IEnumerable<string> GetFixedLines(this ReadOnlySpan<char> input, int maxLineLength = 80)
     {
-        var lines = new List<string>();
+        var lines = new List<string>(24);
 
         while (!input.IsEmpty)
         {

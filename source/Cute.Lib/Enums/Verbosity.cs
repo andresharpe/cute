@@ -6,5 +6,5 @@ public enum Verbosity
     Minimal = 1,
     Normal = 2,
     Detailed = 3,
-    Trace = 4
+    Diagnostic = 4
 }

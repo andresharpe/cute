@@ -11,6 +11,6 @@ public partial class AnsiRenderer
         var charactersRequired = GetConsoleWidth() - 2;
         var line = new string(lineCharacter, charactersRequired);
 
-        _console.MarkupLine($"[{_highlighted}] {line}[/]");
+        _console.MarkupLine($"[{_accentColor}] {line}[/]");
     }
 }

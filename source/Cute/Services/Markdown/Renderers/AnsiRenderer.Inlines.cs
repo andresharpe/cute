@@ -14,12 +14,14 @@ public partial class AnsiRenderer
     private void WriteInlines(IEnumerable<Inline> inlines,
         string? markupTag = null, int indent = 0)
     {
+        var startCol = System.Console.CursorLeft;
+
         foreach (var inline in inlines)
         {
             switch (inline)
             {
                 case LiteralInline literal:
-                    WriteLiteralInline(literal.ToString(), markupTag, indent: indent);
+                    WriteLiteralInline(literal.ToString(), markupTag, indent: indent, startCol: startCol);
                     break;
 
                 case EmphasisInline emphasis:
@@ -41,7 +43,7 @@ public partial class AnsiRenderer
                 case LineBreakInline:
                     if (_isQuote)
                     {
-                        var _quoteLinePrefix = $"[{_highlighted}] {_characterSet.QuotePrefix} [/]";
+                        var _quoteLinePrefix = $"[{_accentColor}] {_characterSet.QuotePrefix} [/]";
                         _console.Markup($"\n{_quoteLinePrefix}");
                         break;
                     }
@@ -50,7 +52,7 @@ public partial class AnsiRenderer
 
                 case TaskList task:
                     var bullet = task.Checked ? _characterSet.TaskListBulletDone : _characterSet.TaskListBulletToDo;
-                    _console.Markup($"[{_highlighted}]{bullet.EscapeMarkup()}[/]");
+                    _console.Markup($"[{_accentColor}]{bullet.EscapeMarkup()}[/]");
                     break;
 
                 default:
@@ -62,28 +64,34 @@ public partial class AnsiRenderer
     }
 
     private static string _defaultColor = Globals.StyleSubHeading.Foreground.ToString();
+    private static string _highlightedColor = Globals.StyleHeading.Foreground.ToString();
+    private static string _accentColor = Globals.StyleAlertAccent.Foreground.ToString();
 
-    private void WriteLiteralInline(string content, string? markupTag = null, int indent = 0)
+    private void WriteLiteralInline(string content, string? markupTag = null, int indent = 0, int startCol = 0)
     {
         var result = content.EscapeMarkup();
         var indentation = indent == 0 ? string.Empty : new string(' ', 4 + (indent * 3));
+        var secondPlusLineIndentation = startCol == 0 ? string.Empty : new string(' ', startCol);
         var currentLine = 1;
-        var maxchars = 80 - indentation.Length;
+        var maxchars = 80 - Math.Max(indentation.Length, startCol);
 
         foreach (var line in result.AsSpan().GetFixedLines(maxchars))
         {
             var loopIndentation = currentLine == 1 ? string.Empty : indentation;
             if (markupTag is not null)
             {
-                _console.Markup($"{loopIndentation}[{markupTag.Trim()} {_defaultColor}]{line}[/]");
-                _console.WriteLine();
+                _console.Markup($"{loopIndentation}[{markupTag.Trim()}]{line}[/]");
                 continue;
             }
             if (currentLine > 1)
             {
                 _console.WriteLine();
+                _console.Markup($"{secondPlusLineIndentation}[{_defaultColor}]{line}[/]");
             }
-            _console.Markup($"{loopIndentation}[{_defaultColor}]{line}[/]");
+            else
+            {
+                _console.Markup($"{loopIndentation}[{_defaultColor}]{line}[/]");
+            }
             currentLine++;
         }
     }
@@ -93,17 +101,17 @@ public partial class AnsiRenderer
         switch (emphasis.DelimiterChar)
         {
             case '*':
-                markupTag += "bold ";
+                markupTag += $"bold {_highlightedColor}";
                 WriteInlines(emphasis, markupTag);
                 break;
 
             case '_':
-                markupTag += "italic ";
+                markupTag += $"italic {_highlightedColor}";
                 WriteInlines(emphasis, markupTag);
                 break;
 
             case '~':
-                markupTag += "strikethrough ";
+                markupTag += $"strikethrough {_highlightedColor}";
                 WriteInlines(emphasis, markupTag);
                 break;
 
@@ -121,7 +129,7 @@ public partial class AnsiRenderer
     {
         var sb = new StringBuilder();
 
-        sb.Append("[{_highlighted}]");
+        sb.Append($"[{_accentColor}]");
         sb.Append(_characterSet.InlineCodeOpening);
         sb.Append("[invert]");
         sb.Append(code.Content.EscapeMarkup());

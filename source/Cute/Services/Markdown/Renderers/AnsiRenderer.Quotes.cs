@@ -13,7 +13,7 @@ public partial class AnsiRenderer
             {
                 _isQuote = true;
 
-                _console.Markup($"[{_highlighted}] {_characterSet.QuotePrefix} [/]");
+                _console.Markup($"[{_accentColor}] {_characterSet.QuotePrefix} [/]");
                 WriteParagraphBlock(paragraph);
 
                 _isQuote = false;
