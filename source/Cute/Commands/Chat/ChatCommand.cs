@@ -101,7 +101,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     {
         string? systemMessage = null;
 
-        bool isDouglas = settings.Key == null;
+        bool isDouglas = settings.Key == null && string.IsNullOrWhiteSpace(settings.SystemPrompt);
 
         ChatCompletionOptions? chatCompletionOptions = null;
 
@@ -120,6 +120,11 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                 PresencePenalty = (float)apiSyncEntry.PresencePenalty,
                 TopP = (float)apiSyncEntry.TopP,
             };
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.SystemPrompt))
+        {
+            systemMessage = settings.SystemPrompt;
         }
 
         Space defaultSpace = default!;
