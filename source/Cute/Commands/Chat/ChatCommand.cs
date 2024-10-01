@@ -16,6 +16,7 @@ using Cute.Lib.Extensions;
 using Cute.Services;
 using Cute.Services.CliCommandInfo;
 using Cute.Services.Markdown;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;

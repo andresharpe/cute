@@ -18,5 +18,5 @@ public interface ISyntaxHighlighter
         string code,
         string? language,
         [NotNullWhen(returnValue: true)]
-        out string? highlightedCode);
+        out string[] highlightedCode);
 }

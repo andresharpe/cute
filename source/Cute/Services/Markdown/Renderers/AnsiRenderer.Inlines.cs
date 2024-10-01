@@ -67,15 +67,25 @@ public partial class AnsiRenderer
     private static string _highlightedColor = Globals.StyleHeading.Foreground.ToString();
     private static string _accentColor = Globals.StyleAlertAccent.Foreground.ToString();
 
+    private const int maxLineWidth = 90;
+
     private void WriteLiteralInline(string content, string? markupTag = null, int indent = 0, int startCol = 0)
     {
         var result = content.EscapeMarkup();
         var indentation = indent == 0 ? string.Empty : new string(' ', 4 + (indent * 3));
         var secondPlusLineIndentation = startCol == 0 ? string.Empty : new string(' ', startCol);
         var currentLine = 1;
-        var maxchars = 80 - Math.Max(indentation.Length, startCol);
+        var currentCol = System.Console.CursorLeft;
+        var maxchars = maxLineWidth - Math.Max(indentation.Length, startCol);
+        var firstMaxchars = maxchars - currentCol;
 
-        foreach (var line in result.AsSpan().GetFixedLines(maxchars))
+        if (firstMaxchars < 0)
+        {
+            firstMaxchars = maxLineWidth;
+            _console.WriteLine();
+        }
+
+        foreach (var line in result.AsSpan().GetFixedLines(maxchars, firstMaxchars))
         {
             var loopIndentation = currentLine == 1 ? string.Empty : indentation;
             if (markupTag is not null)
