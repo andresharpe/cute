@@ -64,12 +64,16 @@ public static partial class StringExtensions
         return text[..(snipTo - 1)] + "..";
     }
 
-    public static IEnumerable<string> GetFixedLines(this ReadOnlySpan<char> input, int maxLineLength = 80)
+    public static IEnumerable<string> GetFixedLines(this ReadOnlySpan<char> input, int maxLength = 80, int? maxFirstLineLength = null)
     {
-        var lines = new List<string>(24);
+        var lines = new List<string>();
+
+        maxFirstLineLength ??= maxLength;
 
         while (!input.IsEmpty)
         {
+            int maxLineLength = lines.Count == 0 ? maxFirstLineLength.Value : maxLength;
+
             // Find the maximum slice we can take for this line
             var length = Math.Min(maxLineLength, input.Length);
             var slice = input[..length]; // Using the range operator here for slicing

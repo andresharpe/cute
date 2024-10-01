@@ -32,17 +32,18 @@
 		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 	<ItemGroup>
+		<PackageReference Include="ColorfulCode" Version="1.0.0-preview1" />
 		<PackageReference Include="Markdig" Version="0.37.0" />
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="8.0.8" />
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="8.0.8" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="9.0.0-rc.1.24452.1" />
+		<PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="9.0.0-rc.1.24452.1" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0-rc.1.24431.7" />
 		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
 		<PackageReference Include="ReadLine" Version="2.0.1" />
-		<PackageReference Include="Spectre.Console" Version="0.49.1" />
-		<PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
-		<PackageReference Include="Spectre.Console.ImageSharp" Version="0.49.1" />
+		<PackageReference Include="Spectre.Console" Version="0.49.2-preview.0.44" />
+		<PackageReference Include="Spectre.Console.Cli" Version="0.49.2-preview.0.44" />
+		<PackageReference Include="Spectre.Console.ImageSharp" Version="0.49.2-preview.0.44" />
 		<PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
-		<PackageReference Include="System.Formats.Asn1" Version="8.0.1" />
+		<PackageReference Include="System.Formats.Asn1" Version="9.0.0-rc.1.24431.7" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\Cute.Lib\Cute.Lib.csproj" />
