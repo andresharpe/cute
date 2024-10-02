@@ -6,40 +6,46 @@ namespace Cute.Services.Markdown.Console.Renderers;
 
 public partial class AnsiRenderer
 {
-    private void WriteListBlock(ListBlock block, int indent = 0)
+    private void WriteListBlock(ListBlock block)
     {
         var numberedListCounter = 1;
 
+        var lastIndentation = GetIndentation();
+
+        Indent();
+
+        var indentation = GetIndentation();
+
         foreach (var item in block)
         {
-            var indentation = new string(' ', indent * 3);
-            var listBullet = $"{indentation} [{_accentColor}]{_characterSet.ListBullet}[/]  ";
+            var listBullet = $"{lastIndentation}  [{_accentColor}]{_characterSet.ListBullet}[/] ";
+            var numberPadding = (numberedListCounter < 10 ? " " : string.Empty);
+            var numberDigits = _numberFormatter.Format(numberedListCounter, _characterSet);
             var bullet = (block.BulletType) switch
             {
-                '-' => IsTaskList(item) ? "{indentation}  " : listBullet,
-                '1' => $"{indentation} [{_accentColor}]{(numberedListCounter < 10 ? " " : string.Empty)}{_numberFormatter.Format(numberedListCounter++, _characterSet)}. [/]",
+                '-' => IsTaskList(item) ? indentation : listBullet,
+                '1' => $"{lastIndentation}[{_accentColor}]{numberPadding}{numberDigits}. [/]",
                 _ => listBullet
             };
+
+            if (numberedListCounter > 1)
+            {
+                _console.WriteLine();
+            }
 
             _console.Markup(bullet);
 
             foreach (var subItem in (ListItemBlock)item)
             {
-                if (subItem is ParagraphBlock paragraphBlock)
-                {
-                    WriteParagraphBlock(paragraphBlock, indent: indent);
-                    continue;
-                }
-                else if (subItem is ListBlock subListBlock)
-                {
-                    WriteListBlock(subListBlock, indent + 1);
-                    continue;
-                }
-
-                ThrowOrFallbackToPlainText(subItem);
+                WriteBlock(subItem, indentFirstLine: false);
             }
+
+            numberedListCounter++;
         }
+
         _console.WriteLine();
+
+        UnIndent();
 
         static bool IsTaskList(Block itemToCheck)
         {

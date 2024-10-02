@@ -57,6 +57,21 @@ public static partial class StringExtensions
         return EmojiAndOtherUnicode().Replace(text, "");
     }
 
+    public static string RemoveNewLines(this string text)
+    {
+        if (text.Contains('\n'))
+        {
+            text = text.Replace("\n", "");
+        }
+
+        if (text.Contains('\r'))
+        {
+            text = text.Replace("\r", "");
+        }
+
+        return text;
+    }
+
     public static string Snip(this string text, int snipTo)
     {
         if (text.Length <= snipTo) return text;
@@ -68,11 +83,25 @@ public static partial class StringExtensions
     {
         var lines = new List<string>();
 
+        if (maxFirstLineLength is not null && input.Length > maxFirstLineLength)
+        {
+            var length = Math.Min(maxFirstLineLength.Value, input.Length);
+            var slice = input[..length];
+            var lastBreakIndex = slice.LastIndexOfAny(' ', '\n', '\r');
+            if (lastBreakIndex == -1)
+            {
+                lines.Add(string.Empty);
+                maxFirstLineLength = maxLength;
+            }
+        }
+
         maxFirstLineLength ??= maxLength;
 
         while (!input.IsEmpty)
         {
-            int maxLineLength = lines.Count == 0 ? maxFirstLineLength.Value : maxLength;
+            int maxLineLength = lines.Count == 0
+                ? maxFirstLineLength.Value
+                : maxLength;
 
             // Find the maximum slice we can take for this line
             var length = Math.Min(maxLineLength, input.Length);
