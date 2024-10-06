@@ -6,6 +6,7 @@ using Cute.Commands.Eval;
 using Cute.Commands.Info;
 using Cute.Commands.Login;
 using Cute.Commands.Logout;
+using Cute.Commands.Server;
 using Cute.Commands.Type;
 using Cute.Commands.Version;
 using Cute.Config;
@@ -193,6 +194,14 @@ public class CommandAppBuilder
 
                 branchConfig.AddCommand<EvalNamingConventions>("naming")
                     .WithDescription("Check and remediate violations of site naming conventions.");
+            });
+
+            commandConfig.AddBranch("server", branchConfig =>
+            {
+                branchConfig.SetDescription("Run a server to serve content from Contentful.");
+
+                branchConfig.AddCommand<ServerSechedulerCommand>("scheduler")
+                    .WithDescription("Run a server to serve content from Contentful.");
             });
 
             commandConfig.AddCommand<VersionCommand>("version")
