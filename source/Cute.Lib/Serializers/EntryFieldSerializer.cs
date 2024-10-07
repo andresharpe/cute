@@ -87,7 +87,12 @@ internal class EntryFieldSerializer
 
     public object? Serialize(JObject entry, string fieldName)
     {
-        var prop = entry[_name]?[_localeCode];
+        if(entry[_name] is null)
+        {
+            return null;
+        }
+
+        var prop = ((JObject)entry[_name]!).GetValue(_localeCode, StringComparison.OrdinalIgnoreCase);
 
         if (prop is null || prop.IsNull())
         {
