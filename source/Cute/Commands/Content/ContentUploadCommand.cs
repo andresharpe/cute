@@ -90,9 +90,9 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
 
             settings.MatchField = field.Id;
         }
-        await PerformBulkOperations(
-        [
 
+        var bulkOperations = new List<IBulkAction>()
+        {
             new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
@@ -104,15 +104,19 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
                     ))
                 .WithMatchField(settings.MatchField)
                 .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity),
+                .WithVerbosity(settings.Verbosity)
+        };
 
-            new PublishBulkAction(ContentfulConnection, _httpClient)
+        if (settings.Apply) {
+            bulkOperations.Add(
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)
+            );
+        }
 
-            ]
-        );
+        await PerformBulkOperations(bulkOperations.ToArray());
 
         return 0;
     }
