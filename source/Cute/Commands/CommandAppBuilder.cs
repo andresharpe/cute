@@ -198,10 +198,10 @@ public class CommandAppBuilder
 
             commandConfig.AddBranch("server", branchConfig =>
             {
-                branchConfig.SetDescription("Run a server to serve content from Contentful.");
+                branchConfig.SetDescription("Run cute in server mode.");
 
                 branchConfig.AddCommand<ServerSechedulerCommand>("scheduler")
-                    .WithDescription("Run a server to serve content from Contentful.");
+                    .WithDescription("Schedule and run cuteContentSyncApi entries.");
             });
 
             commandConfig.AddCommand<VersionCommand>("version")

@@ -87,8 +87,6 @@ public class ServerSechedulerCommand(IConsoleWriter console, ILogger<ServerSeche
         await context.Response.WriteAsync($"</form>");
     }
 
-    // ...
-
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
         _settings = settings;
@@ -97,19 +95,8 @@ public class ServerSechedulerCommand(IConsoleWriter console, ILogger<ServerSeche
 
         RefreshScheduler();
 
-        if (Environment.OSVersion.Platform == PlatformID.Win32NT)
-        {
-            // Open the browser
-            try
-            {
-                Process.Start("rundll32", $"url.dll,FileProtocolHandler http://localhost:{_settings.Port}");
-            }
-            catch
-            {
-                // Do nothing
-            }
-        }
         ConsoleWriter.EnableConsole = false;
+
         await StartWebServer();
 
         return 0;
@@ -122,9 +109,13 @@ public class ServerSechedulerCommand(IConsoleWriter console, ILogger<ServerSeche
         var cronTasks = !string.IsNullOrEmpty(_settings.Key) ? [ContentfulConnection.GetPreviewEntryByKey<CuteContentSyncApi>(_settings.Key)!]
             : ContentfulConnection.GetAllPreviewEntries<CuteContentSyncApi>().OrderBy(e => e.Order).ToArray();
 
+        cronTasks = cronTasks
+            .Where(cronTasks => !string.IsNullOrEmpty(cronTasks.Schedule) && string.Compare(cronTasks.Schedule, "never", StringComparison.OrdinalIgnoreCase) != 0)
+            .ToArray();
+
         if (!cronTasks.Any())
         {
-            throw new CliException($"No data sync entries found.");
+            throw new CliException($"No data sync entries found with a valid schedule.");
         }
 
         _cronTasks = cronTasks.ToDictionary(t => Guid.NewGuid(), t => t);
@@ -220,7 +211,7 @@ public class ServerSechedulerCommand(IConsoleWriter console, ILogger<ServerSeche
 
     private async Task ProcessContentSyncApi(CuteContentSyncApi cuteContentSyncApi)
     {
-        string[] args = ["content", "sync-api", "-k", cuteContentSyncApi.Key, "-a", "--force"];
+        string[] args = ["content", "sync-api", "--key", cuteContentSyncApi.Key, "--apply", "--force"];
         var command = new CommandAppBuilder(args).Build();
         await command.RunAsync(args);
         _console.WriteBlankLine();
