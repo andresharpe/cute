@@ -74,16 +74,16 @@ public class CommandAppBuilder
             commandConfig.Settings.HelpProviderStyles = GetHelpProviderstyle();
 
             commandConfig.AddCommand<LoginCommand>("login")
-                .WithDescription("Log in to Contentful. Run this first.");
+                .WithDescription("Run this command first to configure your Contentful profile along with AI and translation services.");
 
             commandConfig.AddCommand<LogoutCommand>("logout")
-                .WithDescription("Log out of contentful.");
+                .WithDescription("Log out of Contentful.");
 
             commandConfig.AddCommand<InfoCommand>("info")
-                .WithDescription("Display information about a Contentfult space.");
+                .WithDescription("Display information about a Contentful space.");
 
             commandConfig.AddCommand<ChatCommand>("chat")
-                .WithDescription("Make the robots do the work! Interact with your space using A.I.");
+                .WithDescription("Make the robots do the work! Interact with your space using AI.");
 
             /*
             commandConfig.AddBranch("profile", branchConfig =>
@@ -102,13 +102,13 @@ public class CommandAppBuilder
             */
             commandConfig.AddBranch("content", branchConfig =>
             {
-                branchConfig.SetDescription("Manage content entries in bulk.");
+                branchConfig.SetDescription("Manage your content entries in Contentful using bulk operations.");
 
                 branchConfig.AddCommand<ContentDownloadCommand>("download")
-                    .WithDescription("Download Contentful entries to a local csv/tsv/yaml/json/excel file.");
+                    .WithDescription("Download Contentful entries to a local CSV/TSV/YAML/JSON/Excel file.");
 
                 branchConfig.AddCommand<ContentUploadCommand>("upload")
-                    .WithDescription("Upload and sync Contentful entries from a local csv/tsv/yaml/json/excel file.");
+                    .WithDescription("Upload and sync Contentful entries from a local CSV/TSV/YAML/JSON/Excel file.");
 
                 branchConfig.AddCommand<ContentEditCommand>("edit")
                     .WithDescription("Edit Contentful entries in bulk with an optional filter.");
@@ -126,10 +126,10 @@ public class CommandAppBuilder
                     .WithDescription("Unpublish and delete all Contentful entries.");
 
                 branchConfig.AddCommand<ContentSyncApiCommand>("sync-api")
-                    .WithDescription("Synchromise data to Contentful from an API.");
+                    .WithDescription("Synchronise data to Contentful from an API.");
 
                 branchConfig.AddCommand<ContentSeedGeoDataCommand>("seed-geo")
-                    .WithDescription("Synchromise data to Contentful from an API.")
+                    .WithDescription("Seed geographical test data to start your project.")
                     .IsHidden();
 
                 branchConfig.AddCommand<ContentSyncDatabaseCommand>("sync-db")
@@ -170,33 +170,33 @@ public class CommandAppBuilder
                     .WithDescription("Rename a content type including all references to it.");
 
                 branchConfig.AddCommand<TypeDeleteCommand>("delete")
-                    .WithDescription("Delete a content type and its entries.");
+                    .WithDescription("Delete a content type along with its entries.");
             });
 
             commandConfig.AddBranch("app", branchConfig =>
             {
-                branchConfig.SetDescription("Generate a website or app from Contentful.");
+                branchConfig.SetDescription("Generate a website or app from your content space in Contentful.");
 
                 branchConfig.AddCommand<AppGenerateCommand>("generate")
-                 .WithDescription("Generate an app or website based on configuration in Contentful.");
+                 .WithDescription("Generate an app or website based on user configuration settings in Contentful.");
             });
 
             commandConfig.AddBranch("eval", branchConfig =>
             {
-                branchConfig.SetDescription("Tools to evaluate the quality the site and of LLM and translation output.");
+                branchConfig.SetDescription("Tools to evaluate the quality of generated content using the LLM and translation engine.");
 
                 branchConfig.AddCommand<EvalContentGeneratorCommand>("content-generator")
                     .WithDescription("Use deepeval to measure the quality of content generation.");
 
                 branchConfig.AddCommand<EvalContentTranslatorCommand>("content-translator")
-                    .WithDescription("Measure the quality of translation engine output.");
+                    .WithDescription("Measure the quality of the translation engine output.");
 
                 branchConfig.AddCommand<EvalNamingConventions>("naming")
                     .WithDescription("Check and remediate violations of site naming conventions.");
             });
 
             commandConfig.AddCommand<VersionCommand>("version")
-                .WithDescription("Display the current version of the CLI.");
+                .WithDescription("Display the current installed version of the CLI.");
 
             configurator?.Invoke(commandConfig);
         });

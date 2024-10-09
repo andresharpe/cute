@@ -15,23 +15,15 @@
 ## Key Features
 
 - Bulk processing capabilities lets you download, modify and upload data in most popular formats including Comma delimited files (CSV), Tab delimited files (TSV), MS-Excel workbooks (XLSX), Javascript Object Notation (JSON) and YAML.
-- Input data can be sourced and synced from many external sources including flat files, databases, webAPIs or other popular sources like [WikiData](https://www.wikidata.org/).
-- Content can be enriched or even generated using popular technologies like [OpenAI](https://openai.com/) and [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator).
+- Input data can be sourced and synced from many external sources including flat files, databases, webAPIs, your Contentful space or other popular sources like [WikiData](https://www.wikidata.org/).
+- Content can be translated or even generated from scratch using popular technologies like [OpenAI](https://openai.com/) and [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator).
 - Deploy ***cute*** as a Web Server with [OpenTelemetry](https://opentelemetry.io/) compliant logging and a service terminal to reflect health, configuration and scheduled tasks.
 - Support for structural subtyping through the `typegen` command option which exports TypeScript (TS) interface declarations. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
 - ***cute*** auto-magically "learns" your Contentful space and generates required configuration nodes to enable process automation.
+- Interact with ***Douglas***, cute's very own AI assistant that will answer questions about your content, or even help formulate queries to interact with your content.
 
-## Why Contentful?
-
-[Contentful](https://www.contentful.com) is a content infrastructure platform that lets you create, manage and distribute content to any platform.
-
-Contentful bills itself as a Content Infrastructure Platform rather than a traditional Content Management System (CMS) that is often no more than a simple web publishing tool.
-
-It aims to transcend traditional Content Management Systems (CMS) by structuring its technology offering around three principals:
-
-- Firstly, by enabling the definition of a content model which is independent from the presentation layer.
-- Secondly, if offers a easy-to-use UI to manage content in a collaborative manner.
-- Finally, content is served in a presentation independent manner.
+> 💡 [Contentful](https://www.contentful.com) is a content infrastructure platform that lets you create, manage and distribute content to any platform. 
+Contentful offers a simple UI to declare and manage a content model, independent from the presentation layer.
 
 # Installation
 
@@ -71,86 +63,85 @@ cute --help
 ![cute help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/help.png)
 
 # Logging into Contentful
+Start your ***cute*** session by running the login command. This will configure your Contentful session profile using the selected space, environment and API keys.
+You can also enter your AI and translation services keys here. 
 ```
 cute login
 ```
 
-![cut auth screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/login.png)
+![cute login --help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/login.png)
 
-# Display space summary
+# Display a summary of your Contentful Space
+Display a comprehensive overview of your Contentful session information including space, environment, content types and locales. Info related to CLI display settings is also shown. 
 ``` 
 cute info
 ```
-![cut info screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/info.png)
+![cute info screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/info.png)
 
-# Downloading data
-The default format is 'excel' so the following is equivalent.
-```
-cute download --content-type <contentType> 
+# Working with Content
 
-cute download --content-type <contentType> --format excel
+The ```cute content``` and its respective command options represents the real workhorse of the cute tool. It essentially presents the user with a suite of bulk operation options to interact with their content in Contentful.
+
+![cute content --help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/content-help.png)
+
+## Downloading data
+Content can easily be downloaded from your Contentful space in one of several popular formats including Excel, comma separated (CSV), tab separated (TSV), JSON and YAML. If no format is specified, the downloaded file with default to the Excel format.
+
 ```
-For comma separated values:
+cute content download --content-type <contentType> 
+cute content download --content-type <contentType> --format [excel|csv|tsv|json|yaml]
 ```
-cute download --content-type <contentType> --format csv
-```
-For tab separated values:
-```
-cute download --content-type <contentType> --format tsv
-```
-For json output:
-```
-cute download --content-type <contentType> --format json
-```
-For downloading to Yaml:
-```
-cute download --content-type <contentType> --format yaml
-```
+Issuing any ```content download``` command will yield a result similar to the display below.
+
 ![cute download screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/download.png)
 
-Typing `cute download --help` will list all currently available options and usage
+Typing `cute download --help` will list all currently available options and usage.
 
 ```
 USAGE:
-    cute download [OPTIONS]
+    cute content download [OPTIONS]
 
 OPTIONS:
-    -h, --help            Prints help information
-    -c, --content-type    Specifies the content type to download data for
-    -f, --format          The output format for the download operation (Excel/Csv/Tsv/Json/Yaml)
+    -h, --help                  Prints help information
+    -c, --content-type-id <ID>  The Contentful content type id
+    -l, --locale <CODE>         The locale code (eg. 'en') to apply the command to. Default is all
+    -f, --format <FORMAT>       The output format for the download operation (Excel/CSV/TSV/JSON/YAML)
+    -p, --path <PATH>           The output path and filename for the download operation
 ```
 
-# Uploading/synchronizing data
+## Uploading/Synchronizing Content
 
-You can upload content from a local file to contentful. The local file can be a previously downloaded and updated excel, sdv, tsv, json or yaml file.
+You can upload content from a local file to your Contentful space. The local file can be a previously downloaded and updated Excel, CSV, TSV, JSON or YAML file.
 
 ![cute upload progress screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload-progress.png)
 
-Changes are only applied to Contentful if `--apply` is specified. By default no changes will be applied so it works a bit like a "what-if" powershell switch without `--apply`.
+***cute*** will prompt you to confirm a 2-digit code to prevent you from updating your content accidentally.
 
 ![cute upload screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/upload.png)
 
-Typing `cute upload --help` will sow the full usage and options.
+Typing `cute content upload --help` will show the full usage and options.
 
 ```
 USAGE:
-    cute upload [OPTIONS]
+    cute content upload [OPTIONS]
 
 OPTIONS:
-    -h, --help            Prints help information
-    -c, --content-type    Specifies the content type to download data for
-    -p, --path            The local path to the file containing the data to sync
-    -f, --format          The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)
-    -a, --apply           Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
+    -h, --help                  Prints help information
+    -c, --content-type-id <ID>  The Contentful content type id
+    -l, --locale <CODE>         The locale code (eg. 'en') to apply the command to. Default is all
+    -p, --path <PATH>           The local path to the file containing the data to sync
+    -f, --format <FORMAT>       The format of the file specified in '--path' (Excel/CSV/TSV/JSON/YAML)
+    -m, --match-field <NAME>    The optional name of the field to match in addition to the entry id
+    -a, --apply                 Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
 ```
 
-# For generating strong Javascript or Dotnet types
+# Generating strong JavaScript or .NET Types
 
-You can generate strongly typed classes for both c# and TypeScript using `cute`.
+***cute*** supports structural subtyping through the `type scaffold` command option. You can export TypeScript (TS) or .NET (CS) interface declarations, or a simple Excel file with individual worksheets detailing your content model. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
 
 ```
 USAGE:
-    cute typegen [OPTIONS]
+    cute type scaffold [OPTIONS]
 
 OPTIONS:
     -h, --help            Prints help information
@@ -162,632 +153,51 @@ OPTIONS:
 
 # Content generation using OpenAI
 
-You can generate content using OpenAI in bulk. Prompts are retrieved from your Contentful space. A typical prompt entry has an id, a system message, a prompt, points to a content type and field.  Something like :-
+You can generate content using OpenAI Generative Pre-trained Transformer (GPT) using the bulk operation feature of ***cute***.
 
-|Title|EntryField|
+OpenAI ChatGPT uses a state-of-the-art Large Language Model (LLM) to generate text that is difficult to distinguish from human-written content.
+
+Prompts and system messages that are generally used to interact with ChatGPT are configured and persisted in your Contentful space. This is especially useful as your AI prompts are persisted and backed up in the cloud right alongside your content.
+
+Prompts can be added and configured in the ```🤖 Cute / ContentGenerate``` section your Contentful space. A typical prompt entry has an id, a system message, a prompt, points to a content type and field.  Something like :-
+
+|Title|Note|
 |-|-|
-|title|Short text|
-|SystemMessage|Long text|
-|MainPrompt|Long text|
-|ContentTypeId|Short text|
-|ContentFieldId|Short text|
+|title|A short title by which the prompt entry is referred to.|
+|systemMessage|Used to communicate instructions or provide context to the model at the beginning of a conversation.|
+|prompt|A question or instruction that you issue to ChatGPT. This *prompt* is used to generate an appropriate response.|
+|deploymentModel|Select which Large Language Model (LLM) is used for your interaction.|
+|maxTokenLimit|The maximum tokens to be used for the interaction|
+|temperature|Controls the randomness of the generated response. A higher temperature value increases randomness, making the responses more diverse and creative, while a lower value makes them more focused and deterministic.|
+|topP|Controls the diversity of the generated output by truncating the probability distribution of words. It functions as a filter to determine the number of words or phrases the language model examines while predicting the next word. For instance, when the Top P value is set at 0.4, the model only considers 40% of the most probable words or phrases. A higher Top P value results in more diverse creative responses. A lower value will result in more focused and coherent responses.|
+|frequencyPenalty|Controls the repetitiveness of words in generated responses. Increasing this value is like telling ChatGPT not to use the same words too often.|
+|presencePenalty|Manages the appearance of words in generated text based on their position, rather than frequency. This parameter encourages ChatGPT to employ a more diverse vocabulary|
+|cuteDataQueryEntry|A link to the associated data query in ```🤖 Cute / DataQuery```|
+|promptOutputContentField|The target field of the content entry where the generated response is stored.|
 
 ```
 DESCRIPTION:
-Use generative AI to help build drafts of your content.
+Generate content using a Large Language Model (LLM).
 
 USAGE:
-    cute generate [OPTIONS]
+    cute content generate [OPTIONS]
 
 OPTIONS:
-    -h, --help                   Prints help information
-    -c, --prompt-content-type    The id of the content type containing prompts. Default is 'prompts'
-    -f, --prompt-field           The id of the field that contains the prompt key/title/id. Default is 'title'
-    -i, --prompt-id              The title of the Contentful prompt entry to generate content from
-    -l, --limit                  The total number of entries to generate content for before stopping. Default is five
-    -s, --skip                   The total number of entries to skip before starting. Default is zero
+    -h, --help          Prints help information
+    -k, --key           The key of the 'cuteContentGenerate' entry
+    -a, --apply         Apply and publish all the required edits
+    -o, --operation     Specify the generation operation to perform. (GenerateSingle, GenerateParallel,
+                                      GenerateBatch or ListBatches)
 ```
 
 
 # Command Structure for v2.0
 
-## Main Commands
+The full command structure for the usage of version 2 of ***cute*** can be found [in this document](./docs/CUTE-USAGE.md).
 
-### Verb Commands
-```
-cute login ...
-cute logout ...
-```
-### Noun Commands
-```
-cute info
-cute profile ...
-cute content ...
-cute type ...
-cute app ...
-cute server...
-cute report ...
-cute version
-```
+# Contributing to Cute
 
-
-## cute login
-
-Log in to Contentful. Run this first.
-
-### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --openai-deployment-name, -n <NAME> | The Azure OpenAI deployment name. |
-| --openai-endpoint, -a <ENDPOINT> | The Azure OpenAI endpoint. |
-| --openai-token, -k <TOKEN> | The Azure OpenAI Api key. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-## cute logout
-
-Log out of contentful.
-
-### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --openai-deployment-name, -n <NAME> | The Azure OpenAI deployment name. |
-| --openai-endpoint, -a <ENDPOINT> | The Azure OpenAI endpoint. |
-| --openai-token, -k <TOKEN> | The Azure OpenAI Api key. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-## cute info
-
-Display information about a Contentfult space.
-
-### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-## cute content
-
-Manage content entries in bulk.
-
-### cute content download
-
-Download Contentful entries to a local csv/tsv/yaml/json/excel file.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-id, -c <ID> | The Contentful content type id. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --format, -f <FORMAT> | The output format for the download operation (Excel/Csv/Tsv/Json/Yaml) |
-| --locale, -l <CODE> | The locale code (eg. 'en') to apply the command to. Default is all. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --path, -p <PATH> | The output path and filename for the download operation |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content upload
-
-Upload and sync Contentful entries from a local csv/tsv/yaml/json/excel file.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --apply, -a | Apply and publish all the calculated changes. The default behaviour is to only list the detected changes. |
-| --content-type-id, -c <ID> | The Contentful content type id. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --format, -f <FORMAT> | The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml) |
-| --locale, -l <CODE> | The locale code (eg. 'en') to apply the command to. Default is all. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --match-field, -m <NAME> | The optional name of the field to match in addition to the entry id. |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --path, -p <PATH> | The local path to the file containg the data to sync |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content edit
-
-Edit Contentful entries in bulk with an optional filter.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --apply, -a | Apply and publish all the required edits. The default behaviour is to only list the detected changes. |
-| --content-type-id, -c <ID> | The Contentful content type id. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --field, -f | The field to update. |
-| --force | Specifies whether warning prompts should be bypassed |
-| --locale, -l <CODE> | The locale code (eg. 'en') to apply the command to. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --replace, -r | The value to update it with. Can contain an expression. |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content replace
-
-Find and Replace values in Contentful entries in bulk with an optional filter.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --apply, -a | Apply and publish all the required edits. The default behaviour is to only list the detected changes. |
-| --content-type-id, -c <ID> | The Contentful content type id. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --field, -f | The field to update. |
-| --find, -i | The text to find. |
-| --force | Specifies whether warning prompts should be bypassed |
-| --locale, -l <CODE> | The locale code (eg. 'en') to apply the command to. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --replace, -r | The value to update it with. Can contain an expression. |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content publish
-
-Bulk publish all unpublished Contentful entries.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-id, -c <ID> | The Contentful content type id. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content unpublish
-
-Unpublish all published Contentful entries.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-id, -c <ID> | The Contentful content type id. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content delete
-
-Unpublish and delete all Contentful entries.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-id, -c <ID> | The Contentful content type id. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content sync-api
-
-Synchromise data to Contentful from an API.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --apply, -a | Apply and publish all the required edits. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --key, -k | The key of the cuteContentSyncApi entry. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --use-filecache, -u | Whether or not to cache responses to a local file cache for subsequent calls. |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content seed-geo
-
-Synchromise data to Contentful from an API.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-prefix, -c | The id of the content type containing location data. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --huge-population, -h | The city or town minimum population for large cities |
-| --input-file, -i | The path to the input file. |
-| --large-kilometer-radius, -l | The distance in kilometers for large city to nearest location |
-| --large-population, -n | The city or town minimum population for large cities |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --output-folder, -o | The output folder. |
-| --password, -p | The password to protect the Zip file with |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --small-kilometer-radius, -m | The distance in kilometers for small city to nearest location |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --upload, -u | Uploads the csv file to Contentful. |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-| --zip, -z | Output a zip file instead of a csv. Can be password protected with '--password'. |
-
-### cute content sync-db
-
-Synchronize data to Contentful from a database.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content generate
-
-Generate content using a Large Language Model (LLM).
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --apply, -a | Apply and publish all the required edits. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --key, -k | The key of the 'cuteContentGenerate' entry. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --operation, -o | Specify the generation operation to perform. (GenerateSingle, GenerateParallel, GenerateBatch or ListBatches) |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content generate-test
-
-Test generation of content using a Large Language Model (LLM).
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --comparison-operation, -o | The comparison operator to apply to the field. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --deployment-models, -m | The deployment models to test. |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --field-id, -f | The field id to filter on. |
-| --field-value, -v | The field value to filter on. |
-| --force | Specifies whether warning prompts should be bypassed |
-| --key, -k | The key of the 'cuteContentGenerate' entry. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content translate
-
-Translate content using an LLM or Translation Service.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content testdata
-
-Generate test data.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --number, -n | The number of user entries to generate. (default=1000). |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute content join
-
-Join multiple content types to a destination content type.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --entry-id, -i | Id of source 2 entry to join content for. |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --key, -k | The id of the Contentful join entry to generate content for. |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-## cute type
-
-Manage Contentful content types (models).
-
-### cute type scaffold
-
-Automatically scaffold Typescript or c# classes from Contentful.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type, -c | Specifies the content type to generate types for. Default is all. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --language, -l | The language to generate types for (TypeScript/CSharp/Excel). |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --namespace, -n | The optional namespace for the generated type. |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --output, -o | The local path to output the generated types to. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute type diff
-
-Compare content types across two environments and view with VS Code.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-id, -c <ID> | Specifies the content type id to generate types for. Default is all. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --source-environment-id | Specifies the source environment id to do comparison against |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute type clone
-
-Clone a content type and its entries between environments.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-id, -c <ID> | Specifies the content type id to generate types for. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --entries-per-batch, -b | Number of entries processed in parallel. |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --publish, -p | Whether to publish the created content or not. Useful if no circular references exist. |
-| --source-environment-id | Specifies the source environment id. |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute type rename
-
-Rename a content type including all references to it.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --apply-naming-convention, -a | The id to rename the content type to. |
-| --content-type, -c | Specifies the content type to generate types for. Default is all. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --new-id, -n | The id to rename the content type to. |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --publish, -p | Whether to publish the created content or not. Useful if no circular references exist. |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute type delete
-
-Delete a content type and its entries.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --content-type-id, -c <ID> | Specifies the content type id to be deleted. |
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-## cute app
-
-Generate a website or app from Contentful.
-
-### cute app generate
-
-Generate an app or website based on configuration in Contentful.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-## cute eval
-
-Tools to evaluate the quality the site and of LLM and translation output.
-
-### cute eval content-generator
-
-Use deepeval to measure the quality of content generation.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute eval content-translator
-
-Measure the quality of translation engine output.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-### cute eval naming
-
-Check and remediate violations of site naming conventions.
-
-#### Parameters
-
-| Option | Description |
-|--------|-------------|
-| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
-| --force | Specifies whether warning prompts should be bypassed |
-| --log-output | Outputs logs to the console instead of the standard messages. |
-| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --no-banner | Do not display the startup banner or the copyright message. |
-| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
-| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
-| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
-
-## cute version
-
-Display the current version of the CLI.
-
-
-
+We welcome community pull requests for bug fixes, enhancements, and documentation. See [How to contribute](./docs/CONTRIBUTING.md) for more information.
 
 [version-shield]: https://img.shields.io/nuget/v/cute.svg?style=for-the-badge
 
