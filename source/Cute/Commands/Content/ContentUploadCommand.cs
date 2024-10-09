@@ -23,11 +23,11 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
     public class Settings : ContentCommandSettings
     {
         [CommandOption("-p|--path <PATH>")]
-        [Description("The local path to the file containg the data to sync")]
+        [Description("The local path to the file containing the data to sync")]
         public string Path { get; set; } = default!;
 
         [CommandOption("-f|--format <FORMAT>")]
-        [Description("The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)")]
+        [Description("The format of the file specified in '--path' (Excel/CSV/TSV/JSON/YAML)")]
         public InputFileFormat? Format { get; set; }
 
         [CommandOption("-m|--match-field <NAME>")]
