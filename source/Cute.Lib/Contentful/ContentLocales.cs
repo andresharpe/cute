@@ -13,7 +13,7 @@ public class ContentLocales
         DefaultLocale = defaultLocale;
 
         Locales = locales
-            .Select(l => l.ToLower())
+            .Select(l => l)
             .Where(l => !l.Equals(defaultLocale))
             .OrderBy(l => l)
             .ToArray();
