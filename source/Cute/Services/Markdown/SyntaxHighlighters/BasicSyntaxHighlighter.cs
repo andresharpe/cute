@@ -1,5 +1,6 @@
 using ColorfulCode;
 using Cute.Services.Markdown.SyntaxHighlighters;
+using Spectre.Console;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Cute.Services.Markdown.Console.SyntaxHighlighters;
@@ -24,7 +25,7 @@ public class BasicSyntaxHighlighter : ISyntaxHighlighter
         language ??= "txt";
         var mappedLanguage = _languageMap.GetValueOrDefault(language, language);
 
-        string? markup = null;
+        string? markup;
         try
         {
             var syntax = _syntaxSet.FindByExtension(mappedLanguage);
@@ -34,13 +35,20 @@ public class BasicSyntaxHighlighter : ISyntaxHighlighter
         }
         catch
         {
-            markup = code;
+            markup = code.EscapeMarkup();
         }
 
         var lineNumber = 1;
         var lines = markup.Replace("\r\n", "\n").Split('\n');
 
         highlightedCode = new string[lines.Length];
+
+        if (lines.Length == 1)
+        {
+            var line = lines[0];
+            highlightedCode[0] = $" {line}";
+            return true;
+        }
 
         for (var i = 0; i < highlightedCode.Length; i++)
         {

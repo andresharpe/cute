@@ -12,20 +12,27 @@ public partial class AnsiRenderer
     private bool _isQuote = false;
 
     private void WriteInlines(IEnumerable<Inline> inlines,
-        string? markupTag = null, int indent = 0)
+        string? markupTag = null,
+        bool indentFirstLine = true)
     {
-        var startCol = System.Console.CursorLeft;
+        var linesWritten = 0;
+
+        var maxLineWidth = GetMaxWidth();
 
         foreach (var inline in inlines)
         {
+            var indentIt = indentFirstLine || linesWritten > 0;
+
+            linesWritten = 0;
+
             switch (inline)
             {
                 case LiteralInline literal:
-                    WriteLiteralInline(literal.ToString(), markupTag, indent: indent, startCol: startCol);
+                    WriteLiteralInline(literal.ToString(), markupTag, indentIt);
                     break;
 
                 case EmphasisInline emphasis:
-                    WriteEmphasisInline(emphasis, markupTag);
+                    WriteEmphasisInline(emphasis, markupTag, indentIt);
                     break;
 
                 case CodeInline code:
@@ -48,6 +55,7 @@ public partial class AnsiRenderer
                         break;
                     }
                     _console.WriteLine();
+                    linesWritten = 1;
                     break;
 
                 case TaskList task:
@@ -67,62 +75,80 @@ public partial class AnsiRenderer
     private static string _highlightedColor = Globals.StyleHeading.Foreground.ToString();
     private static string _accentColor = Globals.StyleAlertAccent.Foreground.ToString();
 
-    private const int maxLineWidth = 90;
-
-    private void WriteLiteralInline(string content, string? markupTag = null, int indent = 0, int startCol = 0)
+    private int WriteLiteralInline(string content, string? markupTag = null,
+        bool indentFirstLine = true)
     {
-        var result = content.EscapeMarkup();
-        var indentation = indent == 0 ? string.Empty : new string(' ', 4 + (indent * 3));
-        var secondPlusLineIndentation = startCol == 0 ? string.Empty : new string(' ', startCol);
-        var currentLine = 1;
-        var currentCol = System.Console.CursorLeft;
-        var maxchars = maxLineWidth - Math.Max(indentation.Length, startCol);
-        var firstMaxchars = maxchars - currentCol;
+        var linesWritten = 0;
 
-        if (firstMaxchars < 0)
+        var displayContent = content.EscapeMarkup();
+
+        var indentation = GetIndentation();
+
+        var firstLineIndentation = indentFirstLine
+            ? indentation
+            : string.Empty;
+
+        var currentLine = 1;
+
+        var maxLineWidth = GetMaxWidth();
+
+        var currentConsoleColumn = GetConsoleColumn();
+
+        var maxchars = maxLineWidth - indentation.Length;
+
+        var firstLineMaxchars = maxLineWidth - indentation.Length - currentConsoleColumn;
+
+        if (firstLineMaxchars < 0)
         {
-            firstMaxchars = maxLineWidth;
+            firstLineMaxchars = maxLineWidth;
+
             _console.WriteLine();
+
+            linesWritten++;
+
+            firstLineIndentation = indentation;
         }
 
-        foreach (var line in result.AsSpan().GetFixedLines(maxchars, firstMaxchars))
+        foreach (var line in displayContent.AsSpan().GetFixedLines(maxchars, firstLineMaxchars))
         {
-            var loopIndentation = currentLine == 1 ? string.Empty : indentation;
-            if (markupTag is not null)
-            {
-                _console.Markup($"{loopIndentation}[{markupTag.Trim()}]{line}[/]");
-                continue;
-            }
+            var loopIndentation = currentLine == 1
+                ? firstLineIndentation
+                : indentation;
+
+            var displayLine = markupTag is null
+                ? $"{loopIndentation}[{_defaultColor}]{line}[/]"
+                : $"{loopIndentation}[{markupTag.Trim()}]{line}[/]";
+
             if (currentLine > 1)
             {
                 _console.WriteLine();
-                _console.Markup($"{secondPlusLineIndentation}[{_defaultColor}]{line}[/]");
+                linesWritten++;
             }
-            else
-            {
-                _console.Markup($"{loopIndentation}[{_defaultColor}]{line}[/]");
-            }
+
+            _console.Markup(displayLine);
             currentLine++;
         }
+
+        return linesWritten;
     }
 
-    private void WriteEmphasisInline(EmphasisInline emphasis, string? markupTag = null)
+    private void WriteEmphasisInline(EmphasisInline emphasis, string? markupTag = null, bool indentFirstLine = true)
     {
         switch (emphasis.DelimiterChar)
         {
             case '*':
                 markupTag += $"bold {_highlightedColor}";
-                WriteInlines(emphasis, markupTag);
+                WriteInlines(emphasis, markupTag, indentFirstLine: indentFirstLine);
                 break;
 
             case '_':
                 markupTag += $"italic {_highlightedColor}";
-                WriteInlines(emphasis, markupTag);
+                WriteInlines(emphasis, markupTag, indentFirstLine: indentFirstLine);
                 break;
 
             case '~':
                 markupTag += $"strikethrough {_highlightedColor}";
-                WriteInlines(emphasis, markupTag);
+                WriteInlines(emphasis, markupTag, indentFirstLine: indentFirstLine);
                 break;
 
             default:
@@ -139,9 +165,9 @@ public partial class AnsiRenderer
     {
         var sb = new StringBuilder();
 
-        sb.Append($"[{_accentColor}]");
+        sb.Append($"[{_defaultColor}]");
         sb.Append(_characterSet.InlineCodeOpening);
-        sb.Append("[invert]");
+        sb.Append("[italic]");
         sb.Append(code.Content.EscapeMarkup());
         sb.Append("[/]");
         sb.Append(_characterSet.InlineCodeClosing);

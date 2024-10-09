@@ -12,8 +12,8 @@ public class AsciiCharacterSet : CharacterSet
     public override string Seven { get; } = "7";
     public override string Eight { get; } = "8";
     public override string Nine { get; } = "9";
-    public override string InlineCodeOpening { get; } = "├";
-    public override string InlineCodeClosing { get; } = "┤";
+    public override string InlineCodeOpening { get; } = "«";
+    public override string InlineCodeClosing { get; } = "»";
     public override string ListBullet { get; } = "•";
     public override string QuotePrefix { get; } = "»";
     public override string TaskListBulletDone { get; } = "[✓]";
