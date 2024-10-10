@@ -436,7 +436,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             All content type and field names MUST be camel case and match the schema. Correct user input and spelling automatically.
             For types that contain a "key" and/or "title" field MUST contain these fields in your final query by default.
             Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
-            Make sure GraphQl queries are correct, fields are cased exactly right and query is prettified on multiple state.Lines.
+            Make sure GraphQl queries are correct, fields are cased exactly right and query is prettified on multiple lines.
             Always use preview data in the GraphQL query.
 
             The valid content types and fields that are available in this Contentful space are contained in the following quoted text:
