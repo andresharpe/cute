@@ -103,8 +103,8 @@ public class ContentReplaceCommand(IConsoleWriter console, ILogger<ContentReplac
 
         var contentLocales = await ContentfulConnection.GetContentLocalesAsync();
 
-        await PerformBulkOperations([
-
+        var bulkOperations = new List<IBulkAction>()
+        {
             new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
@@ -119,13 +119,20 @@ public class ContentReplaceCommand(IConsoleWriter console, ILogger<ContentReplac
                         ContentfulConnection
                     ))
                 .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity),
+                .WithVerbosity(settings.Verbosity)
+        };
 
-            new PublishBulkAction(ContentfulConnection, _httpClient)
+        if (settings.Apply)
+        {
+            bulkOperations.Add(
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)
-        ]);
+            );
+        }
+
+        await PerformBulkOperations(bulkOperations.ToArray());
 
         return 0;
     }

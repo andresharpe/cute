@@ -23,11 +23,11 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
     public class Settings : ContentCommandSettings
     {
         [CommandOption("-p|--path <PATH>")]
-        [Description("The local path to the file containg the data to sync")]
+        [Description("The local path to the file containing the data to sync")]
         public string Path { get; set; } = default!;
 
         [CommandOption("-f|--format <FORMAT>")]
-        [Description("The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml)")]
+        [Description("The format of the file specified in '--path' (Excel/CSV/TSV/JSON/YAML)")]
         public InputFileFormat? Format { get; set; }
 
         [CommandOption("-m|--match-field <NAME>")]
@@ -90,9 +90,9 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
 
             settings.MatchField = field.Id;
         }
-        await PerformBulkOperations(
-        [
 
+        var bulkOperations = new List<IBulkAction>()
+        {
             new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
@@ -104,15 +104,19 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
                     ))
                 .WithMatchField(settings.MatchField)
                 .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity),
+                .WithVerbosity(settings.Verbosity)
+        };
 
-            new PublishBulkAction(ContentfulConnection, _httpClient)
+        if (settings.Apply) {
+            bulkOperations.Add(
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)
+            );
+        }
 
-            ]
-        );
+        await PerformBulkOperations(bulkOperations.ToArray());
 
         return 0;
     }

@@ -92,8 +92,8 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
 
         var contentLocales = await ContentfulConnection.GetContentLocalesAsync();
 
-        await PerformBulkOperations([
-
+        var bulkOperations = new List<IBulkAction>()
+        {
             new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
@@ -107,13 +107,20 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
                         ContentfulConnection
                     ))
                 .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity),
+                .WithVerbosity(settings.Verbosity)
+        };
 
-            new PublishBulkAction(ContentfulConnection, _httpClient)
+        if (settings.Apply)
+        {
+            bulkOperations.Add(
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)
-        ]);
+            );
+        }
+
+        await PerformBulkOperations(bulkOperations.ToArray());
 
         return 0;
     }

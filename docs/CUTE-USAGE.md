@@ -44,7 +44,7 @@ Log out of contentful.
 
 ## cute info
 
-Display information about a Contentfult space.
+Display information about a Contentful space.
 
 ### Parameters
 
@@ -62,7 +62,7 @@ Display information about a Contentfult space.
 
 ## cute chat
 
-Make the robots do the work! Interact with your space using A.I.
+Make the robots do the work! Interact with your space using AI
 
 ### Parameters
 
@@ -123,7 +123,7 @@ Upload and sync Contentful entries from a local csv/tsv/yaml/json/excel file.
 | --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --match-field, -m <NAME> | The optional name of the field to match in addition to the entry id. |
 | --no-banner | Do not display the startup banner or the copyright message. |
-| --path, -p <PATH> | The local path to the file containg the data to sync |
+| --path, -p <PATH> | The local path to the file containing the data to sync |
 | --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
 | --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
@@ -234,7 +234,7 @@ Unpublish and delete all Contentful entries.
 
 ### cute content sync-api
 
-Synchromise data to Contentful from an API.
+Synchronise data to Contentful from an API.
 
 #### Parameters
 
