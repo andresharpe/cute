@@ -16,6 +16,7 @@ using Cute.Lib.Extensions;
 using Cute.Services;
 using Cute.Services.CliCommandInfo;
 using Cute.Services.Markdown;
+using Cute.Services.ReadLine;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -168,7 +169,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                 Globals.StyleHeading);
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights(
-                $"Just type your prompt and press '{"<Enter>"}' twice to set sail!",
+                $"Just type your prompt and press '{"<Tab>"}' or {"<Ctrl+Enter>"} to set sail!",
                 Globals.StyleHeading);
             _console.WriteBlankLine();
         }
@@ -201,7 +202,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         if (!isDouglas)
         {
-            _console.WriteNormalWithHighlights($"Press {"<Enter>"} on a blank line to submit your prompt. (i.e. type your prompt and press {"<Enter>"} twice).", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"Press {"<Tab>"} or {"<Ctrl+Enter>"} to submit your prompt.", Globals.StyleHeading);
             _console.WriteBlankLine();
         }
 
@@ -220,21 +221,9 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             var sbInput = new StringBuilder();
             var prompt = "> ";
-            while (true)
-            {
-                string promptInput = ReadLine.Read(prompt);
-                if (promptInput == "") break;
-                sbInput.AppendLine(promptInput);
-                if (UserWantsToLeave(promptInput)) break;
-                ReadLine.AddHistory(promptInput);
-                prompt = "  ";
-            }
+            var input = MultiLineConsoleInput.ReadLine(prompt);
 
-            var input = sbInput.ToString();
-
-            if (string.IsNullOrWhiteSpace(input)) continue;
-
-            if (UserWantsToLeave(input))
+            if (string.IsNullOrWhiteSpace(input) || UserWantsToLeave(input))
             {
                 _console.WriteBlankLine();
                 _console.WriteAlert(isDouglas ? $"{SayBye()}!" : "Thank you for trying \"cute chat\". Good bye.");
@@ -447,7 +436,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             All content type and field names MUST be camel case and match the schema. Correct user input and spelling automatically.
             For types that contain a "key" and/or "title" field MUST contain these fields in your final query by default.
             Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
-            Make sure GraphQl queries are correct, fields are cased exactly right and query is prettified on multiple lines.
+            Make sure GraphQl queries are correct, fields are cased exactly right and query is prettified on multiple state.Lines.
             Always use preview data in the GraphQL query.
 
             The valid content types and fields that are available in this Contentful space are contained in the following quoted text:
@@ -613,7 +602,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         return client.GetChatClient(options.DeploymentName);
     }
 
-    private async Task<string> SendPromptToModel(ChatClient chatClient, ChatCompletionOptions chatCompletionOptions,
+    private static async Task<string> SendPromptToModel(ChatClient chatClient, ChatCompletionOptions chatCompletionOptions,
         List<ChatMessage> messages)
     {
         var sb = new StringBuilder();
