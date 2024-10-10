@@ -152,6 +152,16 @@ public partial class AnsiRenderer
     [GeneratedRegex(@"\[\/?(?:\w+|\#\w+|[^\]]+)\]")]
     private static partial Regex SpectreConsoleMarkupRegex();
 
+    private static string AnsiConsoleToTextOnly(string input)
+    {
+        string cleanOutput = AnsiControlCodes().Replace(input, string.Empty);
+
+        return cleanOutput;
+    }
+
+    [GeneratedRegex(@"\u001b\[[0-9;]*[a-zA-Z]")]
+    private static partial Regex AnsiControlCodes();
+
     private void ThrowOrFallbackToPlainText(MarkdownObject markdownObject)
     {
         var span = markdownObject.Span;

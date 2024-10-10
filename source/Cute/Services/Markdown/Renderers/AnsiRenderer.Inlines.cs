@@ -71,9 +71,10 @@ public partial class AnsiRenderer
         }
     }
 
-    private static string _defaultColor = Globals.StyleSubHeading.Foreground.ToString();
-    private static string _highlightedColor = Globals.StyleHeading.Foreground.ToString();
-    private static string _accentColor = Globals.StyleAlertAccent.Foreground.ToString();
+    private static readonly string _defaultColor = Globals.StyleSubHeading.Foreground.ToString();
+    private static readonly string _highlightedColor = Globals.StyleHeading.Foreground.ToString();
+    private static readonly string _accentColor = Globals.StyleAlertAccent.Foreground.ToString();
+    private static readonly string _accentColor2 = Globals.StyleAlert.Foreground.ToString();
 
     private int WriteLiteralInline(string content, string? markupTag = null,
         bool indentFirstLine = true)

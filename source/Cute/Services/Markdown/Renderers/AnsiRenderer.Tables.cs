@@ -64,16 +64,6 @@ public partial class AnsiRenderer
 
         _console.Write(table);
     }
-
-    private static string AnsiConsoleToTextOnly(string input)
-    {
-        string cleanOutput = AnsiControlCodes().Replace(input, string.Empty);
-
-        return cleanOutput;
-    }
-
-    [GeneratedRegex(@"\u001b\[[0-9;]*[a-zA-Z]")]
-    private static partial Regex AnsiControlCodes();
 }
 
 // end of class

@@ -24,7 +24,7 @@ public partial class AnsiRenderer
                 .Build();
 
             subRenderer.WriteInlines(link.Descendants<Inline>());
-            label = writer.ToString();
+            label = AnsiConsoleToTextOnly(writer.ToString()).Trim();
         }
 
         if (label is null && url is null)
@@ -60,7 +60,7 @@ public partial class AnsiRenderer
 
     private void WriteInlineTextLink(string label, string url)
     {
-        _console.Markup($"[{_accentColor} link={url}]{label.EscapeMarkup()}[/]");
+        _console.Markup($"[{_accentColor2} italic link={url}]{label.EscapeMarkup()}[/]");
     }
 
     private void WriteInlineImageLink(string label, string url)
