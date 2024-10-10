@@ -346,6 +346,18 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 
     public async Task PerformBulkOperations(IBulkAction[] executors)
     {
+        if (ConsoleWriter.EnableConsole)
+        {
+            await PerformBulkOperationsWithConsole(executors);
+        }
+        else
+        {
+            await PerformBulkOperationsWithoutConsole(executors);
+        }
+    }
+
+    public async Task PerformBulkOperationsWithConsole(IBulkAction[] executors)
+    {
         var task = new List<List<ProgressTask>>(executors.Length);
 
         var taskRetries = new List<List<ProgressTask>>(executors.Length);
@@ -432,5 +444,16 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                  ctx.Refresh();
              }
          });
+    }
+
+    public async Task PerformBulkOperationsWithoutConsole(IBulkAction[] executors)
+    {
+        for (var i = 0; i < executors.Length; i++)
+        {
+            await executors[i]
+              .WithContentfulConnection(_contentfulConnection)
+              .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+              .ExecuteAsync();
+        }
     }
 }
