@@ -4,7 +4,7 @@ namespace Cute.Services.ReadLine;
 
 public static partial class MultiLineConsoleInput
 {
-    private static void InsertCharacter(InputState state, ConsoleKeyInfo input)
+    private static void InsertCharacter(InputState state, char inputChar)
     {
         if (state.IsSelecting)
         {
@@ -12,7 +12,20 @@ public static partial class MultiLineConsoleInput
             state.IsSelecting = false;
         }
 
-        state.ExecuteCommand(new InsertCharacterCommand(state, input.KeyChar));
+        state.ExecuteCommand(new InsertCharacterCommand(state, inputChar));
+
+        state.IsDisplayValid = false;
+    }
+
+    private static void InsertString(InputState state, string inputString)
+    {
+        if (state.IsSelecting)
+        {
+            DeleteSelectedText(state);
+            state.IsSelecting = false;
+        }
+
+        InsertLines(state, inputString);
 
         state.IsDisplayValid = false;
     }

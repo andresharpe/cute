@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using System.Text;
 
 namespace Cute.Services.ReadLine;
 
@@ -36,8 +37,20 @@ public static partial class MultiLineConsoleInput
         {
             Render(state, options);
 
-            state.InputKeyInfo = Console.ReadKey(intercept: true);
+            var input = Console.ReadKey(intercept: true);
 
+            if (Console.KeyAvailable && input.KeyChar != '\0' && !char.IsControl(input.KeyChar))
+            {
+                var sb = new StringBuilder();
+                while (Console.KeyAvailable && input.KeyChar != '\0' && !char.IsControl(input.KeyChar))
+                {
+                    sb.Append(input.KeyChar);
+                    input = Console.ReadKey(intercept: true);
+                }
+                InsertString(state, sb.ToString());
+            }
+
+            state.InputKeyInfo = input;
             ProcessInput(state, options);
         }
 
@@ -175,8 +188,7 @@ public static partial class MultiLineConsoleInput
         }
         else if (input.KeyChar != '\0' && !char.IsControl(input.KeyChar))
         {
-            // Character input
-            InsertCharacter(state, input);
+            InsertCharacter(state, input.KeyChar);
         }
     }
 }
