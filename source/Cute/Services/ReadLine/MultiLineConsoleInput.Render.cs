@@ -1,4 +1,6 @@
-﻿namespace Cute.Services.ReadLine;
+﻿using System.Runtime.InteropServices;
+
+namespace Cute.Services.ReadLine;
 
 public static partial class MultiLineConsoleInput
 {
@@ -7,6 +9,25 @@ public static partial class MultiLineConsoleInput
         if (Console.KeyAvailable) return;
 
         var prompt = options.Prompt;
+
+        int promptLength = prompt.Length;
+
+        var oldDisplayWidth = state.DisplayWidth;
+
+        state.DisplayWidth = Console.WindowWidth - prompt.Length - 1;
+
+        state.IsDisplayValid = state.IsDisplayValid && oldDisplayWidth == state.DisplayWidth;
+
+        if (state.IsDisplayValid && !state.IsSelecting && !state.WasSelecting)
+        {
+            UdateDisplayPositions(state);
+            Console.SetCursorPosition(
+                state.DisplayPos.Column + promptLength,
+                state.RenderStartRow + state.DisplayPos.Row);
+            return;
+        }
+
+        state.WasSelecting = state.IsSelecting;
 
         var ansiPromptColor = $"\x1b[38;2;{options.PromptForeground.R};{options.PromptForeground.G};{options.PromptForeground.B}m";
 
@@ -19,32 +40,15 @@ public static partial class MultiLineConsoleInput
 
         Console.CursorVisible = false;
 
-        var oldDisplayWidth = state.DisplayWidth;
-
-        state.DisplayWidth = Console.WindowWidth
-                - prompt.Length
-                - 1;
-
-        state.IsDisplayValid = state.IsDisplayValid && oldDisplayWidth == state.DisplayWidth;
-
         UpdateDisplayLines(state);
-        UpdateDisplayPosition(state);
-        if (state.IsSelecting)
-        {
-            UpdateDisplaySelectStartPosition(state);
-            UpdateDisplaySelectEndPosition(state);
-        }
 
-        if (!(state.InputKeyInfo.Key == ConsoleKey.DownArrow || state.InputKeyInfo.Key == ConsoleKey.UpArrow))
-        {
-            state.VerticalDisplayColumn = state.DisplayPos.Column;
-        }
-
-        int promptLength = prompt.Length;
+        UdateDisplayPositions(state);
 
         string promptPadding = new(' ', prompt.Length);
 
         int displayWidth = state.DisplayWidth;
+
+        EnsureConsoleBufferHeight(state);
 
         for (int i = 0; i < state.DisplayLines.Count; i++)
         {
@@ -52,16 +56,9 @@ public static partial class MultiLineConsoleInput
 
             var lineEndsWithSelect = state.IsSelecting && i >= state.DisplaySelectStartPos.Row && i < state.DisplaySelectEndPos.Row;
 
-            var (_, _, displayLine) = state.DisplayLines[i];
+            var displayLine = state.DisplayLines[i].Line;
 
             var line = $"{displayLine} ";
-
-            if (state.RenderStartRow + i >= Console.BufferHeight)
-            {
-                Console.WriteLine();
-                state.RenderStartRow--;
-                state.RenderEndRow--;
-            }
 
             Console.SetCursorPosition(state.RenderStartColumn, state.RenderStartRow + i);
 
@@ -128,23 +125,62 @@ public static partial class MultiLineConsoleInput
         Console.CursorVisible = true;
     }
 
+    private static void EnsureConsoleBufferHeight(InputState state)
+    {
+        if (state.RenderStartRow + state.DisplayLines.Count >= Console.BufferHeight)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Console.BufferHeight = state.RenderStartRow + state.DisplayLines.Count;
+            }
+            else
+            {
+                for (var i = state.RenderEndRow+1; i <= state.DisplayLines.Count; i++)
+                {
+                    Console.SetCursorPosition(state.RenderStartColumn, state.RenderEndRow + (i-state.RenderEndRow));
+                    Console.WriteLine();
+                    state.RenderStartRow--;
+                    state.RenderEndRow--;
+                }
+            }
+        }
+    }
+
+    private static void UdateDisplayPositions(InputState state)
+    {
+        UpdateDisplayPosition(state);
+        if (state.IsSelecting)
+        {
+            UpdateDisplaySelectStartPosition(state);
+            UpdateDisplaySelectEndPosition(state);
+        }
+        if (!(state.InputKeyInfo.Key == ConsoleKey.DownArrow || state.InputKeyInfo.Key == ConsoleKey.UpArrow))
+        {
+            state.VerticalDisplayColumn = state.DisplayPos.Column;
+        }
+    }
+
     private static void UpdateDisplayLines(InputState state)
     {
         if (state.IsDisplayValid) return;
 
         state.DisplayLines.Clear();
         var row = 0;
-        foreach (var line in state.BufferLines)
+        var spanLines = state.BufferLines.GetAllSpanLines();
+
+        foreach (var line in spanLines)
         {
             var col = 0;
-            foreach (var displayLine in line.ToString().AsSpan().GetFixedLines(state.DisplayWidth))
+            foreach (var displayLine in line.Span.GetFixedSpanLines(state.DisplayWidth))
             {
-                state.DisplayLines.Add(new(row, col, displayLine));
+                state.DisplayLines.Add(
+                    new(row, col, displayLine)
+                );
                 col += displayLine.Length + 1;
             }
             if (col == 0)
             {
-                state.DisplayLines.Add(new(row, 0, string.Empty));
+                state.DisplayLines.Add(new(row, 0, ReadOnlyMemory<char>.Empty));
             }
             row++;
         }
@@ -158,8 +194,12 @@ public static partial class MultiLineConsoleInput
     {
         var currentDisplayLine = 0;
 
-        foreach (var (row, col, line) in state.DisplayLines)
+        foreach (var displayLine in state.DisplayLines)
         {
+            var row = displayLine.Row;
+            var col = displayLine.Column;
+            var line = displayLine.Line;
+
             if (state.BufferPos.Row == row
                 && state.BufferPos.Column >= col
                 && state.BufferPos.Column <= col + line.Length)
@@ -178,8 +218,12 @@ public static partial class MultiLineConsoleInput
     {
         var currentDisplayLine = 0;
 
-        foreach (var (row, col, line) in state.DisplayLines)
+        foreach (var displayLine in state.DisplayLines)
         {
+            var row = displayLine.Row;
+            var col = displayLine.Column;
+            var line = displayLine.Line;
+
             if (state.BufferSelectStartPos.Row == row
                 && state.BufferSelectStartPos.Column >= col
                 && state.BufferSelectStartPos.Column <= col + line.Length)
@@ -198,8 +242,12 @@ public static partial class MultiLineConsoleInput
     {
         var currentDisplayLine = 0;
 
-        foreach (var (row, col, line) in state.DisplayLines)
+        foreach (var displayLine in state.DisplayLines)
         {
+            var row = displayLine.Row;
+            var col = displayLine.Column;
+            var line = displayLine.Line;
+
             if (state.BufferSelectEndPos.Row == row
                 && state.BufferSelectEndPos.Column >= col
                 && state.BufferSelectEndPos.Column <= col + line.Length)

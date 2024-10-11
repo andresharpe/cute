@@ -1,6 +1,4 @@
-﻿using System.Text;
-
-namespace Cute.Services.ReadLine;
+﻿namespace Cute.Services.ReadLine;
 
 public static partial class MultiLineConsoleInput
 {
@@ -11,13 +9,13 @@ public static partial class MultiLineConsoleInput
             _historyEntry++;
             if (_historyEntry < _history.Count)
             {
-                state.BufferLines = _history[_historyEntry].BufferLines.Select(sb => new StringBuilder(sb.ToString())).ToList();
+                state.BufferLines = new(_history[_historyEntry].BufferLines);
                 state.BufferPos.Row = Math.Max(0, _history[_historyEntry].BufferLines.Count - 1);
                 state.BufferPos.Column = _history[_historyEntry].BufferLines.Last().Length;
             }
             else
             {
-                state.BufferLines = [new()];
+                state.BufferLines = new();
                 state.BufferPos.Row = 0;
                 state.BufferPos.Column = 0;
             }
@@ -30,7 +28,7 @@ public static partial class MultiLineConsoleInput
         if (_historyEntry > 0)
         {
             _historyEntry--;
-            state.BufferLines = _history[_historyEntry].BufferLines.Select(sb => new StringBuilder(sb.ToString())).ToList();
+            state.BufferLines = new(_history[_historyEntry].BufferLines);
             state.BufferPos.Row = Math.Max(0, _history[_historyEntry].BufferLines.Count - 1);
             state.BufferPos.Column = _history[_historyEntry].BufferLines.Last().Length;
             state.IsDisplayValid = false;

@@ -59,6 +59,10 @@ public static partial class MultiLineConsoleInput
             return null;
         }
 
+        state.UndoStack.Clear();
+        state.RedoStack.Clear();
+        state.DisplayLines.Clear();
+        state.Clipboard = null!;
         _history.Add(state);
 
         return string.Join("\n", state.BufferLines);
@@ -146,12 +150,12 @@ public static partial class MultiLineConsoleInput
         else if (input.Key == ConsoleKey.Backspace)
         {
             // Backspace
-            HandleBackspace(state, input);
+            DeleteTextBackwards(state, input);
         }
         else if (input.Key == ConsoleKey.Delete)
         {
             // Delete
-            HandleDelete(state, input);
+            DeleteTextForwards(state, input);
         }
         else if (input.Key == ConsoleKey.Tab
             || (input.Key == ConsoleKey.Enter && input.Modifiers.HasFlag(ConsoleModifiers.Control)))
@@ -162,17 +166,17 @@ public static partial class MultiLineConsoleInput
         else if (input.Key == ConsoleKey.Enter)
         {
             // Enter: New line
-            HandleEnter(state);
+            InsertNewline(state);
         }
         else if (input.Key == ConsoleKey.Escape)
         {
             // Escape: Cancel input if empty
-            HandleEscape(state, options);
+            ClearInputOrExit(state, options);
         }
         else if (input.KeyChar != '\0' && !char.IsControl(input.KeyChar))
         {
             // Character input
-            HandleCharacterInput(state, input);
+            InsertCharacter(state, input);
         }
     }
 }
