@@ -32,8 +32,11 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
+      - name: Restore
+        run: dotnet restore Nox.sln
+
       - name: Build Cute Cli
-        run: dotnet build sln.sln --warnaserror --configuration Release --no-incremental
+        run: dotnet build sln.sln --warnaserror --no-restore  --configuration Release --no-incremental
 
 
         
