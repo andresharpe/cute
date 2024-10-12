@@ -3,13 +3,13 @@ name: Build & Test
 on:
   workflow_dispatch:
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - source/**
       - tests/**
       - .github/workflows/ci.yml
   push:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - source/**
       - tests/**
@@ -17,6 +17,7 @@ on:
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,8 +33,14 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
-      - name: Build Cute Cli
-        run: dotnet build sln.sln --warnaserror --configuration Release --no-incremental
+      - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Build
+        run: dotnet build ./source/Cute --warnaserror --configuration Release
+
 
 
         
