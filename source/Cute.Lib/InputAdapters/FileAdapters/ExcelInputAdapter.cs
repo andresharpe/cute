@@ -100,6 +100,6 @@ internal class ExcelInputAdapter : InputAdapterBase
 
     public override Task<int> GetRecordCountAsync()
     {
-        return Task.FromResult(_sheet.LastRowUsed()!.RowNumber() - 1);
+        return Task.FromResult(_sheet.LastRowUsed().RowNumber() - 1);
     }
 }

@@ -5,6 +5,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<RootNamespace>Cute</RootNamespace>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 	</PropertyGroup>
 	<PropertyGroup>
 		<!-- https://learn.microsoft.com/en-us/nuget/reference/msbuild-targets -->
