@@ -17,6 +17,7 @@ on:
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,11 +33,14 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
-      - name: Restore
-        run: dotnet restore sln.sln
+      - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
 
-      - name: Build Cute Cli
-        run: dotnet build sln.sln --warnaserror --no-restore  --configuration Release --no-incremental
+      - name: Build
+        run: dotnet build ./source/Cute --warnaserror --configuration Release
+
 
 
         
