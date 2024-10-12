@@ -1,5 +1,4 @@
-﻿using Azure;
-using Azure.AI.OpenAI;
+﻿using Azure.AI.OpenAI;
 using Contentful.Core.Models;
 using Contentful.Core.Models.Management;
 using Cute.Commands.BaseCommands;
@@ -22,6 +21,7 @@ using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using System.ClientModel;
 using System.ComponentModel;
 using System.Text;
 
@@ -115,7 +115,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             chatCompletionOptions = new()
             {
-                MaxTokens = apiSyncEntry.MaxTokenLimit,
+                MaxOutputTokenCount = apiSyncEntry.MaxTokenLimit,
                 Temperature = (float)apiSyncEntry.Temperature,
                 FrequencyPenalty = (float)apiSyncEntry.FrequencyPenalty,
                 PresencePenalty = (float)apiSyncEntry.PresencePenalty,
@@ -188,11 +188,11 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             _console.WriteBlankLine();
             _console.WriteRuler("Model Setings");
             _console.WriteBlankLine();
-            AnsiConsole.MarkupLine(_console.FormatToMarkup($"MaxTokens         : {chatCompletionOptions.MaxTokens}", Globals.StyleDim, Globals.StyleSubHeading));
-            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Temperature       : {chatCompletionOptions.Temperature}", Globals.StyleDim, Globals.StyleSubHeading));
-            AnsiConsole.MarkupLine(_console.FormatToMarkup($"TopP              : {chatCompletionOptions.TopP}", Globals.StyleDim, Globals.StyleSubHeading));
-            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Frequency Penalty : {chatCompletionOptions.FrequencyPenalty}", Globals.StyleDim, Globals.StyleSubHeading));
-            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Presence Penalty  : {chatCompletionOptions.PresencePenalty}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"MaxOutputTokenCount : {chatCompletionOptions.MaxOutputTokenCount}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Temperature         : {chatCompletionOptions.Temperature}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"TopP                : {chatCompletionOptions.TopP}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Frequency Penalty   : {chatCompletionOptions.FrequencyPenalty}", Globals.StyleDim, Globals.StyleSubHeading));
+            AnsiConsole.MarkupLine(_console.FormatToMarkup($"Presence Penalty    : {chatCompletionOptions.PresencePenalty}", Globals.StyleDim, Globals.StyleSubHeading));
             _console.WriteBlankLine();
             _console.WriteRuler();
         }
@@ -379,7 +379,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     {
         return new ChatCompletionOptions()
         {
-            MaxTokens = settings.MaxTokens,
+            MaxOutputTokenCount = settings.MaxTokens,
             Temperature = settings.Temperature,
             FrequencyPenalty = settings.FrequencyPenalty,
             PresencePenalty = settings.PresencePenalty,
@@ -594,7 +594,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         AzureOpenAIClient client = new(
             new Uri(options.Endpoint),
-            new AzureKeyCredential(options.ApiKey)
+            new ApiKeyCredential(options.ApiKey)
         );
 
         return client.GetChatClient(options.DeploymentName);
