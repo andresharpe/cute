@@ -2,7 +2,7 @@
 
 public static partial class MultiLineConsoleInput
 {
-    private class ConsoleCursor
+    internal class ConsoleCursor
     {
 #pragma warning disable IDE1006 // Naming Styles
         internal int Row = 0;

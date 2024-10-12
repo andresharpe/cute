@@ -1,23 +1,36 @@
-﻿using System.Text;
+﻿using Cute.Services.ReadLine.Commands;
 
 namespace Cute.Services.ReadLine;
 
 public static partial class MultiLineConsoleInput
 {
-    private static void HandleCharacterInput(InputState state, ConsoleKeyInfo input)
+    private static void InsertCharacter(InputState state, char inputChar)
     {
         if (state.IsSelecting)
         {
-            SaveUndoState(state);
             DeleteSelectedText(state);
             state.IsSelecting = false;
         }
-        SaveUndoState(state);
-        state.BufferLines[state.BufferPos.Row] = state.BufferLines[state.BufferPos.Row].Insert(state.BufferPos.Column++, input.KeyChar);
+
+        state.ExecuteCommand(new InsertCharacterCommand(state, inputChar));
+
         state.IsDisplayValid = false;
     }
 
-    private static void HandleEscape(InputState state, InputOptions options)
+    private static void InsertString(InputState state, string inputString)
+    {
+        if (state.IsSelecting)
+        {
+            DeleteSelectedText(state);
+            state.IsSelecting = false;
+        }
+
+        InsertLines(state, inputString);
+
+        state.IsDisplayValid = false;
+    }
+
+    private static void ClearInputOrExit(InputState state, InputOptions options)
     {
         if (state.BufferLines.Count == 1 && state.BufferLines[0].Length == 0)
         {
@@ -26,104 +39,89 @@ public static partial class MultiLineConsoleInput
         }
         else
         {
-            SaveUndoState(state);
-            state.BufferLines.Clear();
-            state.BufferLines.Add(new());
-            state.BufferPos.Column = 0;
-            state.BufferPos.Row = 0;
+            state.ExecuteCommand(new DeleteLinesCommand(state));
             state.IsSelecting = false;
             state.IsDisplayValid = false;
         }
     }
 
-    private static void HandleEnter(InputState state)
+    private static void InsertNewline(InputState state)
     {
         if (state.IsSelecting)
         {
-            SaveUndoState(state);
             DeleteSelectedText(state);
             state.IsSelecting = false;
         }
-        // Push the current state onto the undo stack
-        SaveUndoState(state);
-        var remaining = new StringBuilder(state.BufferLines[state.BufferPos.Row].ToString(state.BufferPos.Column, state.BufferLines[state.BufferPos.Row].Length - state.BufferPos.Column));
-        state.BufferLines[state.BufferPos.Row].Length = state.BufferPos.Column;
-        state.BufferLines.Insert(++state.BufferPos.Row, remaining);
-        state.BufferPos.Column = 0;
+        state.ExecuteCommand(new InsertNewlineCommand(state));
         state.IsDisplayValid = false;
     }
 
-    private static void HandleDelete(InputState state, ConsoleKeyInfo input)
+    private static void DeleteTextForwards(InputState state, ConsoleKeyInfo input)
     {
+        state.BufferPreviousPos.Column = state.BufferPos.Column;
+        state.BufferPreviousPos.Row = state.BufferPos.Row;
+
         if (input.Modifiers.HasFlag(ConsoleModifiers.Control))
         {
             // Ctrl + Delete: Delete next word
-            SaveUndoState(state);
             DeleteNextWord(state);
         }
         else
         {
             if (state.IsSelecting)
             {
-                SaveUndoState(state);
                 DeleteSelectedText(state);
                 state.IsSelecting = false;
             }
             else
             {
-                if (state.BufferPos.Column < state.BufferLines[state.BufferPos.Row].Length)
-                {
-                    SaveUndoState(state);
-                    state.BufferLines[state.BufferPos.Row] = state.BufferLines[state.BufferPos.Row].Remove(state.BufferPos.Column, 1);
-                }
-                else if (state.BufferPos.Row < state.BufferLines.Count - 1)
-                {
-                    SaveUndoState(state);
-                    state.BufferLines[state.BufferPos.Row].Append(state.BufferLines[state.BufferPos.Row + 1]);
-                    state.BufferLines.RemoveAt(state.BufferPos.Row + 1);
-                }
+                state.ExecuteCommand(new DeleteCharacterCommand(state));
             }
         }
         state.IsDisplayValid = false;
     }
 
-    private static void HandleBackspace(InputState state, ConsoleKeyInfo input)
+    private static void DeleteTextBackwards(InputState state, ConsoleKeyInfo input)
     {
+        state.BufferPreviousPos.Column = state.BufferPos.Column;
+        state.BufferPreviousPos.Row = state.BufferPos.Row;
+
         if (input.Modifiers.HasFlag(ConsoleModifiers.Control))
         {
             // Ctrl + Backspace: Delete previous word
-            SaveUndoState(state);
             DeletePreviousWord(state);
         }
         else
         {
             if (state.IsSelecting)
             {
-                SaveUndoState(state);
                 DeleteSelectedText(state);
                 state.IsSelecting = false;
             }
             else
             {
-                if (state.BufferPos.Column > 0)
+                if (state.BufferPos.Row > 0 || state.BufferPos.Column > 0)
                 {
-                    SaveUndoState(state);
-                    state.BufferLines[state.BufferPos.Row] = state.BufferLines[state.BufferPos.Row].Remove(--state.BufferPos.Column, 1);
-                }
-                else if (state.BufferPos.Row > 0)
-                {
-                    SaveUndoState(state);
-                    state.BufferPos.Column = state.BufferLines[--state.BufferPos.Row].Length;
-                    state.BufferLines[state.BufferPos.Row].Append(state.BufferLines[state.BufferPos.Row + 1]);
-                    state.BufferLines.RemoveAt(state.BufferPos.Row + 1);
+                    MoveCursorLeft(state, new ConsoleKeyInfo());
+                    state.ExecuteCommand(new DeleteCharacterCommand(state));
                 }
             }
         }
         state.IsDisplayValid = false;
     }
 
+    private static void InsertLines(InputState state, string lines)
+    {
+        if (lines.Length == 0) return;
+
+        state.ExecuteCommand(new InsertLinesCommand(state, lines));
+    }
+
     private static void DeletePreviousWord(InputState state)
     {
+        state.BufferPreviousPos.Column = state.BufferPos.Column;
+        state.BufferPreviousPos.Row = state.BufferPos.Row;
+
         state.BufferSelectEndPos.Column = Math.Max(0, state.BufferPos.Column - 1);
         state.BufferSelectEndPos.Row = state.BufferPos.Row;
 
@@ -139,12 +137,15 @@ public static partial class MultiLineConsoleInput
     {
         var cursorColumn = state.BufferPos.Column;
 
+        state.BufferPreviousPos.Column = state.BufferPos.Column;
+        state.BufferPreviousPos.Row = state.BufferPos.Row;
+
         state.BufferSelectStartPos.Column = state.BufferPos.Column;
         state.BufferSelectStartPos.Row = state.BufferPos.Row;
 
         MoveCursorToNextWord(state);
 
-        state.BufferSelectEndPos.Column = state.BufferPos.Column - 1;
+        state.BufferSelectEndPos.Column = Math.Max(0, state.BufferPos.Column - 1);
         state.BufferSelectEndPos.Row = state.BufferPos.Row;
 
         DeleteTextRange(state);
@@ -162,19 +163,19 @@ public static partial class MultiLineConsoleInput
 
     private static void DeleteTextRange(InputState state)
     {
-        if (state.BufferSelectStartPos.Row == state.BufferSelectEndPos.Row)
+        if (state.BufferSelectStartPos.Row == state.BufferSelectEndPos.Row
+            && state.BufferSelectStartPos.Column == state.BufferSelectEndPos.Column
+            && state.BufferSelectStartPos.Row == 0
+            && state.BufferSelectStartPos.Column == 0
+            && state.BufferLines.GetLineSpan(0).Length == 0)
         {
-            if (state.BufferLines[state.BufferSelectStartPos.Row].Length > 0)
-            {
-                state.BufferLines[state.BufferSelectStartPos.Row]
-                    .Remove(state.BufferSelectStartPos.Column, state.BufferSelectEndPos.Column - state.BufferSelectStartPos.Column + 1);
-            }
+            return;
         }
-        else
-        {
-            state.BufferLines[state.BufferSelectStartPos.Row].Length = state.BufferSelectStartPos.Column;
-            state.BufferLines[state.BufferSelectStartPos.Row].Append(state.BufferLines[state.BufferSelectEndPos.Row].ToString(state.BufferSelectEndPos.Column, state.BufferLines[state.BufferSelectEndPos.Row].Length - state.BufferSelectEndPos.Column));
-            state.BufferLines.RemoveRange(state.BufferSelectStartPos.Row + 1, state.BufferSelectEndPos.Row - state.BufferSelectStartPos.Row);
-        }
+
+        state.ExecuteCommand(
+            new DeleteSelectedTextCommand(state,
+                state.BufferPreviousPos.Row,
+                state.BufferPreviousPos.Column)
+        );
     }
 }

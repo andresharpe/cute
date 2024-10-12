@@ -17,7 +17,6 @@ using Cute.Services;
 using Cute.Services.CliCommandInfo;
 using Cute.Services.Markdown;
 using Cute.Services.ReadLine;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
@@ -219,7 +218,6 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             _console.WriteBlankLine();
 
-            var sbInput = new StringBuilder();
             var prompt = "> ";
             var input = MultiLineConsoleInput.ReadLine(prompt);
 

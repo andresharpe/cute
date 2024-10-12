@@ -117,21 +117,25 @@ public static partial class MultiLineConsoleInput
             state.BufferPos.Column = state.BufferLines[state.BufferPos.Row].Length;
         }
 
-        while (state.BufferPos.Column > 0 && char.IsWhiteSpace(state.BufferLines[state.BufferPos.Row][state.BufferPos.Column - 1]))
+        var row = state.BufferLines[state.BufferPos.Row].Span;
+
+        while (state.BufferPos.Column > 0 && char.IsWhiteSpace(row[state.BufferPos.Column - 1]))
             state.BufferPos.Column--;
 
-        while (state.BufferPos.Column > 0 && !char.IsWhiteSpace(state.BufferLines[state.BufferPos.Row][state.BufferPos.Column - 1]))
+        while (state.BufferPos.Column > 0 && !char.IsWhiteSpace(row[state.BufferPos.Column - 1]))
             state.BufferPos.Column--;
     }
 
     private static void MoveCursorToNextWord(InputState state)
     {
-        int lineLength = state.BufferLines[state.BufferPos.Row].Length;
+        var row = state.BufferLines[state.BufferPos.Row].Span;
 
-        while (state.BufferPos.Column < lineLength && !char.IsWhiteSpace(state.BufferLines[state.BufferPos.Row][state.BufferPos.Column]))
+        int lineLength = row.Length;
+
+        while (state.BufferPos.Column < lineLength && !char.IsWhiteSpace(row[state.BufferPos.Column]))
             state.BufferPos.Column++;
 
-        while (state.BufferPos.Column < lineLength && char.IsWhiteSpace(state.BufferLines[state.BufferPos.Row][state.BufferPos.Column]))
+        while (state.BufferPos.Column < lineLength && char.IsWhiteSpace(row[state.BufferPos.Column]))
             state.BufferPos.Column++;
 
         if (state.BufferPos.Column == lineLength && state.BufferPos.Row < state.BufferLines.Count - 1)

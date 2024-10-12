@@ -1,6 +1,4 @@
-﻿using System.Text;
-
-namespace Cute.Services.ReadLine;
+﻿namespace Cute.Services.ReadLine;
 
 public static partial class MultiLineConsoleInput
 {
@@ -94,10 +92,11 @@ public static partial class MultiLineConsoleInput
                 }
             }
         }
-        else
+        else if (state.IsSelecting)
         {
             // Reset selection when Shift is released
             state.IsSelecting = false;
+            state.IsDisplayValid = false;
         }
 
         // Update previous cursor position for the next move
@@ -107,28 +106,7 @@ public static partial class MultiLineConsoleInput
 
     private static string GetSelectedText(InputState state)
     {
-        if (state.BufferSelectStartPos.Row > state.BufferSelectEndPos.Row
-            || (state.BufferSelectStartPos.Row == state.BufferSelectEndPos.Row && state.BufferSelectStartPos.Column > state.BufferSelectEndPos.Column))
-        {
-            var tempLine = state.BufferSelectStartPos.Row;
-            var tempColumn = state.BufferSelectStartPos.Column;
-            state.BufferSelectStartPos.Row = state.BufferSelectEndPos.Row;
-            state.BufferSelectStartPos.Column = state.BufferSelectEndPos.Column;
-            state.BufferSelectEndPos.Row = tempLine;
-            state.BufferSelectEndPos.Column = tempColumn;
-        }
-
-        if (state.BufferSelectStartPos.Row == state.BufferSelectEndPos.Row)
-        {
-            return state.BufferLines[state.BufferSelectStartPos.Row].ToString(state.BufferSelectStartPos.Column, state.BufferSelectEndPos.Column - state.BufferSelectStartPos.Column);
-        }
-        else
-        {
-            var selectedLines = state.BufferLines.GetRange(state.BufferSelectStartPos.Row, state.BufferSelectEndPos.Row - state.BufferSelectStartPos.Row + 1);
-            selectedLines[0] = new StringBuilder(selectedLines[0].ToString(state.BufferSelectStartPos.Column, selectedLines[0].Length - state.BufferSelectStartPos.Column));
-            int lastIndex = selectedLines.Count - 1;
-            selectedLines[lastIndex] = new StringBuilder(selectedLines[lastIndex].ToString(0, state.BufferSelectEndPos.Column));
-            return string.Join("\n", selectedLines.Select(sb => sb.ToString()));
-        }
+        return state.BufferLines.GetRange(state.BufferSelectStartPos.Row, state.BufferSelectStartPos.Column,
+            state.BufferSelectEndPos.Row, state.BufferSelectEndPos.Column);
     }
 }
