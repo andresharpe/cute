@@ -92,10 +92,11 @@ public static partial class MultiLineConsoleInput
                 }
             }
         }
-        else
+        else if (state.IsSelecting)
         {
             // Reset selection when Shift is released
             state.IsSelecting = false;
+            state.IsDisplayValid = false;
         }
 
         // Update previous cursor position for the next move

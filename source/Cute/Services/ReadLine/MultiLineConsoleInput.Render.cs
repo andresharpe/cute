@@ -18,7 +18,7 @@ public static partial class MultiLineConsoleInput
 
         state.IsDisplayValid = state.IsDisplayValid && oldDisplayWidth == state.DisplayWidth;
 
-        if (state.IsDisplayValid && !state.IsSelecting && !state.WasSelecting)
+        if (state.IsDisplayValid && !state.IsSelecting)
         {
             UdateDisplayPositions(state);
             Console.SetCursorPosition(
@@ -26,8 +26,6 @@ public static partial class MultiLineConsoleInput
                 state.RenderStartRow + state.DisplayPos.Row);
             return;
         }
-
-        state.WasSelecting = state.IsSelecting;
 
         var ansiPromptColor = $"\x1b[38;2;{options.PromptForeground.R};{options.PromptForeground.G};{options.PromptForeground.B}m";
 
@@ -135,9 +133,9 @@ public static partial class MultiLineConsoleInput
             }
             else
             {
-                for (var i = state.RenderEndRow+1; i <= state.DisplayLines.Count; i++)
+                for (var i = state.RenderEndRow + 1; i <= state.DisplayLines.Count; i++)
                 {
-                    Console.SetCursorPosition(state.RenderStartColumn, state.RenderEndRow + (i-state.RenderEndRow));
+                    Console.SetCursorPosition(state.RenderStartColumn, state.RenderEndRow + (i - state.RenderEndRow));
                     Console.WriteLine();
                     state.RenderStartRow--;
                     state.RenderEndRow--;

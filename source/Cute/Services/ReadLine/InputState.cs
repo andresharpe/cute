@@ -28,7 +28,6 @@ public static partial class MultiLineConsoleInput
         internal Stack<IUndoableCommand> RedoStack = new();
         internal ConsoleKeyInfo InputKeyInfo = new();
         internal bool IsSelecting = false;
-        internal bool WasSelecting = true;
         internal int VerticalDisplayColumn = 0;
 
 #pragma warning restore IDE1006 // Naming Styles

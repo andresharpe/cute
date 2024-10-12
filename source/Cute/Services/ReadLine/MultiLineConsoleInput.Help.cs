@@ -23,6 +23,6 @@ public static partial class MultiLineConsoleInput
         Console.ReadKey(true);
         state.RenderStartRow = help.RenderStartRow;
         state.RenderEndRow = help.RenderEndRow;
-        state.WasSelecting = true;
+        state.IsDisplayValid = false;
     }
 }
