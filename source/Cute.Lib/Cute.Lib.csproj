@@ -3,8 +3,9 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-		<RootNamespace>Cute.Lib</RootNamespace>
+	<RootNamespace>Cute.Lib</RootNamespace>
     <Nullable>enable</Nullable>
+	<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
