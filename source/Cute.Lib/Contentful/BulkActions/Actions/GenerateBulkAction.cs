@@ -1,5 +1,4 @@
-﻿using Azure;
-using Azure.AI.OpenAI;
+﻿using Azure.AI.OpenAI;
 using Contentful.Core.Extensions;
 using Contentful.Core.Models;
 using Contentful.Core.Search;
@@ -17,6 +16,7 @@ using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
 using Scriban;
 using Scriban.Runtime;
+using System.ClientModel;
 using System.Text;
 
 namespace Cute.Lib.Contentful.BulkActions.Actions;
@@ -390,7 +390,7 @@ public class GenerateBulkAction(
 
         var chatCompletionOptions = new ChatCompletionOptions()
         {
-            MaxTokens = cuteContentGenerateEntry.MaxTokenLimit,
+            MaxOutputTokenCount = cuteContentGenerateEntry.MaxTokenLimit,
             Temperature = (float)cuteContentGenerateEntry.Temperature,
             FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty,
             PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty,
@@ -677,7 +677,7 @@ public class GenerateBulkAction(
 
         var chatCompletionOptions = new ChatCompletionOptions()
         {
-            MaxTokens = cuteContentGenerateEntry.MaxTokenLimit,
+            MaxOutputTokenCount = cuteContentGenerateEntry.MaxTokenLimit,
             Temperature = (float)cuteContentGenerateEntry.Temperature,
             FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty,
             PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty,
@@ -1113,7 +1113,7 @@ public class GenerateBulkAction(
 
         AzureOpenAIClient client = new(
             new Uri(options.Endpoint),
-            new AzureKeyCredential(options.ApiKey)
+            new ApiKeyCredential(options.ApiKey)
         );
 
         return client.GetChatClient(deploymentName);

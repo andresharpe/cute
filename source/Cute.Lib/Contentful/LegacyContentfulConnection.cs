@@ -42,7 +42,6 @@ public class LegacyContentfulConnection
             ManagementApiKey = _contentfulOptions.ManagementApiKey,
             Environment = _contentfulOptions.Environment,
             SpaceId = _contentfulOptions.SpaceId,
-            ResolveEntriesSelectively = _contentfulOptions.ResolveEntriesSelectively,
             UsePreviewApi = true,
         };
 

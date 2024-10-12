@@ -77,7 +77,6 @@ public class AppSettings : IContentfulOptionsProvider, IAzureOpenAiOptionsProvid
             DeliveryApiKey = ContentfulDeliveryApiKey,
             PreviewApiKey = ContentfulPreviewApiKey,
             Environment = ContentfulDefaultEnvironment,
-            ResolveEntriesSelectively = true,
         };
     }
 
