@@ -1,0 +1,39 @@
+name: Build & Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - source/**
+      - tests/**
+      - .github/workflows/ci.yml
+  push:
+    branches: [ main ]
+    paths:
+      - source/**
+      - tests/**
+      - .github/workflows/ci.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: ['8.x']
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          
+      - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Build Cute Cli
+        run: dotnet build sln.sln --warnaserror --configuration Release --no-incremental
+
+
+        

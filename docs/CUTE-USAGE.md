@@ -2,7 +2,7 @@
 
 ## cute login
 
-Log in to Contentful. Run this first.
+Run this command first to configure your Contentful profile along with AI and translation services.
 
 ### Parameters
 
@@ -23,7 +23,7 @@ Log in to Contentful. Run this first.
 
 ## cute logout
 
-Log out of contentful.
+Log out of Contentful.
 
 ### Parameters
 
@@ -35,10 +35,8 @@ Log out of contentful.
 | --log-output | Outputs logs to the console instead of the standard messages. |
 | --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --no-banner | Do not display the startup banner or the copyright message. |
-| --openai-deployment-name, -n <NAME> | The Azure OpenAI deployment name. |
-| --openai-endpoint, -a <ENDPOINT> | The Azure OpenAI endpoint. |
-| --openai-token, -k <TOKEN> | The Azure OpenAI Api key. |
 | --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --purge | Specifies the content type to bulk edit. |
 | --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
 | --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
 
@@ -62,7 +60,7 @@ Display information about a Contentful space.
 
 ## cute chat
 
-Make the robots do the work! Interact with your space using AI
+Make the robots do the work! Interact with your space using AI.
 
 ### Parameters
 
@@ -71,20 +69,28 @@ Make the robots do the work! Interact with your space using AI
 | --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
 | --force | Specifies whether warning prompts should be bypassed |
+| --frequency-penalty, -f | Reduces repetition of frequently used phrases in bot responses. |
+| --key, -k | Optional key for fetching a specific 'cuteContentGenerate' entry. |
 | --log-output | Outputs logs to the console instead of the standard messages. |
 | --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --max-tokens, -m | Maximum number of tokens (words) allowed in the bot's responses. |
+| --memory-length | The total number of user and agent messages to keep in memory and send with new prompt. |
 | --no-banner | Do not display the startup banner or the copyright message. |
+| --presence-penalty | Discourages reusing phrases already present in the conversation. |
 | --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
+| --system-prompt, -p | System prompt to initialize the bot's starting context. |
+| --temperature, -t | Controls randomness: higher values generate more creative responses. |
+| --topP | TopP controls diversity by limiting the token pool for bot responses. |
 | --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
 
 ## cute content
 
-Manage content entries in bulk.
+Manage your content entries in Contentful using bulk operations.
 
 ### cute content download
 
-Download Contentful entries to a local csv/tsv/yaml/json/excel file.
+Download Contentful entries to a local CSV/TSV/YAML/JSON/Excel file.
 
 #### Parameters
 
@@ -106,7 +112,7 @@ Download Contentful entries to a local csv/tsv/yaml/json/excel file.
 
 ### cute content upload
 
-Upload and sync Contentful entries from a local csv/tsv/yaml/json/excel file.
+Upload and sync Contentful entries from a local CSV/TSV/YAML/JSON/Excel file.
 
 #### Parameters
 
@@ -117,7 +123,7 @@ Upload and sync Contentful entries from a local csv/tsv/yaml/json/excel file.
 | --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
 | --force | Specifies whether warning prompts should be bypassed |
-| --format, -f <FORMAT> | The format of the file specified in '--path' (Excel/Csv/Tsv/Json/Yaml) |
+| --format, -f <FORMAT> | The format of the file specified in '--path' (Excel/CSV/TSV/JSON/YAML) |
 | --locale, -l <CODE> | The locale code (eg. 'en') to apply the command to. Default is all. |
 | --log-output | Outputs logs to the console instead of the standard messages. |
 | --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
@@ -255,7 +261,7 @@ Synchronise data to Contentful from an API.
 
 ### cute content seed-geo
 
-Synchromise data to Contentful from an API.
+Seed geographical test data to start your project.
 
 #### Parameters
 
@@ -492,7 +498,7 @@ Rename a content type including all references to it.
 
 ### cute type delete
 
-Delete a content type and its entries.
+Delete a content type along with its entries.
 
 #### Parameters
 
@@ -511,11 +517,11 @@ Delete a content type and its entries.
 
 ## cute app
 
-Generate a website or app from Contentful.
+Generate a website or app from your content space in Contentful.
 
 ### cute app generate
 
-Generate an app or website based on configuration in Contentful.
+Generate an app or website based on user configuration settings in Contentful.
 
 #### Parameters
 
@@ -533,7 +539,7 @@ Generate an app or website based on configuration in Contentful.
 
 ## cute eval
 
-Tools to evaluate the quality the site and of LLM and translation output.
+Tools to evaluate the quality of generated content using the LLM and translation engine.
 
 ### cute eval content-generator
 
@@ -555,7 +561,7 @@ Use deepeval to measure the quality of content generation.
 
 ### cute eval content-translator
 
-Measure the quality of translation engine output.
+Measure the quality of the translation engine output.
 
 #### Parameters
 
@@ -589,7 +595,31 @@ Check and remediate violations of site naming conventions.
 | --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
 | --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
 
+## cute server
+
+Run cute in server mode.
+
+### cute server scheduler
+
+Schedule and run cuteContentSyncApi entries.
+
+#### Parameters
+
+| Option | Description |
+|--------|-------------|
+| --delivery-token <TOKEN> | Your Contentful Content Delivery API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --environment-id, -e <ID> | The Contentful environment identifier. See https://www.contentful.com/developers/docs/concepts/multiple-environments/ |
+| --force | Specifies whether warning prompts should be bypassed |
+| --key, -k | cuteContentSyncApi key. |
+| --log-output | Outputs logs to the console instead of the standard messages. |
+| --management-token <TOKEN> | Your Contentful management API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --no-banner | Do not display the startup banner or the copyright message. |
+| --port, -p | The port to listen on |
+| --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
+| --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
+| --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
+
 ## cute version
 
-Display the current version of the CLI.
+Display the current installed version of the CLI.
 

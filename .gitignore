@@ -487,7 +487,6 @@ $RECYCLE.BIN/
 *.csv
 *.tsv
 *.json
-*.yaml
 *.query
 
 /source/Cute.PythonServer/env
