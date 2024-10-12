@@ -17,5 +17,7 @@ public static class Globals
     public static readonly Style StyleDim = new(Color.LightPink4);
     public static readonly Style StyleAlert = new(Color.DarkOrange);
     public static readonly Style StyleAlertAccent = new(Color.Yellow4_1, null, Decoration.Bold);
-    public static readonly Style StyleCode = new(Color.White, new Color(31,22,22));
+    public static readonly Style StyleCode = new(Color.White, new Color(31, 22, 22));
+    public static readonly Style StyleCodeHeading = new(Color.White, new Color(20, 14, 14));
+    public static readonly Style StyleInput = new(new Color(192, 192, 192), new Color(40, 40, 40));
 }

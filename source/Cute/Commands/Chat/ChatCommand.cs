@@ -5,6 +5,7 @@ using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
 using Cute.Constants;
+using Cute.Extensions;
 using Cute.Lib.AiModels;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
@@ -14,8 +15,10 @@ using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
 using Cute.Services;
 using Cute.Services.CliCommandInfo;
+using Cute.Services.ClipboardWebServer;
 using Cute.Services.Markdown;
 using Cute.Services.ReadLine;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
@@ -207,6 +210,18 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         List<ChatMessage> messages = [new SystemChatMessage(systemMessage)];
 
+        // Start clipboard listener
+
+        var cts = new CancellationTokenSource();
+        Task clipboardServer = ClipboardServer.StartServerAsync(cts.Token);
+
+        var prompt = new MultiLineConsoleInput.InputOptions()
+        {
+            Prompt = "> ",
+            TextForeground = Globals.StyleInput.Foreground.ToSystemDrawingColor(),
+            TextBackground = Globals.StyleInput.Background.ToSystemDrawingColor(),
+        };
+
         while (true)
         {
             if (messages.Count > settings.Memory)
@@ -218,7 +233,6 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             _console.WriteBlankLine();
 
-            var prompt = "> ";
             var input = MultiLineConsoleInput.ReadLine(prompt);
 
             if (string.IsNullOrWhiteSpace(input) || UserWantsToLeave(input))
@@ -228,6 +242,8 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                 _console.WriteBlankLine();
                 break;
             }
+
+            DisplayPromptCopyLink(input);
 
             messages.Add(new UserChatMessage(input));
 
@@ -262,6 +278,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                         _console.WriteBlankLine();
                     }
 
+                    DisplayResponseCopyLink(botResponse.Answer);
                     MarkdownConsole.Write(botResponse.Answer);
                 }
             }
@@ -288,7 +305,34 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             }
         }
 
+        cts.Cancel();
+
+        await clipboardServer;
+
         return 0;
+    }
+
+    private void DisplayPromptCopyLink(string input)
+    {
+        var copyLink = Guid.NewGuid().ToString("N")[..8];
+        var url = $"{ClipboardServer.Endpoint}/copy?key={copyLink}";
+        var headingBackground = Globals.StyleInput.Background.ToHex();
+        var copyLinkColor = Globals.StyleInput.Foreground.ToHex();
+        var headerPadding = AnsiConsole.Profile.Width - 4 - 2;
+        AnsiConsole.MarkupLine($"  [default on #{headingBackground}]{"".PadRight(headerPadding)}[#{copyLinkColor} italic link={url}]Copy[/][/]");
+        ClipboardServer.RegisterCopyText(copyLink, input);
+    }
+
+    private static void DisplayResponseCopyLink(string answer)
+    {
+        var copyLink = Guid.NewGuid().ToString("N")[..8];
+        var url = $"{ClipboardServer.Endpoint}/copy?key={copyLink}";
+        var headingBackground = Globals.StyleCodeHeading.Background.ToHex();
+        var copyLinkColor = Globals.StyleSubHeading.Foreground;
+        var headerPadding = AnsiConsole.Profile.Width - 4;
+        AnsiConsole.MarkupLine($"[default on #{headingBackground}]{"".PadRight(headerPadding)}[{copyLinkColor} italic link={url}]Copy[/][/]");
+        AnsiConsole.WriteLine();
+        ClipboardServer.RegisterCopyText(copyLink, answer);
     }
 
     private async Task HandleExecution(IEnumerable<Locale> locales, BotResponse botResponse)
