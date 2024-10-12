@@ -101,7 +101,7 @@ public static partial class MultiLineConsoleInput
                 Console.Write(ansiResetColor);
                 Console.Write(ansiTextColor);
             }
-            Console.Write(new string(' ', Math.Max(0, displayWidth - line.Length)));
+            Console.Write(new string(' ', Math.Max(0, displayWidth - line.Length + 1)));
             Console.Write(ansiResetColor);
         }
 

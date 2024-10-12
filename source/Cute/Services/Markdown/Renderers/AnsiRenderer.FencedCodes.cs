@@ -1,10 +1,10 @@
 using Cute.Constants;
 using Cute.Lib.Extensions;
+using Cute.Services.ClipboardWebServer;
 using Cute.Services.Markdown.Console.Options;
 using Markdig.Syntax;
 using Spectre.Console;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Cute.Services.Markdown.Console.Renderers;
 
@@ -16,7 +16,7 @@ public partial class AnsiRenderer
 
         var code = string.Join("\n", block.Lines.Lines).TrimEnd();
 
-        var lang = block.Info;
+        var lang = block.Info ?? string.Empty;
 
         var highlightedCode = _syntaxHighlighter
             .GetHighlightedSyntax(code, lang, FeatureFlags.ForceBasicSyntaxHighlighter);
@@ -49,16 +49,23 @@ public partial class AnsiRenderer
             .Reverse()
             .ToArray();
 
+        var copyLink = Guid.NewGuid().ToString("N")[..8];
+        var url = $"{ClipboardServer.Endpoint}/copy?key={copyLink}";
+        var headingBackground = Globals.StyleCodeHeading.Background.ToHex().ToLower();
+        var headerPadding = consoleWidth - indentation.Length + 1 - 5;
+        var header = $"[default on #{headingBackground}][bold {_dimColor}]{lang.CamelToPascalCase().PadRight(headerPadding)}[/][{_dimColor} italic link={url}]Copy[/][/]";
+
+        ClipboardServer.RegisterCopyText(copyLink, code);
+
         var table = new Table()
-            .HideHeaders()
+            // .HideHeaders()
             .HideRowSeparators()
             .Border(TableBorder.None)
             .AddColumn(new TableColumn(string.Empty).Padding(0, 0, 0, 0))
-            .AddColumn(new TableColumn(string.Empty).Padding(0, 0, 0, 0))
+            .AddColumn(new TableColumn(header).Padding(0, 0, 0, 0))
             .Expand();
 
         var background = $"default on #{Globals.StyleCode.Background.ToHex().ToLower()}";
-
         var lineNumber = 0;
 
         var sb = new StringBuilder();

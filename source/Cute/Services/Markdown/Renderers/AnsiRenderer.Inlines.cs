@@ -17,8 +17,6 @@ public partial class AnsiRenderer
     {
         var linesWritten = 0;
 
-        var maxLineWidth = GetMaxWidth();
-
         foreach (var inline in inlines)
         {
             var indentIt = indentFirstLine || linesWritten > 0;
@@ -75,6 +73,7 @@ public partial class AnsiRenderer
     private static readonly string _highlightedColor = Globals.StyleHeading.Foreground.ToString();
     private static readonly string _accentColor = Globals.StyleAlertAccent.Foreground.ToString();
     private static readonly string _accentColor2 = Globals.StyleAlert.Foreground.ToString();
+    private static readonly string _dimColor = Globals.StyleDim.Foreground.ToString();
 
     private int WriteLiteralInline(string content, string? markupTag = null,
         bool indentFirstLine = true)
