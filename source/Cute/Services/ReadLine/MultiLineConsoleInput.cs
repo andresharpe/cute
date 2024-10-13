@@ -174,7 +174,7 @@ public static partial class MultiLineConsoleInput
             || (input.Key == ConsoleKey.Enter && input.Modifiers.HasFlag(ConsoleModifiers.Control)))
         {
             // Ctrl + Enter: Finish input
-            state.IsDone = true;
+            state.IsDone = options.AllowBlankResult || (state.BufferLines.Any(l => !string.IsNullOrEmpty(l)));
         }
         else if (input.Key == ConsoleKey.Enter)
         {

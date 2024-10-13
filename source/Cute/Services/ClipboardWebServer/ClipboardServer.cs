@@ -1,12 +1,23 @@
 ﻿using Cute.Constants;
 using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
 using TextCopy;
 
 namespace Cute.Services.ClipboardWebServer;
 
 public static class ClipboardServer
 {
-    public static readonly string Endpoint = "http://localhost:5072";
+    public static readonly string Endpoint = $"http://localhost:{FindAvailablePort()}";
+
+    public static int FindAvailablePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
 
     public static async Task StartServerAsync(CancellationToken token)
     {
@@ -70,7 +81,14 @@ public static class ClipboardServer
 
     private static readonly ConcurrentDictionary<string, string> _copyTexts = new();
 
-    public static void RegisterCopyText(string key, string text)
+    public static string RegisterCopyText(string text)
+    {
+        var key = Guid.NewGuid().ToString("N")[..8];
+        RegisterCopyText(key, text);
+        return $"{Endpoint}/copy?key={key}";
+    }
+
+    private static void RegisterCopyText(string key, string text)
     {
         _copyTexts.AddOrUpdate(key, text, (k, v) => text);
     }
