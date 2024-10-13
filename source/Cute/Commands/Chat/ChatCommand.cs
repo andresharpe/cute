@@ -69,6 +69,10 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         [CommandOption("--memory-length")]
         [Description("The total number of user and agent messages to keep in memory and send with new prompt.")]
         public int Memory { get; set; } = 16;
+
+        [CommandOption("--douglas")]
+        [Description("Summons Douglas. He knows most things about your Contentful space.")]
+        public bool IsDouglas { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -105,7 +109,8 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     {
         string? systemMessage = null;
 
-        bool isDouglas = settings.Key == null && string.IsNullOrWhiteSpace(settings.SystemPrompt);
+        bool isDouglas = settings.IsDouglas
+            || !(settings.Key == null && string.IsNullOrWhiteSpace(settings.SystemPrompt));
 
         ChatCompletionOptions? chatCompletionOptions = null;
 
