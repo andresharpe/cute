@@ -229,6 +229,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         };
 
         string lastContentInfoPromptAdded = string.Empty;
+        string? autoInput = null;
 
         while (true)
         {
@@ -241,7 +242,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             _console.WriteBlankLine();
 
-            var input = MultiLineConsoleInput.ReadLine(prompt);
+            var input = autoInput ?? MultiLineConsoleInput.ReadLine(prompt);
 
             if (string.IsNullOrWhiteSpace(input) || UserWantsToLeave(input))
             {
@@ -251,7 +252,12 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                 break;
             }
 
-            DisplayPromptCopyLink(input);
+            if (autoInput is null)
+            {
+                DisplayPromptCopyLink(input);
+            }
+
+            autoInput = null;
 
             messages.Add(new UserChatMessage(input));
 
@@ -315,8 +321,20 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             if (botResponse.Question is not null && botResponse.Question.Contains("Shall we give it a shot?"))
             {
-                await HandleExecution(locales, botResponse);
+                try
+                {
+                    await HandleExecution(locales, botResponse);
+                }
+                catch (Exception ex)
+                {
+                    autoInput = $"""
+                        I got the following exception. Please fix?:
+                        {ex.Message}
+                        {ex.InnerException?.Message}
+                        """;
 
+                    _console.WriteAlert("The operation returned an error. Don't panic! (the details have been shared with Douglas)...");
+                }
                 continue;
             }
 
@@ -353,11 +371,19 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         AnsiConsole.WriteLine();
     }
 
+    private static void DisplayQueryOrCommandCopyLink(string queryOCommand)
+    {
+        var copyLinkColor = Globals.StyleAlertAccent.Foreground;
+        var headerPadding = AnsiConsole.Profile.Width - 4;
+        var url = ClipboardServer.RegisterCopyText(queryOCommand);
+        AnsiConsole.MarkupLine($"{"".PadRight(headerPadding)}[{copyLinkColor} italic link={url}]Copy[/]");
+    }
+
     private async Task HandleExecution(IEnumerable<Locale> locales, BotResponse botResponse)
     {
         _console.WriteBlankLine();
         _console.WriteRuler("Solution");
-        _console.WriteBlankLine();
+        DisplayQueryOrCommandCopyLink(botResponse.QueryOrCommand);
         _console.WriteAlertAccent(botResponse.QueryOrCommand);
         _console.WriteBlankLine();
         _console.WriteRuler();
@@ -390,66 +416,47 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
     private async Task DisplayGraphQlData(IEnumerable<Locale> locales, BotResponse botResponse)
     {
-        try
-        {
-            JArray resultArray = new JArray();
+        JArray resultArray = new JArray();
 
-            await AnsiConsole.Status()
-                .Spinner(Spinner.Known.Dots)
-                .StartAsync("Executing GraphQL query...", async ctx =>
+        await AnsiConsole.Status()
+            .Spinner(Spinner.Known.Dots)
+            .StartAsync("Executing GraphQL query...", async ctx =>
+            {
+                _console.WriteBlankLine();
+                var contentTypeId = GraphQLUtilities.GetContentTypeId(botResponse.QueryOrCommand);
+                var jsonPath = $"$.data.{contentTypeId}Collection";
+                var localeCode = locales.Where(l => l.Default).First().Code;
+                await foreach (var result in ContentfulConnection.GraphQL.GetRawDataEnumerable(botResponse.QueryOrCommand, localeCode, preview: true))
                 {
-                    _console.WriteBlankLine();
-                    var contentTypeId = GraphQLUtilities.GetContentTypeId(botResponse.QueryOrCommand);
-                    var jsonPath = $"$.data.{contentTypeId}Collection";
-                    var localeCode = locales.Where(l => l.Default).First().Code;
-                    await foreach (var result in ContentfulConnection.GraphQL.GetRawDataEnumerable(botResponse.QueryOrCommand, localeCode, preview: true))
+                    var node = result.SelectToken(jsonPath);
+                    if (node is null) continue;
+                    var tryArray = node.SelectToken("items") as JArray;
+                    if (tryArray is not null)
                     {
-                        var node = result.SelectToken(jsonPath);
-                        if (node is null) continue;
-                        var tryArray = node.SelectToken("items") as JArray;
-                        if (tryArray is not null)
-                        {
-                            resultArray.Merge(tryArray);
-                            continue;
-                        }
-                        if (node is JObject)
-                        {
-                            resultArray.Add(node);
-                            continue;
-                        }
+                        resultArray.Merge(tryArray);
+                        continue;
                     }
-                });
-            if (resultArray.Count > 0) _console.WriteTable(resultArray);
-        }
-        catch (Exception ex)
-        {
-            _console.WriteBlankLine();
-            _console.WriteAlert($"Oops! Something went wrong executing the query...");
-            _console.WriteAlert(ex.Message);
-            _console.WriteBlankLine();
-        }
+                    if (node is JObject)
+                    {
+                        resultArray.Add(node);
+                        continue;
+                    }
+                }
+            });
+
+        _console.WriteTable(resultArray);
     }
 
     private async Task RunSelectedCommand(BotResponse botResponse)
     {
-        try
-        {
-            var splitter = System.CommandLine.Parsing.CommandLineStringSplitter.Instance;
-            var parameters = splitter.Split(botResponse.QueryOrCommand).ToList();
-            if (parameters[0] == "cute") parameters.RemoveAt(0);
-            parameters.Add("--no-banner");
-            var args = parameters.ToArray();
-            var command = new CommandAppBuilder(args).Build();
-            await command.RunAsync(args);
-            _console.WriteBlankLine();
-        }
-        catch (Exception ex)
-        {
-            _console.WriteBlankLine();
-            _console.WriteAlert($"Oops! Something went wrong executing the query...");
-            _console.WriteAlert(ex.Message);
-            _console.WriteBlankLine();
-        }
+        var splitter = System.CommandLine.Parsing.CommandLineStringSplitter.Instance;
+        var parameters = splitter.Split(botResponse.QueryOrCommand).ToList();
+        if (parameters[0] == "cute") parameters.RemoveAt(0);
+        parameters.Add("--no-banner");
+        var args = parameters.ToArray();
+        var command = new CommandAppBuilder(args).Build();
+        await command.RunAsync(args);
+        _console.WriteBlankLine();
     }
 
     private static ChatCompletionOptions CreateChatCompletionOptions(Settings settings)
@@ -513,13 +520,12 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             Make sure GraphQl queries are correct, fields are cased exactly right and query is prettified on multiple lines.
             For types that contain a "key" and/or "title" field, you MUST ALWAYS include these fields in your final query.
-            Always use "preview: true" parameter in the GraphQL collection query.
             Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
             Always include "Lat" and "Lon" subfields for "Location" type fields.
             Here is an **example** of a well formed Contentful GraphQL query for a content type named "dataCountry":
             """
-            query {
-              dataCountryCollection(preview: true) {
+            query GetContent($preview: Boolean, $skip: Int, $limit: Int) {
+              dataCountryCollection(preview: $peview, skip: $skip, limit: $limit) {
                 items {
                   key
                   title
@@ -533,6 +539,8 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
               }
             }
             """
+            Always accept and pass on $preview, $limit and $skip parameters.
+            If you are asked for a specific number of entries, you can override their values in the Collection with scalar values.
 
             The valid content types and fields that are available in this Contentful space are contained in the following quoted text:
 

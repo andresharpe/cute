@@ -150,7 +150,11 @@ public class ContentfulGraphQlClient
                 (e) => throw new CliException(e.ToString())
             );
 
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var message = await response.Content.ReadAsStringAsync();
+                throw new CliException(message);
+            }
 
             var responseString = await response.Content.ReadAsStringAsync();
 
@@ -160,9 +164,11 @@ public class ContentfulGraphQlClient
 
             yield return responseObject;
 
-            yield break;
+            if (responseObject.SelectToken("$.data.*.items") is not JArray items) yield break;
 
-            // postBody.variables["skip"] = (int)postBody.variables["skip"] + (int)postBody.variables["limit"];
+            if (items.Count < (int)postBody.variables["limit"]) yield break;
+
+            postBody.variables["skip"] = (int)postBody.variables["skip"] + (int)postBody.variables["limit"];
         }
     }
 }

@@ -219,12 +219,18 @@ public partial class ConsoleWriter : IConsoleWriter
             }
         }
 
+        var rowNumber = 1;
         foreach (JObject obj in jArray.Cast<JObject>())
         {
             var row = columns
-                .Select(column => FormatCell(GetNestedValue(obj, column)));
+                .Select((column, colNumber) =>
+                    FormatCell(
+                        GetNestedValue(obj, column),
+                        rowNumber, colNumber, colNumber == columns.Count - 1));
 
             table.AddRow(row);
+
+            rowNumber++;
         }
 
         AnsiConsole.Write(table);
@@ -255,38 +261,49 @@ public partial class ConsoleWriter : IConsoleWriter
         }
     }
 
-    private static JToken GetNestedValue(JObject obj, string path)
+    private static JToken? GetNestedValue(JObject obj, string path)
     {
         var tokens = path.Split('.');
-        JToken current = obj;
+        JToken? current = obj;
 
         foreach (var token in tokens)
         {
-            current = current[token]!;
+            if (current is JObject || current is JArray)
+            {
+                current = current[token];
+            }
+            else
+            {
+                return null;
+            }
+
             if (current == null)
-                return null!;
+                return null;
         }
 
         return current;
     }
 
-    private static Markup FormatCell(JToken token)
+    private static Markup FormatCell(JToken? token, int rowNumber, int colNumber, bool isLastColumn)
     {
+        var isEvenRow = rowNumber % 2 == 0;
+        var style = isEvenRow ? Globals.StyleNormal : Globals.StyleSubHeading;
+
         if (token == null)
             return new Markup(string.Empty);
 
         if (token.Type == JTokenType.Integer)
         {
             // Format integers without any decimal places
-            return new Markup(Convert.ToInt32(token).ToString("N0", CultureInfo.InvariantCulture), Globals.StyleNormal).RightJustified();
+            return new Markup(Convert.ToInt32(token).ToString("N0", CultureInfo.InvariantCulture), style).RightJustified();
         }
         else if (token.Type == JTokenType.Float)
         {
             // Format floats with up to six decimal places
-            return new Markup(Convert.ToDecimal(token).ToString("N6", CultureInfo.InvariantCulture), Globals.StyleNormal).RightJustified();
+            return new Markup(Convert.ToDecimal(token).ToString("N6", CultureInfo.InvariantCulture), style).RightJustified();
         }
         // Return other values as is
-        return new Markup(token.ToString(), Globals.StyleNormal);
+        return new Markup(token.ToString().EscapeMarkup(), style);
     }
 
     [GeneratedRegex(@"\{(?<parameter>[\w:.#,]+)\}")]
