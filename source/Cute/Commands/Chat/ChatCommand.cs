@@ -110,7 +110,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         string? systemMessage = null;
 
         bool isDouglas = settings.IsDouglas
-            || !(settings.Key == null && string.IsNullOrWhiteSpace(settings.SystemPrompt));
+            || (settings.Key == null && string.IsNullOrWhiteSpace(settings.SystemPrompt));
 
         ChatCompletionOptions? chatCompletionOptions = null;
 
