@@ -68,7 +68,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
         [CommandOption("--memory-length")]
         [Description("The total number of user and agent messages to keep in memory and send with new prompt.")]
-        public int Memory { get; set; } = 12;
+        public int Memory { get; set; } = 16;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -155,7 +155,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         {
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights(
-                $"Greetings, traveler of the '{defaultSpace.Name}' space! I'm Douglas, your witty guide to the wonders of Contentful.",
+                $"Greetings, traveler of the '{defaultSpace.Name}' space! I'm Douglas, your guide to the wonders of Contentful.",
                 Globals.StyleHeading);
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights(
@@ -220,7 +220,10 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             Prompt = "> ",
             TextForeground = Globals.StyleInput.Foreground.ToSystemDrawingColor(),
             TextBackground = Globals.StyleInput.Background.ToSystemDrawingColor(),
+            AllowBlankResult = false,
         };
+
+        string lastContentInfoPromptAdded = string.Empty;
 
         while (true)
         {
@@ -256,19 +259,33 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                 response = await SendPromptToModel(chatClient, chatCompletionOptions, messages);
             });
 
-            messages.Add(new AssistantChatMessage(response));
-
             var botResponse = isDouglas
                 ? DeserializeBotResponse(response)
                 : new BotResponse() { Answer = response };
 
             _console.WriteBlankLine();
 
+            messages.Add(new AssistantChatMessage(response));
+
             if (botResponse.Answer is not null)
             {
                 if (isDouglas)
                 {
                     _console.WriteSubHeading(botResponse.Answer);
+
+                    if (botResponse.ContentInfo is null
+                        && !string.IsNullOrEmpty(botResponse.ContentTypeId)
+                        && string.IsNullOrEmpty(botResponse.QueryOrCommand)
+                        && lastContentInfoPromptAdded != botResponse.ContentTypeId)
+                    {
+                        await BuildContentTypeGraphQLPromptInfo(botResponse);
+                        if (botResponse.ContentInfo is not null)
+                        {
+                            var contentInfo = botResponse.ContentInfo.ToString();
+                            messages.Add(new SystemChatMessage(contentInfo));
+                            lastContentInfoPromptAdded = botResponse.ContentTypeId;
+                        }
+                    }
                 }
                 else
                 {
@@ -312,27 +329,23 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         return 0;
     }
 
-    private void DisplayPromptCopyLink(string input)
+    private static void DisplayPromptCopyLink(string input)
     {
-        var copyLink = Guid.NewGuid().ToString("N")[..8];
-        var url = $"{ClipboardServer.Endpoint}/copy?key={copyLink}";
         var headingBackground = Globals.StyleInput.Background.ToHex();
         var copyLinkColor = Globals.StyleInput.Foreground.ToHex();
         var headerPadding = AnsiConsole.Profile.Width - 4 - 2;
+        var url = ClipboardServer.RegisterCopyText(input);
         AnsiConsole.MarkupLine($"  [default on #{headingBackground}]{"".PadRight(headerPadding)}[#{copyLinkColor} italic link={url}]Copy[/][/]");
-        ClipboardServer.RegisterCopyText(copyLink, input);
     }
 
     private static void DisplayResponseCopyLink(string answer)
     {
-        var copyLink = Guid.NewGuid().ToString("N")[..8];
-        var url = $"{ClipboardServer.Endpoint}/copy?key={copyLink}";
         var headingBackground = Globals.StyleCodeHeading.Background.ToHex();
         var copyLinkColor = Globals.StyleSubHeading.Foreground;
         var headerPadding = AnsiConsole.Profile.Width - 4;
+        var url = ClipboardServer.RegisterCopyText(answer);
         AnsiConsole.MarkupLine($"[default on #{headingBackground}]{"".PadRight(headerPadding)}[{copyLinkColor} italic link={url}]Copy[/][/]");
         AnsiConsole.WriteLine();
-        ClipboardServer.RegisterCopyText(copyLink, answer);
     }
 
     private async Task HandleExecution(IEnumerable<Locale> locales, BotResponse botResponse)
@@ -374,19 +387,34 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
     {
         try
         {
-            JArray? result = null!;
+            JArray resultArray = new JArray();
+
             await AnsiConsole.Status()
                 .Spinner(Spinner.Known.Dots)
                 .StartAsync("Executing GraphQL query...", async ctx =>
                 {
                     _console.WriteBlankLine();
                     var contentTypeId = GraphQLUtilities.GetContentTypeId(botResponse.QueryOrCommand);
-                    var jsonPath = $"$.data.{contentTypeId}Collection.items";
+                    var jsonPath = $"$.data.{contentTypeId}Collection";
                     var localeCode = locales.Where(l => l.Default).First().Code;
-                    result = await ContentfulConnection.GraphQL.GetAllData(botResponse.QueryOrCommand,
-                        jsonPath, localeCode, preview: true);
-                    if (result is not null) _console.WriteTable(result);
+                    await foreach (var result in ContentfulConnection.GraphQL.GetRawDataEnumerable(botResponse.QueryOrCommand, localeCode, preview: true))
+                    {
+                        var node = result.SelectToken(jsonPath);
+                        if (node is null) continue;
+                        var tryArray = node.SelectToken("items") as JArray;
+                        if (tryArray is not null)
+                        {
+                            resultArray.Merge(tryArray);
+                            continue;
+                        }
+                        if (node is JObject)
+                        {
+                            resultArray.Add(node);
+                            continue;
+                        }
+                    }
                 });
+            if (resultArray.Count > 0) _console.WriteTable(resultArray);
         }
         catch (Exception ex)
         {
@@ -439,7 +467,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         IEnumerable<Locale> locales
      )
     {
-        return $$""""
+        return $$"""""
             You are an assistant embedded in a command line interface called "cute".
             "cute" is an acronym for "Contentful User Terminal Experience" or "Contentful Upload Tool and Extractor". No one is sure.
             Your name is "Douglas". You never say "Adams". You are a fun and witty assistant.
@@ -447,24 +475,25 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             When asked your name you always quote something profound from HHGTTG.
             You are here to help users interact with Contentful using GraphQL and the cute cli.
             You will help retrieve data from Contentful for a non technical user.
+            The user can type "bye" or "exit" to end the conversation at any time.
+
+            Today is {{DateTime.UtcNow:R}}.
+
             Structure every response as a JSON document with keys "answer", "question", "queryOrCommand", "type".
             "answer" is a JSON string and contains your best answer. Keep them punchy.
             "question" is a JSON string and contains your next question for the user to help them reach their goal.
             "queryOrCommand" is a JSON string and contains the accurate CLI command or GraphQl query that will achieve the goal.
+            "contentTypeId" is a JSON string and contains the root content type the user is interested in. Populate this as early as possible.
             "type" contains "GraphQL" or "CLI" to execute commands depending on what is in "queryOrCommand".
             "type" contains "Exit" if the user wants to leave the conversation or quit the app.
             "queryOrCommand" and "type" MUST only supplied when you ask "Shall we give it a shot?" when the goal is clear to you.
-            These fields MUST always contain valid JSON strings. No other data types are allowed in them.
             Only output the JSON structure, one object per response.
             Don't write any preamble or any other response text except for the JSON.
-            The user can type "bye" or "exit" to end the conversation at any time.
 
-            When you are certain you have all the details to complete a task, you MUST exactly ask "Shall we give it a shot?" (In the JSON "Question" field only)
             Ask questions to clarify exactly what the user wants.
             Make sure the user explicitly confirms EVERYTHING you need to know by asking only one simple question at a time.
             Make sure you have clarity on all operations. For example for GraphQL queries you would need content type, fields, filters, locale, and entry/record limit. Confirm all this.
-
-            Today is {{DateTime.UtcNow:R}}.
+            When you are certain you have all the details to complete a task, you MUST exactly ask "Shall we give it a shot?" (In the JSON "Question" field only)
 
             The current Contentful space name is "{{defaultSpace.Name}}".
             The current Contentful space Id is "{{defaultSpace.Id()}}".
@@ -475,11 +504,30 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             Only allow content types that are available in this space.
             Field names ending with "Entry" are always links to a single entry in a content type. For example "dataCountryEntry" will be linked to one "dataCountry" content type.
             Field names ending with "Entries" are links to a multiple entry in a content type. For example "dataCountryEntries" will be linked to zero or more "dataCountry" content type entries.
-            All content type and field names MUST be camel case and match the schema. Correct user input and spelling automatically.
-            For types that contain a "key" and/or "title" field MUST contain these fields in your final query by default.
-            Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
+            All content type and field names MUST match the schema. Correct user input and spelling automatically.
+
             Make sure GraphQl queries are correct, fields are cased exactly right and query is prettified on multiple lines.
-            Always use preview data in the GraphQL query.
+            For types that contain a "key" and/or "title" field, you MUST ALWAYS include these fields in your final query.
+            Always use "preview: true" parameter in the GraphQL collection query.
+            Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
+            Always include "Lat" and "Lon" subfields for "Location" type fields.
+            Here is an **example** of a well formed Contentful GraphQL query for a content type named "dataCountry":
+            """
+            query {
+              dataCountryCollection(preview: true) {
+                items {
+                  key
+                  title
+                  iso2Code
+                  phoneCode
+                  population
+                  flag {
+                    url
+                  }
+                }
+              }
+            }
+            """
 
             The valid content types and fields that are available in this Contentful space are contained in the following quoted text:
 
@@ -488,10 +536,6 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             """
             {{BuildContentTypesPromptInfo(contentTypes)}}
             """
-
-            When using field names that contain a digit in Graph QL queries, capitalize the first letter if the alpha character following the digit. For example "iso2code" will become "iso2Code". This is just a GraphQL quirk on contentful.
-            Do not use "contentful" in the query structure.
-            Do not enclose GraphQL queries in "query":
 
             # THE CUTE CLI
 
@@ -511,7 +555,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             Always use double quotes (") to delimit strings for commands and escape any double quotes with a slash (\")
             Never escape double quotes unless they are inside unescaped quotes on the command line
             Regex expressions are NOT supported in edit or find or replace expressions. Don't suggest them ever.
-            """";
+            """"";
     }
 
     private static string BuildContentTypesPromptInfo(IEnumerable<ContentType> contentTypes)
@@ -528,7 +572,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             sbContentTypesInfo.AppendLine($"CONTENT TYPE: {contentType.Name}");
             foreach (var field in contentType.Fields)
             {
-                sbContentTypesInfo.Append($"  - {field.Id} ({field.Type})");
+                sbContentTypesInfo.Append($"  - {field.Id.ToGraphQLCase()} ({field.Type})");
 
                 if (field.Type == "Link" && field.LinkType == "Entry")
                 {
@@ -564,6 +608,94 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         }
 
         return sbContentTypesInfo.ToString();
+    }
+
+    private async Task BuildContentTypeGraphQLPromptInfo(BotResponse botResponse, string? contentTypeId = null, int? nestedLevel = null)
+    {
+        contentTypeId ??= botResponse.ContentTypeId;
+
+        string[] excludePrefix = ["ux", "ui", "meta"];
+
+        if (excludePrefix.Any(p => contentTypeId.StartsWith(p))) return;
+
+        nestedLevel ??= 0;
+
+        botResponse.ContentInfo ??= new StringBuilder();
+
+        var contentType = await ContentfulConnection.GetContentTypeAsync(contentTypeId);
+
+        var sbContentTypeInfo = botResponse.ContentInfo;
+
+        sbContentTypeInfo.AppendLine($"Ensure that the GraphQL query is valid for content type \"{contentTypeId}\".");
+        sbContentTypeInfo.AppendLine($"- Only these field names MAY be referenced in \"Items\":");
+        sbContentTypeInfo.AppendLine($"  - sys {{ id, spaceId, environmentId, publishedAt, firstPublishedAt, publishedVersion }}");
+
+        foreach (var field in contentType.Fields)
+        {
+            sbContentTypeInfo.AppendLine($"  - {field.Id.ToGraphQLCase()}");
+        }
+
+        sbContentTypeInfo.AppendLine($"- Only these  parameters MAY be used in \"order\":");
+        foreach (var field in contentType.Fields)
+        {
+            var casing = field.Id == field.Id.ToGraphQLCase() ? string.Empty : " (note the casing here differs in \"order\" parameter!)";
+            sbContentTypeInfo.AppendLine($"  - {field.Id}_ASC{casing}");
+            sbContentTypeInfo.AppendLine($"  - {field.Id}_DESC{casing}");
+        }
+
+        var filterFields = new Dictionary<string, string[]>()
+        {
+            ["Symbol"] = ["", "_in", "_not", "_exists", "_not_in", "_contains", "_not_contains"],
+            ["Text"] = ["", "_in", "_not", "_exists", "_not_in", "_contains", "_not_contains"],
+            ["Location"] = ["", "_exists", "_within_circle", "_within_rectangle"],
+            ["Integer"] = ["", "_exists", "_in", "_not_in", "_not", "_lt", "_gt", "_lte", "_gte"],
+            ["Number"] = ["", "_exists", "_in", "_not_in", "_not", "_lt", "_gt", "_lte", "_gte"],
+            ["Date"] = ["", "_exists", "_in", "_not_in", "_not", "_lt", "_gt", "_lte", "_gte"],
+            ["Boolean"] = ["", "_exists", "_not"],
+        };
+
+        sbContentTypeInfo.AppendLine($"- Only these parameters MAY be referenced in the \"where\" parameter:");
+        foreach (var field in contentType.Fields)
+        {
+            var casing = field.Id == field.Id.ToGraphQLCase() ? string.Empty : " (note the casing here differs in \"where\" parameter!)";
+            if (filterFields.TryGetValue(field.Type, out var filters))
+            {
+                foreach (var filter in filters)
+                {
+                    sbContentTypeInfo.AppendLine($"  - {field.Id}{filter}{casing}");
+                }
+                continue;
+            }
+            sbContentTypeInfo.AppendLine($"  - {field.Id.ToGraphQLCase()}_exists");
+        }
+
+        if (nestedLevel > 2)
+        {
+            return;
+        }
+
+        foreach (var field in contentType.Fields)
+        {
+            if (field.Type == "Link" && field.LinkType == "Entry")
+            {
+                var linkValidations = field.Validations.OfType<LinkContentTypeValidator>();
+                var validTypes = linkValidations.SelectMany(v => v.ContentTypeIds);
+                foreach (var id in validTypes)
+                {
+                    sbContentTypeInfo.AppendLine();
+                    await BuildContentTypeGraphQLPromptInfo(botResponse, id, nestedLevel + 1);
+                }
+            }
+            else if (field.Type == "Array" && field.Items.LinkType == "Entry")
+            {
+                var validTypes = field.Items.Validations.OfType<LinkContentTypeValidator>().SelectMany(v => v.ContentTypeIds);
+                foreach (var id in validTypes)
+                {
+                    sbContentTypeInfo.AppendLine();
+                    await BuildContentTypeGraphQLPromptInfo(botResponse, id, nestedLevel + 1);
+                }
+            }
+        }
     }
 
     private static readonly string[] _exitPhrases = ["exit", "bye", "goodbye", "quit"];

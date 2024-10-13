@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Cute.Lib.Extensions;
 
@@ -7,6 +8,18 @@ public static partial class StringExtensions
     public static string CamelToPascalCase(this string value)
     {
         return Char.ToUpperInvariant(value[0]) + value[1..];
+    }
+
+    public static string ToGraphQLCase(this string value)
+    {
+        var sb = new StringBuilder();
+        var isLastCharADigit = false;
+        foreach (var ch in value)
+        {
+            sb.Append(isLastCharADigit ? char.ToUpperInvariant(ch) : ch);
+            isLastCharADigit = char.IsDigit(ch);
+        }
+        return sb.ToString();
     }
 
     public static string[] SplitCamelCase(this string input)

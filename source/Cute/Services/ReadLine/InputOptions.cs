@@ -10,6 +10,7 @@ public static partial class MultiLineConsoleInput
         public Color PromptForeground = Color.DarkOrange;
         public Color TextForeground = Color.FromArgb(192, 192, 192);
         public Color TextBackground = Color.FromArgb(40, 40, 40);
+        public bool AllowBlankResult { get; set; } = true;
 
         public InputOptions()
         {

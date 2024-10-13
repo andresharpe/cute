@@ -49,13 +49,10 @@ public partial class AnsiRenderer
             .Reverse()
             .ToArray();
 
-        var copyLink = Guid.NewGuid().ToString("N")[..8];
-        var url = $"{ClipboardServer.Endpoint}/copy?key={copyLink}";
+        var url = ClipboardServer.RegisterCopyText(code);
         var headingBackground = Globals.StyleCodeHeading.Background.ToHex().ToLower();
         var headerPadding = consoleWidth - indentation.Length + 1 - 5;
         var header = $"[default on #{headingBackground}][bold {_dimColor}]{lang.CamelToPascalCase().PadRight(headerPadding)}[/][{_dimColor} italic link={url}]Copy[/][/]";
-
-        ClipboardServer.RegisterCopyText(copyLink, code);
 
         var table = new Table()
             // .HideHeaders()

@@ -190,7 +190,7 @@ public partial class ConsoleWriter : IConsoleWriter
     {
         if (!jArray.Any() || jArray.First is not JObject)
         {
-            WriteAlert("The data array is empty or does not contain displayable data.");
+            WriteAlert("The data is empty or does not contain anything displayable.");
             return;
         }
 
@@ -275,11 +275,16 @@ public partial class ConsoleWriter : IConsoleWriter
         if (token == null)
             return new Markup(string.Empty);
 
-        if (token.Type == JTokenType.Integer || token.Type == JTokenType.Float)
+        if (token.Type == JTokenType.Integer)
         {
-            return new Markup(Convert.ToDecimal(token).ToString("N0", CultureInfo.InvariantCulture), Globals.StyleNormal).RightJustified();
+            // Format integers without any decimal places
+            return new Markup(Convert.ToInt32(token).ToString("N0", CultureInfo.InvariantCulture), Globals.StyleNormal).RightJustified();
         }
-
+        else if (token.Type == JTokenType.Float)
+        {
+            // Format floats with up to six decimal places
+            return new Markup(Convert.ToDecimal(token).ToString("N6", CultureInfo.InvariantCulture), Globals.StyleNormal).RightJustified();
+        }
         // Return other values as is
         return new Markup(token.ToString(), Globals.StyleNormal);
     }
