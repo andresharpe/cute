@@ -205,6 +205,8 @@ public partial class ConsoleWriter : IConsoleWriter
             CollectColumns(obj, string.Empty, columns);
         }
 
+        table.AddColumn(new TableColumn("#").RightAligned());
+
         foreach (var column in columns)
         {
             var firstValue = GetNestedValue((JObject)jArray.First(), column);
@@ -223,10 +225,13 @@ public partial class ConsoleWriter : IConsoleWriter
         foreach (JObject obj in jArray.Cast<JObject>())
         {
             var row = columns
-                .Select((column, colNumber) =>
+                .Select(column =>
                     FormatCell(
-                        GetNestedValue(obj, column),
-                        rowNumber, colNumber, colNumber == columns.Count - 1));
+                        GetNestedValue(obj, column), rowNumber)
+                    )
+                .ToList();
+
+            row.Insert(0, new Markup(rowNumber.ToString(), Globals.StyleDim).RightJustified());
 
             table.AddRow(row);
 
@@ -284,25 +289,32 @@ public partial class ConsoleWriter : IConsoleWriter
         return current;
     }
 
-    private static Markup FormatCell(JToken? token, int rowNumber, int colNumber, bool isLastColumn)
+    private static Markup FormatCell(JToken? token, int rowNumber)
     {
-        var isEvenRow = rowNumber % 2 == 0;
-        var style = isEvenRow ? Globals.StyleNormal : Globals.StyleSubHeading;
+        var isOddRow = rowNumber % 2 == 1;
+        var style = isOddRow ? Globals.StyleSubHeading : Globals.StyleNormal;
 
         if (token == null)
             return new Markup(string.Empty);
 
         if (token.Type == JTokenType.Integer)
         {
-            // Format integers without any decimal places
             return new Markup(Convert.ToInt32(token).ToString("N0", CultureInfo.InvariantCulture), style).RightJustified();
         }
         else if (token.Type == JTokenType.Float)
         {
-            // Format floats with up to six decimal places
             return new Markup(Convert.ToDecimal(token).ToString("N6", CultureInfo.InvariantCulture), style).RightJustified();
         }
-        // Return other values as is
+        else if (token.Type == JTokenType.Date)
+        {
+            var date = token.ToObject<DateTime>();
+
+            var formattedDate = date.Hour == 0 && date.Minute == 0 && date.Second == 0
+                ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : date.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+            return new Markup(formattedDate, style);
+        }
         return new Markup(token.ToString().EscapeMarkup(), style);
     }
 
