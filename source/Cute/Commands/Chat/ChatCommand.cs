@@ -9,7 +9,6 @@ using Cute.Extensions;
 using Cute.Lib.AiModels;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
-using Cute.Lib.Contentful.GraphQL;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
@@ -160,7 +159,11 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         {
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights(
-                $"Greetings, traveler of the '{defaultSpace.Name}' space! I'm Douglas, your guide to the wonders of Contentful.",
+                $"Greetings, traveler of the '{defaultSpace.Name}' space, wanderer of the '{defaultEnvironment.Id()}' environment!",
+                Globals.StyleHeading);
+            _console.WriteBlankLine();
+            _console.WriteNormalWithHighlights(
+                $"I'm Douglas, your guide to the wonders of Contentful.",
                 Globals.StyleHeading);
             _console.WriteBlankLine();
             _console.WriteNormalWithHighlights(
@@ -205,12 +208,9 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             _console.WriteRuler();
         }
 
-        _console.WriteBlankLine();
-
         if (!isDouglas)
         {
             _console.WriteNormalWithHighlights($"Press {"<Tab>"} or {"<Ctrl+Enter>"} to submit your prompt.", Globals.StyleHeading);
-            _console.WriteBlankLine();
         }
 
         List<ChatMessage> messages = [new SystemChatMessage(systemMessage)];
@@ -280,34 +280,19 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             if (botResponse.Answer is not null)
             {
-                if (isDouglas)
-                {
-                    _console.WriteSubHeading(botResponse.Answer);
+                DisplayResponseCopyLink(botResponse.Answer);
+                MarkdownConsole.Write(botResponse.Answer);
 
-                    if (botResponse.ContentInfo is null
-                        && !string.IsNullOrEmpty(botResponse.ContentTypeId)
-                        && string.IsNullOrEmpty(botResponse.QueryOrCommand)
-                        && lastContentInfoPromptAdded != botResponse.ContentTypeId)
-                    {
-                        await BuildContentTypeGraphQLPromptInfo(botResponse);
-                        if (botResponse.ContentInfo is not null)
-                        {
-                            var contentInfo = botResponse.ContentInfo.ToString();
-                            messages.Add(new SystemChatMessage(contentInfo));
-                            lastContentInfoPromptAdded = botResponse.ContentTypeId;
-                        }
-                    }
-                }
-                else
+                if (isDouglas
+                    && lastContentInfoPromptAdded != botResponse.ContentTypeId
+                    && !string.IsNullOrWhiteSpace(botResponse.ContentTypeId))
                 {
-                    if (settings.Verbosity >= Verbosity.Diagnostic)
+                    await BuildContentTypeGraphQLPromptInfo(botResponse);
+                    if (botResponse.ContentInfo is not null)
                     {
-                        _console.WriteDim(botResponse.Answer);
-                        _console.WriteBlankLine();
+                        messages.Add(new SystemChatMessage(botResponse.ContentInfo.ToString()));
                     }
-
-                    DisplayResponseCopyLink(botResponse.Answer);
-                    MarkdownConsole.Write(botResponse.Answer);
+                    lastContentInfoPromptAdded = botResponse.ContentTypeId;
                 }
             }
 
@@ -333,6 +318,18 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
                         {ex.InnerException?.Message}
                         """;
 
+                    try
+                    {
+                        var info = JsonConvert.DeserializeObject<JObject>(ex.Message);
+                        if (info is not null)
+                        {
+                            _console.WriteDim(info.ToUserFriendlyString() ?? string.Empty);
+                            _console.WriteBlankLine();
+                        }
+                    }
+                    catch
+                    { // ignore
+                    }
                     _console.WriteAlert("The operation returned an error. Don't panic! (the details have been shared with Douglas)...");
                 }
                 continue;
@@ -341,7 +338,7 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             if (botResponse.Question is not null)
             {
                 _console.WriteBlankLine();
-                _console.WriteSubHeading(botResponse.Question);
+                MarkdownConsole.Write(botResponse.Question);
             }
         }
 
@@ -386,6 +383,12 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
         DisplayQueryOrCommandCopyLink(botResponse.QueryOrCommand);
         _console.WriteAlertAccent(botResponse.QueryOrCommand);
         _console.WriteBlankLine();
+
+        var env = (await ContentfulConnection.GetDefaultEnvironmentAsync()).Id();
+        var space = (await ContentfulConnection.GetDefaultSpaceAsync()).Name;
+        var spaceConfirmation = $"[italic {Globals.StyleDim.Foreground}]...the query will run in the '[{Globals.StyleSubHeading.Foreground}]{env}[/]' environment of space '[{Globals.StyleSubHeading.Foreground}]{space}[/]'.[/]";
+        AnsiConsole.MarkupLine(spaceConfirmation);
+
         _console.WriteRuler();
         _console.WriteBlankLine();
 
@@ -423,10 +426,10 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             .StartAsync("Executing GraphQL query...", async ctx =>
             {
                 _console.WriteBlankLine();
-                var contentTypeId = GraphQLUtilities.GetContentTypeId(botResponse.QueryOrCommand);
-                var jsonPath = $"$.data.{contentTypeId}Collection";
+                var jsonPath = $"..{botResponse.ContentTypeId}Collection";
                 var localeCode = locales.Where(l => l.Default).First().Code;
-                await foreach (var result in ContentfulConnection.GraphQL.GetRawDataEnumerable(botResponse.QueryOrCommand, localeCode, preview: true))
+                await foreach (var result in ContentfulConnection.GraphQL.GetRawDataEnumerable(
+                    botResponse.QueryOrCommand, localeCode, preview: true))
                 {
                     var node = result.SelectToken(jsonPath);
                     if (node is null) continue;
@@ -491,11 +494,11 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             Today is {{DateTime.UtcNow:R}}.
 
-            Structure every response as a JSON document with keys "answer", "question", "queryOrCommand", "type".
-            "answer" is a JSON string and contains your best answer. Keep them punchy.
-            "question" is a JSON string and contains your next question for the user to help them reach their goal.
-            "queryOrCommand" is a JSON string and contains the accurate CLI command or GraphQl query that will achieve the goal.
-            "contentTypeId" is a JSON string and contains the root content type the user is interested in. Populate this as early as possible.
+            Structure every response as a JSON document with keys "answer", "question", "queryOrCommand", "type", "contentTypeId".
+            "answer" is a Markdown containting your best answer. Keep them punchy.
+            "question" contains your next question for the user to help them reach their goal in Markdown.
+            "queryOrCommand" contains the accurate CLI command or GraphQl query that will achieve the goal.
+            "contentTypeId" is a string and contains the root content type the user is interested in. Populate this as early as possible.
             "type" contains "GraphQL" or "CLI" to execute commands depending on what is in "queryOrCommand".
             "type" contains "Exit" if the user wants to leave the conversation or quit the app.
             "queryOrCommand" and "type" MUST only supplied when you ask "Shall we give it a shot?" when the goal is clear to you.
@@ -519,13 +522,13 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
             All content type and field names MUST match the schema. Correct user input and spelling automatically.
 
             Make sure GraphQl queries are correct, fields are cased exactly right and query is prettified on multiple lines.
-            For types that contain a "key" and/or "title" field, you MUST ALWAYS include these fields in your final query.
+            For types that contain a "key" and/or "title" field, these are the default fields in your query if the user doesn't suggest any fields.
             Only use valid GraphQL that conforms to the Contentful GraphQL API spec.
             Always include "Lat" and "Lon" subfields for "Location" type fields.
             Here is an **example** of a well formed Contentful GraphQL query for a content type named "dataCountry":
             """
-            query GetContent($preview: Boolean, $skip: Int, $limit: Int) {
-              dataCountryCollection(preview: $peview, skip: $skip, limit: $limit) {
+            query ($preview: Boolean, $skip: Int, $limit: Int) {
+              dataCountryCollection(preview: $preview, skip: $skip, limit: $limit) {
                 items {
                   key
                   title
@@ -539,8 +542,26 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
               }
             }
             """
-            Always accept and pass on $preview, $limit and $skip parameters.
-            If you are asked for a specific number of entries, you can override their values in the Collection with scalar values.
+            Add a $preview, $limit and $skip parameter for the outer query and reference them in the inner query.
+
+            Only if the user implies or asks for a limited number of entries, remove the outer $limit and specify the limit,
+            For example, of the user wants 10 entries then the corect query will be:
+            """
+            query ($preview: Boolean, $skip: Int) {
+              dataCountryCollection(preview: $preview, skip: $skip, limit: 10) {
+                items {
+                  key
+                  title
+                  iso2Code
+                  phoneCode
+                  population
+                  flag {
+                    url
+                  }
+                }
+              }
+            }
+            """
 
             The valid content types and fields that are available in this Contentful space are contained in the following quoted text:
 
