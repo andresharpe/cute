@@ -53,32 +53,32 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var contentMetaType = CuteContentSyncApiContentType.Instance();
+        var contentSyncApiType = CuteContentSyncApiContentType.Instance();
 
-        if (await CreateContentTypeIfNotExist(contentMetaType))
+        if (await CreateContentTypeIfNotExist(contentSyncApiType))
         {
-            _console.WriteNormalWithHighlights($"Created content type {contentMetaType.SystemProperties.Id}...", Globals.StyleHeading);
+            _console.WriteNormalWithHighlights($"Created content type {contentSyncApiType.SystemProperties.Id}...", Globals.StyleHeading);
         }
 
-        var contentMetaTypeId = contentMetaType.SystemProperties.Id;
+        var contentSyncApiTypeId = contentSyncApiType.SystemProperties.Id;
 
         var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
 
         var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
 
         var apiSyncEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentSyncApi>(settings.Key)
-            ?? throw new CliException($"No API sync entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
+            ?? throw new CliException($"No API sync entry '{contentSyncApiTypeId}' with key '{settings.Key}' was found.");
 
         var yamlDeserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
         var adapter = yamlDeserializer.Deserialize<HttpDataAdapterConfig>(apiSyncEntry.Yaml)
-            ?? throw new CliException($"Invalid data in '{contentMetaTypeId}.{"yaml"}' for key '{settings.Key}'.");
+            ?? throw new CliException($"Invalid data in '{contentSyncApiTypeId}.{"yaml"}' for key '{settings.Key}'.");
 
         adapter.Id = settings.Key;
 
-        var contentType = await GetContentTypeOrThrowError(adapter.ContentType, $"Syncing '{contentMetaTypeId}' entry with key '{settings.Key}'.");
+        var contentType = await GetContentTypeOrThrowError(adapter.ContentType, $"Syncing '{contentSyncApiTypeId}' entry with key '{settings.Key}'.");
 
         if (!ConfirmWithPromptChallenge($"sync content for '{contentType.SystemProperties.Id}'"))
         {
@@ -116,7 +116,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
             );
         }
 
-        await PerformBulkOperations(bulkOperations.ToArray());
+        await PerformBulkOperations(bulkOperations.ToArray(), apiSyncEntry.Key);
 
         return 0;
     }

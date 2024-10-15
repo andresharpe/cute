@@ -200,7 +200,7 @@ public class CommandAppBuilder
             {
                 branchConfig.SetDescription("Run cute in server mode.");
 
-                branchConfig.AddCommand<ServerSechedulerCommand>("scheduler")
+                branchConfig.AddCommand<ServerSchedulerCommand>("scheduler")
                     .WithDescription("Schedule and run cuteContentSyncApi entries.");
             });
 
@@ -266,6 +266,8 @@ public class CommandAppBuilder
                 outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}",
                 restrictedToMinimumLevel: LogEventLevel.Information
             );
+
+            ConsoleWriter.EnableConsole = false;
         }
 
         Log.Logger = loggerConfig.CreateLogger();
