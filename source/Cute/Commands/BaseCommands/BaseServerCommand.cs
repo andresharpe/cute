@@ -1,19 +1,29 @@
-﻿using Cute.Commands.Login;
-using Cute.Config;
+﻿using Cute.Config;
 using Cute.Constants;
 using Cute.Lib.Extensions;
 using Cute.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Cute.Commands.BaseCommands;
 
 public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogger<BaseServerCommand<TSettings>> logger,
-    AppSettings appSettings) : BaseLoggedInCommand<TSettings>(console, logger, appSettings) where TSettings : LoggedInSettings
+    AppSettings appSettings) : BaseLoggedInCommand<TSettings>(console, logger, appSettings) where TSettings : BaseServerSettings
 {
     private CommandContext? _commandContext;
+
+    public override ValidationResult Validate(CommandContext context, TSettings settings)
+    {
+        if (settings.Port == 0)
+        {
+            return ValidationResult.Error($"The port for the webserver (--port) must be specified.");
+        }
+
+        return base.Validate(context, settings);
+    }
 
     private string HtmlHeader => $"""
     <!DOCTYPE html>
@@ -47,10 +57,11 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
     </style>
     """;
 
-    public override async Task<int> ExecuteCommandAsync(CommandContext context, TSettings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
     {
         _commandContext = context;
-        return await Task.FromResult(0);
+
+        return await base.ExecuteAsync(context, settings);
     }
 
     public abstract void ConfigureWebApplicationBuilder(WebApplicationBuilder webBuilder);
@@ -79,13 +90,15 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
 
         _console.WriteNormal("Ready...");
 
+        ConsoleWriter.EnableConsole = false;
+
         try
         {
             await webApp.RunAsync();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "An Error Occured");
+            _console.WriteException(ex);
         }
     }
 

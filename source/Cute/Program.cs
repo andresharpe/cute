@@ -32,13 +32,6 @@ internal class Program
             WriteAppBanner();
         }
 
-        // Surpress pretty console for webserver
-
-        if (cuteAppBuilder.ShowLogOutput)
-        {
-            ConsoleWriter.EnableConsole = false;
-        }
-
         var cuteApp = cuteAppBuilder.Build();
 
         try

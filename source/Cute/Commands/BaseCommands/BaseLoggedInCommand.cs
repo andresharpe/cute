@@ -29,11 +29,13 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 {
     protected readonly IConsoleWriter _console = console;
 
-    private readonly ILogger _logger = logger;
+    protected readonly ILogger _logger = logger;
 
     private ContentfulConnection _contentfulConnection = null!;
 
     private readonly AppSettings _appSettings = appSettings;
+
+    private TSettings _settings = null!;
 
     private bool _force = false;
 
@@ -55,6 +57,10 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                 $"Unexpected settings type ('{settings.GetType().Name}' does not inherit from 'LoggedInSettings'"
             );
         }
+
+        _settings = settings;
+
+        _console.Logger = _logger;
 
         var options = _appSettings.GetContentfulOptions();
 
@@ -344,19 +350,19 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
         return true;
     }
 
-    public async Task PerformBulkOperations(IBulkAction[] executors)
+    public async Task PerformBulkOperations(IBulkAction[] executors, string? processName = null)
     {
         if (ConsoleWriter.EnableConsole)
         {
-            await PerformBulkOperationsWithConsole(executors);
+            await PerformBulkOperationsWithConsole(executors, processName);
         }
         else
         {
-            await PerformBulkOperationsWithoutConsole(executors);
+            await PerformBulkOperationsWithoutConsole(executors, processName);
         }
     }
 
-    public async Task PerformBulkOperationsWithConsole(IBulkAction[] executors)
+    public async Task PerformBulkOperationsWithConsole(IBulkAction[] executors, string? processName)
     {
         var task = new List<List<ProgressTask>>(executors.Length);
 
@@ -375,7 +381,9 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 
                  for (var j = 0; j < progressInfo.Count; j++)
                  {
-                     var initialMessage = progressInfo[j].Intent;
+                     var initialMessage = processName == null
+                         ? progressInfo[j].Intent
+                         : processName + ": " + progressInfo[j].Intent;
 
                      task[i].Add(ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.GlobeWithMeridians} {initialMessage}...[/]"));
                      task[i][j].Value = 0;
@@ -439,6 +447,7 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                  await executors[i]
                      .WithContentfulConnection(_contentfulConnection)
                      .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+                     .WithVerbosity(_settings.Verbosity)
                      .ExecuteAsync(progressBarActions);
 
                  ctx.Refresh();
@@ -446,14 +455,37 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
          });
     }
 
-    public async Task PerformBulkOperationsWithoutConsole(IBulkAction[] executors)
+    public async Task PerformBulkOperationsWithoutConsole(IBulkAction[] executors, string? processName)
     {
         for (var i = 0; i < executors.Length; i++)
         {
+            var progressInfo = executors[i].ActionProgressIndicators();
+
+            var maxIntentLength = progressInfo.Max(p => p.Intent.Length);
+
+            var progressUpdaters = new Action<BulkActionProgressEvent>[progressInfo.Count];
+
+            for (var j = 0; j < progressInfo.Count; j++)
+            {
+                var progressMessage = progressInfo[j].Intent;
+
+                progressUpdaters[j] = e =>
+                {
+                    if (e.Message is not null && e.Step is not null && e.Steps is not null)
+                        _logger.LogInformation("{processName} > {progressMessage}: {message} ({step}/{steps})", processName, progressMessage, e.Message.ToString(), e.Step, e.Steps);
+                    else if (e.Message is not null)
+                        _logger.LogInformation("{processName} > {progressMessage}: {message}", processName, progressMessage, e.Message.ToString());
+
+                    if (e.Error is not null)
+                        _logger.LogError("{processName} > {progressMessage}: {message}", processName, progressMessage, e.Error.ToString());
+                };
+            }
+
             await executors[i]
-              .WithContentfulConnection(_contentfulConnection)
-              .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
-              .ExecuteAsync();
+                .WithContentfulConnection(_contentfulConnection)
+                .WithDisplayAction(m => _logger.LogDebug("{displayMessage}", m.ToString()))
+                .WithVerbosity(_settings.Verbosity)
+                .ExecuteAsync(progressUpdaters);
         }
     }
 }
