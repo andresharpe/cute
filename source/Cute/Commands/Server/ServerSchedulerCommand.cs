@@ -29,7 +29,6 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         public string Status { get; set; } = string.Empty;
         public DateTime? LastRunFinished { get; set; }
         public DateTime? LastRunStarted { get; set; }
-        public List<string> ChainedEntryKeys { get; set; } = new();
 
         public ScheduledEntry(CuteContentSyncApi cuteContentSyncApi)
         {
@@ -55,6 +54,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     private static object _schedulerLock = new();
 
     private static ConcurrentDictionary<Guid, ScheduledEntry> _cronTasks = [];
+
+    private static ConcurrentDictionary<string, LinkedList<string>> _chainedStructure = [];
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -193,6 +194,14 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             .Where(cronTask => !cronTask.Schedule.Equals("never", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
+        var chainedKeys = cronTasks
+            .Where(cronTask => cronTask.Schedule.TrimStart().StartsWith("runafter:", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(cronTask => cronTask.Key, cronTask => cronTask.Schedule.Replace("runafter:", string.Empty).Trim());
+
+        _chainedStructure = new (GetChainedStructure(chainedKeys));
+
+        cronTasks = cronTasks.Where(cronTask => !cronTask.Schedule.TrimStart().StartsWith("runafter:", StringComparison.OrdinalIgnoreCase)).ToArray();
+
         if (cronTasks.Length == 0)
         {
             throw new CliException($"No data sync entries found with a valid schedule.");
@@ -305,6 +314,16 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
             await command.RunAsync(args);
 
+            if (_chainedStructure.TryGetValue(cuteContentSyncApi.Key, out var chainedKeys))
+            {
+                foreach (var key in chainedKeys)
+                {
+                    args[3] = key;
+                    command = new CommandAppBuilder(args).Build();
+                    await command.RunAsync(args);
+                }
+            }
+
             status = "success";
         }
         catch (Exception ex)
@@ -323,5 +342,57 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         cuteContentSyncApi.LastRunStarted = started;
         cuteContentSyncApi.LastRunFinished = finished;
         cuteContentSyncApi.Status = status;
+    }
+
+    private Dictionary<string, LinkedList<string>> GetChainedStructure(Dictionary<string, string> chainedEntries)
+    {
+        var result = new Dictionary<string, LinkedList<string>>();
+
+        foreach (var (key, value) in chainedEntries)
+        {
+            var runAfterKey = value;
+
+            // If the runAfterKey is not in the chainedEntries, then it is the scheduled task.
+            if (!chainedEntries.ContainsKey(runAfterKey))
+            {
+                if (!result.ContainsKey(runAfterKey))
+                {
+                    result.Add(runAfterKey, new LinkedList<string>());
+                }
+
+                // add primary descendant to the start of the list.
+                result[runAfterKey].AddFirst(key);
+            }
+            else
+            {
+                HashSet<string> visited = new();
+                var circuit = false;
+                while (chainedEntries.ContainsKey(runAfterKey))
+                {
+                    if(visited.Contains(runAfterKey))
+                    {
+                        _console.WriteAlertAccent($"Circular dependency detected in chained entries for '{key}' runafter '{value}'.");
+                        circuit = true;
+                        break;
+                    }
+                    runAfterKey = chainedEntries[value];
+                    visited.Add(runAfterKey);
+                }
+                
+                if(circuit)
+                {
+                    continue;
+                }
+
+                if (!result.ContainsKey(runAfterKey))
+                {
+                    result.Add(runAfterKey, new LinkedList<string>());
+                }
+                // add chained descendant to the end of the list.
+                result[runAfterKey].AddLast(key);
+            }
+        }
+
+        return result;
     }
 }
