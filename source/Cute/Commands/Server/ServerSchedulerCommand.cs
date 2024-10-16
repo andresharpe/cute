@@ -151,7 +151,36 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         EnsureNewScheduler(cronLogger);
 
-        foreach (var cronTaskEntry in _cronTasks)
+        var pairs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var cronTask in _cronTasks.Values)
+        {
+            if (cronTask.Schedule.StartsWith("runafter:", StringComparison.OrdinalIgnoreCase))
+            {
+                var linkedKey = cronTask.Schedule.Replace("runafter:", "").Trim();
+                pairs[cronTask.Key] = linkedKey;
+                continue;
+            }
+        }
+
+        var tasksToRun = new Dictionary<string, LinkedList<CuteContentSyncApi>>();
+
+        foreach (var cronTask in _cronTasks.Values)
+        {
+            if (cronTask.Schedule.StartsWith("runafter:", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            tasksToRun[cronTask.Key] = new LinkedList<string>([cronTask.Key]);
+            var keyToFind = cronTask.Key;
+            while (pairs.ContainsKey(keyToFind))
+            {
+                tasksToRun[cronTask.Key].AddLast(_cronTasks[pairs[keyToFind]]);
+                keyToFind = pairs[keyToFind];
+            }
+        }
+
+        foreach (var cronTaskEntry in tasksToRun)
         {
             var cronTask = cronTaskEntry;
 
@@ -161,10 +190,11 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
             var cronSchedule = frequency.ToCronExpression().ToString();
 
+            // this will only create for root entries
             var scheduledTask = new AsyncScheduledTask(
                 cronTask.Key,
                 CrontabSchedule.Parse(cronSchedule),
-                ct => Task.Run(() => ProcessAndReloadSchedule(cronTask.Value), ct)
+                ct => Task.Run(() => ProcessAndReloadSchedule(cronTask.Value.ToList()), ct)
             );
 
             _scheduler.AddTask(scheduledTask);
@@ -203,9 +233,12 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         context.Response.Redirect("/");
     }
 
-    private async Task ProcessAndReloadSchedule(CuteContentSyncApi entry)
+    private async Task ProcessAndReloadSchedule(IEnumerable<CuteContentSyncApi> entries)
     {
-        await ProcessContentSyncApi(entry);
+        foreach (var entry in entries)
+        {
+            var success = await ProcessContentSyncApi(entry);
+        }
         LoadSyncApiEntries();
         RefreshScheduler();
         DisplaySchedule();
@@ -228,7 +261,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private readonly ConcurrentDictionary<string, (DateTime? lastRunStarted, DateTime? lastRunFinished, string status)> _lastRunInfo = new();
 
-    private async Task ProcessContentSyncApi(CuteContentSyncApi cuteContentSyncApi)
+    private async Task<bool> ProcessContentSyncApi(CuteContentSyncApi cuteContentSyncApi)
     {
         string verbosity = _settings?.Verbosity.ToString() ?? Verbosity.Normal.ToString();
 
@@ -241,6 +274,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         var status = "running";
 
         _lastRunInfo[cuteContentSyncApi.Key] = (lastRunStarted: started, lastRunFinished: finished, status);
+
+        var success = true;
 
         try
         {
@@ -255,14 +290,18 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             _console.WriteException(ex);
 
             status = $"error ({ex.Message})";
+
+            success = false;
         }
         finally
         {
             _console.WriteNormal("Completed content sync-api for '{syncApiKey}'", cuteContentSyncApi.Key);
         }
 
-        finished = DateTime.Now;
+        finished = DateTime.UtcNow;
 
         _lastRunInfo[cuteContentSyncApi.Key] = (lastRunStarted: started, lastRunFinished: finished, status);
+
+        return success;
     }
 }
