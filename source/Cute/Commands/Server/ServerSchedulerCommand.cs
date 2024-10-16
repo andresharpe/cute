@@ -24,13 +24,37 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         public string Key { get; set; } = default!;
     }
 
+    private class ScheduledEntry : CuteContentSyncApi
+    {
+        public string Status { get; set; } = string.Empty;
+        public DateTime? LastRunFinished { get; set; }
+        public DateTime? LastRunStarted { get; set; }
+        public List<string> ChainedEntryKeys { get; set; } = new();
+
+        public ScheduledEntry(CuteContentSyncApi cuteContentSyncApi)
+        {
+            Key = cuteContentSyncApi.Key;
+            Schedule = cuteContentSyncApi.Schedule;
+            Order = cuteContentSyncApi.Order;
+            Yaml = cuteContentSyncApi.Yaml;
+        }
+
+        public void UpdateEntry(CuteContentSyncApi cuteContentSyncApi)
+        {
+            Key = cuteContentSyncApi.Key;
+            Schedule = cuteContentSyncApi.Schedule;
+            Order = cuteContentSyncApi.Order;
+            Yaml = cuteContentSyncApi.Yaml;
+        }
+    }
+
     private Settings? _settings;
 
     private static Scheduler _scheduler = null!;
 
     private static object _schedulerLock = new();
 
-    private static ConcurrentDictionary<Guid, CuteContentSyncApi> _cronTasks = [];
+    private static ConcurrentDictionary<Guid, ScheduledEntry> _cronTasks = [];
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -78,16 +102,9 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         foreach (var (key, entry) in _cronTasks.OrderBy(kv => nextRun[kv.Key]))
         {
-            string? lastRunStarted = null;
-            string? lastRunFinished = null;
-            string? status = null;
-
-            if (_lastRunInfo.TryGetValue(entry.Key, out var info))
-            {
-                lastRunStarted = info.lastRunStarted?.ToString("R");
-                lastRunFinished = info.lastRunFinished?.ToString("R");
-                status = info.status;
-            }
+            string? lastRunStarted = entry.LastRunStarted?.ToString("R");
+            string? lastRunFinished = entry.LastRunFinished?.ToString("R");
+            string? status = entry.Status;
 
             await context.Response.WriteAsync($"<tr>");
             await context.Response.WriteAsync($"<td>{entry.Key}</td>");
@@ -115,7 +132,48 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private void LoadSyncApiEntries()
     {
-        if (_settings is null) return;
+        var cronTasks = GetSyncApiEntries();
+        _cronTasks = new(cronTasks.ToDictionary(t => Guid.NewGuid(), t => new ScheduledEntry(t)));
+    }
+
+    private void UpdateScheduler()
+    {
+        var syncApiEntries = GetSyncApiEntries().ToDictionary(t => t.Key, t => t);
+        lock (_schedulerLock)
+        {
+            foreach (var (key, entry) in _cronTasks)
+            {
+                if (syncApiEntries.ContainsKey(entry.Key))
+                {
+                    var latestEntry = syncApiEntries[entry.Key];
+                    if (latestEntry.Schedule != entry.Schedule)
+                    {
+                        var cronSchedule = latestEntry.Schedule.ToCronExpression().ToString();
+                        _cronTasks[key].UpdateEntry(latestEntry);
+                        _scheduler.UpdateTask(key, CrontabSchedule.Parse(cronSchedule));
+                    }
+                    syncApiEntries.Remove(entry.Key);
+                }
+                else
+                {
+                    _cronTasks.Remove(key, out _);
+                    _scheduler.RemoveTask(key);
+                }
+            }
+
+            foreach (var entry in syncApiEntries.Values)
+            {
+                var key = Guid.NewGuid();
+                var cronSchedule = entry.Schedule.ToCronExpression().ToString();
+                _cronTasks[key] = new ScheduledEntry(entry);
+                _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(cronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_cronTasks[key]), ct)));
+            }
+        }
+    }
+
+    private CuteContentSyncApi[] GetSyncApiEntries()
+    {
+        if (_settings is null) return [] ;
 
         CuteContentSyncApi? specifiedJob = null;
 
@@ -140,7 +198,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             throw new CliException($"No data sync entries found with a valid schedule.");
         }
 
-        _cronTasks = new(cronTasks.ToDictionary(t => Guid.NewGuid(), t => t));
+        return cronTasks;
     }
 
     private void RefreshScheduler()
@@ -164,7 +222,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             var scheduledTask = new AsyncScheduledTask(
                 cronTask.Key,
                 CrontabSchedule.Parse(cronSchedule),
-                ct => Task.Run(() => ProcessAndReloadSchedule(cronTask.Value), ct)
+                ct => Task.Run(() => ProcessAndUpdateSchedule(cronTask.Value), ct)
             );
 
             _scheduler.AddTask(scheduledTask);
@@ -203,11 +261,10 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         context.Response.Redirect("/");
     }
 
-    private async Task ProcessAndReloadSchedule(CuteContentSyncApi entry)
+    private async Task ProcessAndUpdateSchedule(ScheduledEntry entry)
     {
         await ProcessContentSyncApi(entry);
-        LoadSyncApiEntries();
-        RefreshScheduler();
+        UpdateScheduler();
         DisplaySchedule();
     }
 
@@ -226,9 +283,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         }
     }
 
-    private readonly ConcurrentDictionary<string, (DateTime? lastRunStarted, DateTime? lastRunFinished, string status)> _lastRunInfo = new();
-
-    private async Task ProcessContentSyncApi(CuteContentSyncApi cuteContentSyncApi)
+    private async Task ProcessContentSyncApi(ScheduledEntry cuteContentSyncApi)
     {
         string verbosity = _settings?.Verbosity.ToString() ?? Verbosity.Normal.ToString();
 
@@ -240,7 +295,9 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         DateTime? finished = null;
         var status = "running";
 
-        _lastRunInfo[cuteContentSyncApi.Key] = (lastRunStarted: started, lastRunFinished: finished, status);
+        cuteContentSyncApi.LastRunStarted = started;
+        cuteContentSyncApi.LastRunFinished = finished;
+        cuteContentSyncApi.Status = status;
 
         try
         {
@@ -261,8 +318,10 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             _console.WriteNormal("Completed content sync-api for '{syncApiKey}'", cuteContentSyncApi.Key);
         }
 
-        finished = DateTime.Now;
+        finished = DateTime.UtcNow;
 
-        _lastRunInfo[cuteContentSyncApi.Key] = (lastRunStarted: started, lastRunFinished: finished, status);
+        cuteContentSyncApi.LastRunStarted = started;
+        cuteContentSyncApi.LastRunFinished = finished;
+        cuteContentSyncApi.Status = status;
     }
 }
