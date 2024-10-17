@@ -328,8 +328,6 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         await ProcessContentSyncApi(entry);
 
         UpdateScheduler();
-
-        DisplaySchedule();
     }
 
     private void DisplaySchedule()
