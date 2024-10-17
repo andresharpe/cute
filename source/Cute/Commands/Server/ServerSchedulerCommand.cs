@@ -39,7 +39,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             var entry = RunNext;
             while (entry is not null)
             {
-                if(chainedKeys.Contains(entry.Key))
+                if (chainedKeys.Contains(entry.Key))
                 {
                     return chainedKeys;
                 }
@@ -177,7 +177,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             {
                 var targetKey = entry.Schedule.Replace("runafter:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
                 var targetEntry = GetScheduleByKey(targetKey);
-                if(targetEntry is null)
+                if (targetEntry is null)
                 {
                     _console.WriteException(new CliException($"Run after key '{targetKey}' not found for entry: '{entry.Key}'"));
                     continue;
@@ -189,7 +189,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         HashSet<string> allCircularKeys = new();
         foreach (var entry in _scheduledEntries.Values)
         {
-            if(allCircularKeys.Contains(entry.Key)) continue;
+            if (allCircularKeys.Contains(entry.Key)) continue;
 
             var circularKeys = entry.GetCircularDependencies();
             if (circularKeys.Any())
@@ -305,6 +305,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             }
 
             _scheduler = new(cronLogger, new SchedulerOptions { DateTimeKind = DateTimeKind.Utc });
+
+            _scheduledEntries.Clear();
         }
     }
 
@@ -314,7 +316,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         EnsureNewScheduler(_cronLogger);
 
-        DisplaySchedule();
+        UpdateScheduler();
 
         _scheduler.Start();
 
