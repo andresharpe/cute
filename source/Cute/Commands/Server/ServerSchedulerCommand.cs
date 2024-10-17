@@ -26,9 +26,10 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private class ScheduledEntry : CuteContentSyncApi
     {
-        public string Status { get; set; } = string.Empty;
+        public string? Status { get; set; }
         public DateTime? LastRunFinished { get; set; }
         public DateTime? LastRunStarted { get; set; }
+        public TimeSpan? Duration => LastRunFinished - LastRunStarted;
 
         public ScheduledEntry(CuteContentSyncApi cuteContentSyncApi)
         {
@@ -55,7 +56,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private static ConcurrentDictionary<Guid, ScheduledEntry> _cronTasks = [];
 
-    private static ConcurrentDictionary<string, LinkedList<string>> _chainedStructure = [];
+    private static ConcurrentDictionary<string, LinkedList<ScheduledEntry>> _chainedStructure = [];
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -101,26 +102,43 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             .SelectMany(i => i.ScheduledTasks, (i, j) => new { j.Id, i.NextOccurrence })
             .ToDictionary(o => o.Id, o => o.NextOccurrence);
 
+        var renderRow = async (HttpContext context, string key, string schedule, string? cronExpression, string? lastRunStartedStr, string? lastRunFinishedStr, string? status, string nextRunStr) =>
+        {
+            await context.Response.WriteAsync($"<tr>");
+            await context.Response.WriteAsync($"<td>{key}</td>");
+            await context.Response.WriteAsync($"<td>{schedule}</td>");
+            await context.Response.WriteAsync($"<td>{cronExpression}</td>");
+            await context.Response.WriteAsync($"<td>");
+            if (lastRunStartedStr is not null)
+                await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStartedStr}</b><br>");
+            if (lastRunFinishedStr is not null)
+                await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinishedStr}</b><br>");
+            if (status is not null)
+                await context.Response.WriteAsync($"<small>Status:</small><br><b>{status}</b><br>");
+            await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRunStr}</b><br>");
+            await context.Response.WriteAsync($"</td>");
+            await context.Response.WriteAsync($"</tr>");
+        };
+
         foreach (var (key, entry) in _cronTasks.OrderBy(kv => nextRun[kv.Key]))
         {
             string? lastRunStarted = entry.LastRunStarted?.ToString("R");
             string? lastRunFinished = entry.LastRunFinished?.ToString("R");
             string? status = entry.Status;
 
-            await context.Response.WriteAsync($"<tr>");
-            await context.Response.WriteAsync($"<td>{entry.Key}</td>");
-            await context.Response.WriteAsync($"<td>{entry.Schedule}</td>");
-            await context.Response.WriteAsync($"<td>{entry.Schedule?.ToCronExpression()}</td>");
-            await context.Response.WriteAsync($"<td>");
-            if (lastRunStarted is not null)
-                await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStarted}</b><br>");
-            if (lastRunFinished is not null)
-                await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinished}</b><br>");
-            if (status is not null)
-                await context.Response.WriteAsync($"<small>Status:</small><br><b>{status}</b><br>");
-            await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRun[key].ToUniversalTime():R}</b><br>");
-            await context.Response.WriteAsync($"</td>");
-            await context.Response.WriteAsync($"</tr>");
+            string schedule = entry.Schedule;
+
+            await renderRow(context, entry.Key, schedule, entry.Schedule?.ToCronExpression().ToString(), lastRunStarted, lastRunFinished, status, nextRun[key].ToUniversalTime().ToString("R"));
+
+            if (_chainedStructure.TryGetValue(entry.Key, out var chainedEntries))
+            {
+                var accumulatedDuration = entry.Duration ?? new TimeSpan(0);
+                foreach (var scheduledEntry in chainedEntries)
+                {
+                    await renderRow(context, scheduledEntry.Key, scheduledEntry.Schedule, null, scheduledEntry.LastRunStarted?.ToString("R"), scheduledEntry.LastRunFinished?.ToString("R"), scheduledEntry.Status, (nextRun[key] + accumulatedDuration).ToUniversalTime().ToString("R"));
+                    accumulatedDuration += scheduledEntry.Duration ?? new TimeSpan(0);
+                }
+            }
         }
 
         await context.Response.WriteAsync($"</table>");
@@ -194,13 +212,15 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             .Where(cronTask => !cronTask.Schedule.Equals("never", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        var chainedKeys = cronTasks
+        var chainedSyncApiEntries = cronTasks
             .Where(cronTask => cronTask.Schedule.TrimStart().StartsWith("runafter:", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(cronTask => cronTask.Key, cronTask => cronTask.Schedule.Replace("runafter:", string.Empty).Trim());
-
-        _chainedStructure = new (GetChainedStructure(chainedKeys));
+            .ToDictionary(cronTask => cronTask.Key, cronTask => cronTask);
 
         cronTasks = cronTasks.Where(cronTask => !cronTask.Schedule.TrimStart().StartsWith("runafter:", StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        var masterSyncApiEntries = cronTasks.ToDictionary(cronTask => cronTask.Key, cronTask => cronTask);
+        UpdateChainedStructure(chainedSyncApiEntries, masterSyncApiEntries);
+
 
         if (cronTasks.Length == 0)
         {
@@ -312,71 +332,140 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         {
             var command = new CommandAppBuilder(args).Build();
 
+            cuteContentSyncApi.LastRunStarted = started;
             await command.RunAsync(args);
 
-            if (_chainedStructure.TryGetValue(cuteContentSyncApi.Key, out var chainedKeys))
+            status = "success";
+
+            finished = DateTime.UtcNow;
+            cuteContentSyncApi.LastRunFinished = finished;
+            cuteContentSyncApi.Status = status;
+
+            if (_chainedStructure.TryGetValue(cuteContentSyncApi.Key, out var chainedEntries))
             {
-                foreach (var key in chainedKeys)
+                foreach (var chainedEntry in chainedEntries)
                 {
-                    args[3] = key;
-                    command = new CommandAppBuilder(args).Build();
-                    await command.RunAsync(args);
+                    args[3] = chainedEntry.Key;
+                    try
+                    {
+
+                        _console.WriteNormal("Started chained content sync-api for '{syncApiKey}'", chainedEntry.Key);
+                        started = DateTime.UtcNow;
+                        status = "running";
+
+                        chainedEntry.LastRunStarted = started;
+                        chainedEntry.Status = status;
+
+                        command = new CommandAppBuilder(args).Build();
+                        await command.RunAsync(args);
+
+                        status = "success";
+
+                        finished = DateTime.UtcNow;
+
+                        chainedEntry.LastRunFinished = finished;
+                        chainedEntry.Status = status;
+                    }
+                    catch (Exception ex)
+                    {
+                        status = $"error ({ex.Message})";
+                        finished = DateTime.UtcNow;
+
+                        chainedEntry.LastRunFinished = finished;
+                        chainedEntry.Status = status;
+                    }
+                    finally
+                    {
+                        _console.WriteNormal("Completed chained content sync-api for '{syncApiKey}'", chainedEntry.Key);
+                    }
                 }
             }
-
-            status = "success";
         }
         catch (Exception ex)
         {
             _console.WriteException(ex);
 
             status = $"error ({ex.Message})";
+            finished = DateTime.UtcNow;
+
+            cuteContentSyncApi.LastRunFinished = finished;
+            cuteContentSyncApi.Status = status;
         }
         finally
         {
             _console.WriteNormal("Completed content sync-api for '{syncApiKey}'", cuteContentSyncApi.Key);
         }
-
-        finished = DateTime.UtcNow;
-
-        cuteContentSyncApi.LastRunStarted = started;
-        cuteContentSyncApi.LastRunFinished = finished;
-        cuteContentSyncApi.Status = status;
     }
 
-    private Dictionary<string, LinkedList<string>> GetChainedStructure(Dictionary<string, string> chainedEntries)
+    // This is an immutable structure to track schedule information for chained entries.
+    private Dictionary<string, ScheduledEntry> chainedEntryTracker = [];
+    private void UpdateChainedStructure(Dictionary<string, CuteContentSyncApi> chainedSyncApiEntries, Dictionary<string, CuteContentSyncApi> masterSyncApiEntries)
     {
-        var result = new Dictionary<string, LinkedList<string>>();
+        var result = new Dictionary<string, LinkedList<ScheduledEntry>>();
 
-        foreach (var (key, value) in chainedEntries)
+        foreach (var (key, value) in chainedSyncApiEntries)
         {
-            var runAfterKey = value;
-
-            // If the runAfterKey is not in the chainedEntries, then it is the scheduled task.
-            if (!chainedEntries.ContainsKey(runAfterKey))
+            var runAfterKey = value.Schedule.Replace("runafter:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+            if (chainedEntryTracker.ContainsKey(key))
             {
+                // If schedule is changed we want to reset schedule information, otherwise update the entry.
+                if (chainedEntryTracker[key].Schedule != value.Schedule)
+                {
+                    _console.WriteNormal($"Schedule change detected for cuteContentSyncApi chained entry with key: '{key}' from '{chainedEntryTracker[key].Schedule}' to '{value.Schedule}'.");
+                    chainedEntryTracker[key] = new ScheduledEntry(value);
+                }
+                else 
+                {
+                    chainedEntryTracker[key].UpdateEntry(value);
+                }
+            }
+            else
+            {
+                chainedEntryTracker.Add(key, new ScheduledEntry(value));
+                _console.WriteNormal($"Added cuteContentSyncApi chained entry with key: '{key}' to {value.Schedule}.");
+            }
+
+            // Iterate through chainedEntryTracker and remove entries that are not present in chainedSyncApiEntries.
+            foreach (var (k, _) in chainedEntryTracker)
+            {
+                if (!chainedSyncApiEntries.ContainsKey(k))
+                {
+                    chainedEntryTracker.Remove(k);
+                    _console.WriteNormal($"Removed cuteContentSyncApi chained entry with key: '{k}'.");
+                }
+            }
+
+            // If the runAfterKey is not in the chainedEntries, then it is a scheduled task.
+            if (!chainedSyncApiEntries.ContainsKey(runAfterKey))
+            {
+                if(!masterSyncApiEntries.ContainsKey(runAfterKey))
+                {
+                    _console.WriteException(new Exception($"cuteContentSyncApi entry with key: '{key}' is chained to runafter '{runAfterKey}', but '{runAfterKey}' is not scheduled to run."));
+                    continue;
+                }
+
                 if (!result.ContainsKey(runAfterKey))
                 {
-                    result.Add(runAfterKey, new LinkedList<string>());
+                    result.Add(runAfterKey, new LinkedList<ScheduledEntry>());
                 }
 
                 // add primary descendant to the start of the list.
-                result[runAfterKey].AddFirst(key);
+                result[runAfterKey].AddFirst(chainedEntryTracker[key]);
             }
             else
             {
                 HashSet<string> visited = new();
                 var circuit = false;
-                while (chainedEntries.ContainsKey(runAfterKey))
+                while (chainedSyncApiEntries.ContainsKey(runAfterKey))
                 {
                     if(visited.Contains(runAfterKey))
                     {
-                        _console.WriteAlertAccent($"Circular dependency detected in chained entries for '{key}' runafter '{value}'.");
+                        _console.WriteException(new Exception($"Circular dependency detected in chained cuteContentSyncApi entry with key: '{key}' run after: {string.Join('>', visited.Select(t => $"'{t}'"))}."));
                         circuit = true;
                         break;
                     }
-                    runAfterKey = chainedEntries[value];
                     visited.Add(runAfterKey);
+                    runAfterKey = chainedSyncApiEntries[runAfterKey].Schedule.Replace("runafter:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
                 }
                 
                 if(circuit)
@@ -386,13 +475,13 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
                 if (!result.ContainsKey(runAfterKey))
                 {
-                    result.Add(runAfterKey, new LinkedList<string>());
+                    result.Add(runAfterKey, new LinkedList<ScheduledEntry>());
                 }
                 // add chained descendant to the end of the list.
-                result[runAfterKey].AddLast(key);
+                result[runAfterKey].AddLast(chainedEntryTracker[key]);
             }
         }
 
-        return result;
+        _chainedStructure = new(result);
     }
 }
