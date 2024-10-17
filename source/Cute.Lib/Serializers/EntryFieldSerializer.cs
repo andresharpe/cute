@@ -16,6 +16,7 @@ namespace Cute.Lib.Serializers;
 internal class EntryFieldSerializer
 {
     private const char _arrayDelimeter = '|';
+    private const char _arrayCfDelimeter = ',';
 
     private static readonly JsonSerializerSettings _jsonSettings = new() { Converters = [new ContentJsonConverter()] };
 
@@ -190,11 +191,68 @@ internal class EntryFieldSerializer
             }
             return false;
         }
+        else if (false && _contentfulType == FieldType.Array) // skip for now, the below string comparison should work fine
+        {
+            if (value1 is string str1 && value2 is string str2)
+            {
+                var arr1 = ToObjectArray(str1);
+                var arr2 = ToObjectArray(str2);
+
+                if (arr1 is null || arr2 is null) return false;
+
+                return AreEquivalent(arr1, arr2);
+            }
+            else if (value1 is null && value2 is null)
+            {
+                return true;
+            }
+        }
 
         var normalizedValue1 = DeserializeToString(value1);
         var normalizedValue2 = DeserializeToString(value2);
 
         return normalizedValue1 == normalizedValue2;
+    }
+
+    public static bool AreEquivalent(JArray array1, JArray array2)
+    {
+        if (array1.Count != array2.Count)
+        {
+            return false;
+        }
+
+        var valueCounts = new Dictionary<string, int>();
+
+        foreach (var token in array1)
+        {
+            string key = token.ToString(Formatting.None);
+            if (valueCounts.TryGetValue(key, out int value))
+            {
+                valueCounts[key] = ++value;
+            }
+            else
+            {
+                valueCounts[key] = 1;
+            }
+        }
+
+        foreach (var token in array2)
+        {
+            string key = token.ToString(Formatting.None);
+            if (!valueCounts.TryGetValue(key, out int value))
+            {
+                return false;
+            }
+
+            valueCounts[key] = --value;
+
+            if (value < 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static DateTime? ToDateTime(object? value)
@@ -261,7 +319,22 @@ internal class EntryFieldSerializer
         if (value is string stringValue)
         {
             var obj = new JArray();
-            var arr = stringValue.Split(_arrayDelimeter).Select(s => s.Trim()).OrderBy(s => s);
+
+            string[] arr;
+
+            if (stringValue.Contains(_arrayDelimeter))
+            {
+                arr = stringValue.Split(_arrayDelimeter).Select(s => s.Trim()).OrderBy(s => s).ToArray();
+            }
+            else if (stringValue.Contains(_arrayCfDelimeter))
+            {
+                arr = stringValue.Split(_arrayCfDelimeter).Select(s => s.Trim()).OrderBy(s => s).ToArray();
+            }
+            else
+            {
+                arr = [stringValue];
+            }
+
             foreach (var arrayItem in arr)
             {
                 if (_itemType.Type == "Link")
