@@ -120,38 +120,13 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             .SelectMany(i => i.ScheduledTasks, (i, j) => new { j.Id, i.NextOccurrence })
             .ToDictionary(o => o.Id, o => o.NextOccurrence);
 
-        var renderRow = async (HttpContext context, string key, string schedule, string? cronExpression, string? lastRunStartedStr, string? lastRunFinishedStr, string? status, string nextRunStr) =>
-        {
-            await context.Response.WriteAsync($"<tr>");
-            await context.Response.WriteAsync($"<td>{key}</td>");
-            await context.Response.WriteAsync($"<td>{schedule}</td>");
-            await context.Response.WriteAsync($"<td>{cronExpression}</td>");
-            await context.Response.WriteAsync($"<td>");
-            if (lastRunStartedStr is not null)
-                await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStartedStr}</b><br>");
-            if (lastRunFinishedStr is not null)
-                await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinishedStr}</b><br>");
-            if (status is not null)
-                await context.Response.WriteAsync($"<small>Status:</small><br><b>{status}</b><br>");
-            await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRunStr}</b><br>");
-            await context.Response.WriteAsync($"</td>");
-            await context.Response.WriteAsync($"</tr>");
-        };
-
         foreach (var (key, cronEntry) in _scheduledEntries.Where(k => nextRuns.ContainsKey(k.Key)).OrderBy(kv => nextRuns[kv.Key]))
         {
             var entry = cronEntry;
 
             while (entry is not null)
             {
-                string? lastRunStarted = entry.LastRunStarted?.ToString("R");
-                string? lastRunFinished = entry.LastRunFinished?.ToString("R");
-                string? status = entry.Status;
-                string? nextRun = nextRuns[key].ToString("R");
-
-                string? cronExpression = entry.IsRunAfter ? null : entry.Schedule?.ToCronExpression().ToString();
-
-                await renderRow(context, entry.Key, entry.Schedule!, cronExpression, lastRunStarted, lastRunFinished, status, nextRun);
+                await RenderHomePageTableLines(context, entry, nextRuns[key]);
                 entry = entry.RunNext;
             }
         }
@@ -162,6 +137,35 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         await context.Response.WriteAsync($"<input type='hidden' name='command' value='reload'>");
         await context.Response.WriteAsync($"<button type='submit' style='width:100%'>Reload schedule from Contentful</button>");
         await context.Response.WriteAsync($"</form>");
+    }
+
+    private static async Task RenderHomePageTableLines(HttpContext context, ScheduledEntry entry, DateTime nextRunTime)
+    {
+        string? lastRunStarted = entry.LastRunStarted?.ToString("R");
+        string? lastRunFinished = entry.LastRunFinished?.ToString("R");
+        string? status = entry.Status;
+        string? nextRun = nextRunTime.ToString("R");
+
+        string? cronExpression = entry.IsRunAfter ? null : entry.Schedule?.ToCronExpression().ToString();
+
+        await context.Response.WriteAsync($"<tr>");
+        await context.Response.WriteAsync($"<td>{entry.Key}</td>");
+        await context.Response.WriteAsync($"<td>{entry.Schedule}</td>");
+        await context.Response.WriteAsync($"<td>{cronExpression}</td>");
+        await context.Response.WriteAsync($"<td>");
+
+        if (lastRunStarted is not null)
+            await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStarted}</b><br>");
+
+        if (lastRunFinished is not null)
+            await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinished}</b><br>");
+
+        if (status is not null)
+            await context.Response.WriteAsync($"<small>Status:</small><br><b>{status}</b><br>");
+
+        await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRun}</b><br>");
+        await context.Response.WriteAsync($"</td>");
+        await context.Response.WriteAsync($"</tr>");
     }
 
     private void UpdateNextRunLinks()
@@ -186,13 +190,13 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             }
         }
 
-        HashSet<string> allCircularKeys = new();
+        HashSet<string> allCircularKeys = [];
         foreach (var entry in _scheduledEntries.Values)
         {
             if (allCircularKeys.Contains(entry.Key)) continue;
 
             var circularKeys = entry.GetCircularDependencies();
-            if (circularKeys.Any())
+            if (circularKeys.Count != 0)
             {
                 _console.WriteException(new CliException($"Circular dependency detected for cuteContentSync entries: {string.Join(" > ", circularKeys)}"));
             }
