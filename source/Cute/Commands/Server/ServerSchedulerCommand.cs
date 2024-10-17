@@ -218,15 +218,11 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
                 {
                     if (!latestEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
                     {
+                        _scheduledEntries[key].UpdateEntry(latestEntry);
                         if (entry.IsTimeScheduled)
                         {
                             var cronSchedule = latestEntry.Schedule.ToCronExpression().ToString();
-                            _scheduledEntries[key].UpdateEntry(latestEntry);
                             _scheduler.UpdateTask(key, CrontabSchedule.Parse(cronSchedule));
-                        }
-                        else
-                        {
-                            _scheduledEntries[key].UpdateEntry(latestEntry);
                         }
                     }
                     syncApiEntries.Remove(entry.Key);
@@ -244,16 +240,11 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             foreach (var entry in syncApiEntries.Values)
             {
                 var key = Guid.NewGuid();
-
+                _scheduledEntries[key] = new ScheduledEntry(entry);
                 if (entry.IsTimeScheduled)
                 {
                     var cronSchedule = entry.Schedule.ToCronExpression().ToString();
-                    _scheduledEntries[key] = new ScheduledEntry(entry);
                     _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(cronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_scheduledEntries[key]), ct)));
-                }
-                else
-                {
-                    _scheduledEntries[key] = new ScheduledEntry(entry);
                 }
             }
         }
