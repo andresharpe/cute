@@ -231,7 +231,9 @@ public class CuteFunctions : ScriptObject
 
         var contentEntries = GetFromLookupCache(contentType, matchField, cacheKey);
 
-        var lookupValues = values.Split(',').Select(s => s.Trim()).Select(s => contentEntries.ContainsKey(s) ? s : defaultValue);
+        var lookupValues = values.Split(',')
+            .Select(s => s.Trim())
+            .Select(s => contentEntries.ContainsKey(s) ? s : defaultValue);
 
         var resultValues = returnField.Equals("$id", StringComparison.OrdinalIgnoreCase)
             ? lookupValues.Select(s => contentEntries[s].SystemProperties.Id)
