@@ -24,23 +24,67 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         public string Key { get; set; } = default!;
     }
 
+    private class ScheduledEntry : CuteContentSyncApi
+    {
+        public string? Status { get; set; }
+        public DateTime? LastRunFinished { get; set; }
+        public DateTime? LastRunStarted { get; set; }
+        public TimeSpan? Duration => LastRunFinished - LastRunStarted;
+
+        public ScheduledEntry? RunNext = null;
+
+        public HashSet<string> GetCircularDependencies()
+        {
+            HashSet<string> chainedKeys = new([Key]);
+            var entry = RunNext;
+            while (entry is not null)
+            {
+                if(chainedKeys.Contains(entry.Key))
+                {
+                    return chainedKeys;
+                }
+                chainedKeys.Add(entry.Key);
+                entry = entry.RunNext;
+            }
+            return [];
+        }
+
+        public ScheduledEntry(CuteContentSyncApi cuteContentSyncApi)
+        {
+            UpdateEntry(cuteContentSyncApi);
+        }
+
+        public void UpdateEntry(CuteContentSyncApi cuteContentSyncApi)
+        {
+            Key = cuteContentSyncApi.Key;
+            Schedule = cuteContentSyncApi.Schedule;
+            Order = cuteContentSyncApi.Order;
+            Yaml = cuteContentSyncApi.Yaml;
+        }
+    }
+
     private Settings? _settings;
+
+    private readonly ILogger<Scheduler> _cronLogger = cronLogger;
 
     private static Scheduler _scheduler = null!;
 
-    private static object _schedulerLock = new();
+    private static readonly object _schedulerLock = new();
 
-    private static ConcurrentDictionary<Guid, CuteContentSyncApi> _cronTasks = [];
+    private static readonly ConcurrentDictionary<Guid, ScheduledEntry> _scheduledEntries = [];
+
+    private static ScheduledEntry? GetScheduleByKey(string key) =>
+        _scheduledEntries.Values.FirstOrDefault(s => s.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
         _settings = settings;
 
-        LoadSyncApiEntries();
+        EnsureNewScheduler(_cronLogger);
 
-        DisplaySchedule();
+        UpdateScheduler();
 
-        RefreshScheduler();
+        _scheduler.Start();
 
         await StartWebServer();
 
@@ -72,37 +116,44 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         await context.Response.WriteAsync($"<th style='width:23%'>Info (UTC)</th>");
         await context.Response.WriteAsync($"</tr>");
 
-        var nextRun = _scheduler.GetNextOccurrences()
+        var nextRuns = _scheduler.GetNextOccurrences()
             .SelectMany(i => i.ScheduledTasks, (i, j) => new { j.Id, i.NextOccurrence })
             .ToDictionary(o => o.Id, o => o.NextOccurrence);
 
-        foreach (var (key, entry) in _cronTasks.OrderBy(kv => nextRun[kv.Key]))
+        var renderRow = async (HttpContext context, string key, string schedule, string? cronExpression, string? lastRunStartedStr, string? lastRunFinishedStr, string? status, string nextRunStr) =>
         {
-            string? lastRunStarted = null;
-            string? lastRunFinished = null;
-            string? status = null;
-
-            if (_lastRunInfo.TryGetValue(entry.Key, out var info))
-            {
-                lastRunStarted = info.lastRunStarted?.ToString("R");
-                lastRunFinished = info.lastRunFinished?.ToString("R");
-                status = info.status;
-            }
-
             await context.Response.WriteAsync($"<tr>");
-            await context.Response.WriteAsync($"<td>{entry.Key}</td>");
-            await context.Response.WriteAsync($"<td>{entry.Schedule}</td>");
-            await context.Response.WriteAsync($"<td>{entry.Schedule?.ToCronExpression()}</td>");
+            await context.Response.WriteAsync($"<td>{key}</td>");
+            await context.Response.WriteAsync($"<td>{schedule}</td>");
+            await context.Response.WriteAsync($"<td>{cronExpression}</td>");
             await context.Response.WriteAsync($"<td>");
-            if (lastRunStarted is not null)
-                await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStarted}</b><br>");
-            if (lastRunFinished is not null)
-                await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinished}</b><br>");
+            if (lastRunStartedStr is not null)
+                await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStartedStr}</b><br>");
+            if (lastRunFinishedStr is not null)
+                await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinishedStr}</b><br>");
             if (status is not null)
                 await context.Response.WriteAsync($"<small>Status:</small><br><b>{status}</b><br>");
-            await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRun[key].ToUniversalTime():R}</b><br>");
+            await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRunStr}</b><br>");
             await context.Response.WriteAsync($"</td>");
             await context.Response.WriteAsync($"</tr>");
+        };
+
+        foreach (var (key, cronEntry) in _scheduledEntries.Where(k => nextRuns.ContainsKey(k.Key)).OrderBy(kv => nextRuns[kv.Key]))
+        {
+            var entry = cronEntry;
+
+            while (entry is not null)
+            {
+                string? lastRunStarted = entry.LastRunStarted?.ToString("R");
+                string? lastRunFinished = entry.LastRunFinished?.ToString("R");
+                string? status = entry.Status;
+                string? nextRun = nextRuns[key].ToString("R");
+
+                string? cronExpression = entry.IsRunAfter ? null : entry.Schedule?.ToCronExpression().ToString();
+
+                await renderRow(context, entry.Key, entry.Schedule!, cronExpression, lastRunStarted, lastRunFinished, status, nextRun);
+                entry = entry.RunNext;
+            }
         }
 
         await context.Response.WriteAsync($"</table>");
@@ -113,9 +164,104 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         await context.Response.WriteAsync($"</form>");
     }
 
-    private void LoadSyncApiEntries()
+    private void UpdateNextRunLinks()
     {
-        if (_settings is null) return;
+        foreach (var entry in _scheduledEntries.Values)
+        {
+            entry.RunNext = null;
+        }
+
+        foreach (var entry in _scheduledEntries.Values)
+        {
+            if (entry.IsRunAfter)
+            {
+                var targetKey = entry.Schedule.Replace("runafter:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+                var targetEntry = GetScheduleByKey(targetKey);
+                if(targetEntry is null)
+                {
+                    _console.WriteException(new CliException($"Run after key '{targetKey}' not found for entry: '{entry.Key}'"));
+                    continue;
+                }
+                targetEntry.RunNext = entry;
+            }
+        }
+
+        HashSet<string> allCircularKeys = new();
+        foreach (var entry in _scheduledEntries.Values)
+        {
+            if(allCircularKeys.Contains(entry.Key)) continue;
+
+            var circularKeys = entry.GetCircularDependencies();
+            if (circularKeys.Any())
+            {
+                _console.WriteException(new CliException($"Circular dependency detected for cuteContentSync entries: {string.Join(" > ", circularKeys)}"));
+            }
+            allCircularKeys.UnionWith(circularKeys);
+        }
+    }
+
+    private void UpdateScheduler()
+    {
+        // Scheduled
+        var syncApiEntries = GetSyncApiEntries()
+            .ToDictionary(t => t.Key);
+
+        lock (_schedulerLock)
+        {
+            foreach (var (key, entry) in _scheduledEntries)
+            {
+                if (syncApiEntries.TryGetValue(entry.Key, out CuteContentSyncApi? latestEntry))
+                {
+                    if (!latestEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (entry.IsTimeScheduled)
+                        {
+                            var cronSchedule = latestEntry.Schedule.ToCronExpression().ToString();
+                            _scheduledEntries[key].UpdateEntry(latestEntry);
+                            _scheduler.UpdateTask(key, CrontabSchedule.Parse(cronSchedule));
+                        }
+                        else
+                        {
+                            _scheduledEntries[key].UpdateEntry(latestEntry);
+                        }
+                    }
+                    syncApiEntries.Remove(entry.Key);
+                }
+                else
+                {
+                    _scheduledEntries.Remove(key, out _);
+                    if (entry.IsTimeScheduled)
+                    {
+                        _scheduler.RemoveTask(key);
+                    }
+                }
+            }
+
+            foreach (var entry in syncApiEntries.Values)
+            {
+                var key = Guid.NewGuid();
+
+                if (entry.IsTimeScheduled)
+                {
+                    var cronSchedule = entry.Schedule.ToCronExpression().ToString();
+                    _scheduledEntries[key] = new ScheduledEntry(entry);
+                    _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(cronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_scheduledEntries[key]), ct)));
+                }
+                else
+                {
+                    _scheduledEntries[key] = new ScheduledEntry(entry);
+                }
+            }
+        }
+
+        UpdateNextRunLinks();
+
+        DisplaySchedule();
+    }
+
+    private CuteContentSyncApi[] GetSyncApiEntries()
+    {
+        if (_settings is null) throw new CliException("Settings can't be null");
 
         CuteContentSyncApi? specifiedJob = null;
 
@@ -140,37 +286,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             throw new CliException($"No data sync entries found with a valid schedule.");
         }
 
-        _cronTasks = new(cronTasks.ToDictionary(t => Guid.NewGuid(), t => t));
-    }
-
-    private void RefreshScheduler()
-    {
-        if (_settings is null) return;
-
-        var settings = _settings;
-
-        EnsureNewScheduler(cronLogger);
-
-        foreach (var cronTaskEntry in _cronTasks)
-        {
-            var cronTask = cronTaskEntry;
-
-            var syncApiKey = cronTask.Value.Key;
-
-            var frequency = cronTask.Value.Schedule;
-
-            var cronSchedule = frequency.ToCronExpression().ToString();
-
-            var scheduledTask = new AsyncScheduledTask(
-                cronTask.Key,
-                CrontabSchedule.Parse(cronSchedule),
-                ct => Task.Run(() => ProcessAndReloadSchedule(cronTask.Value), ct)
-            );
-
-            _scheduler.AddTask(scheduledTask);
-        }
-
-        _scheduler.Start();
+        return cronTasks;
     }
 
     private static void EnsureNewScheduler(ILogger<Scheduler> cronLogger)
@@ -196,18 +312,21 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     {
         if (!command.Equals("reload")) return;
 
-        LoadSyncApiEntries();
+        EnsureNewScheduler(_cronLogger);
 
-        RefreshScheduler();
+        DisplaySchedule();
+
+        _scheduler.Start();
 
         context.Response.Redirect("/");
     }
 
-    private async Task ProcessAndReloadSchedule(CuteContentSyncApi entry)
+    private async Task ProcessAndUpdateSchedule(ScheduledEntry entry)
     {
         await ProcessContentSyncApi(entry);
-        LoadSyncApiEntries();
-        RefreshScheduler();
+
+        UpdateScheduler();
+
         DisplaySchedule();
     }
 
@@ -215,54 +334,52 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     {
         _console.WriteNormal("Schedule loaded at {now} ({nowFriendly})", DateTime.UtcNow.ToString("O"), DateTime.UtcNow.ToString("R"));
 
-        foreach (var entry in _cronTasks.Values.OrderBy(s => s.Order))
+        foreach (var entry in _scheduledEntries.Values.OrderBy(s => s.Order))
         {
             var frequency = entry.Schedule;
 
-            var cronSchedule = frequency?.ToCronExpression().ToString();
-
-            _console.WriteNormal("Content sync-api '{syncApiKey}' usually scheduled to run on schedule '{frequency} ({cronSchedule})'",
-                entry.Key, frequency, cronSchedule);
+            _console.WriteNormal("Content sync-api '{syncApiKey}' usually scheduled to run on schedule '{frequency}'",
+                entry.Key, frequency);
         }
     }
 
-    private readonly ConcurrentDictionary<string, (DateTime? lastRunStarted, DateTime? lastRunFinished, string status)> _lastRunInfo = new();
-
-    private async Task ProcessContentSyncApi(CuteContentSyncApi cuteContentSyncApi)
+    private async Task ProcessContentSyncApi(ScheduledEntry cuteContentSyncApi)
     {
         string verbosity = _settings?.Verbosity.ToString() ?? Verbosity.Normal.ToString();
 
-        string[] args = ["content", "sync-api", "--key", cuteContentSyncApi.Key, "--verbosity", verbosity, "--apply", "--force", "--log-output"];
+        var entry = cuteContentSyncApi;
 
-        _console.WriteNormal("Started content sync-api for '{syncApiKey}'", cuteContentSyncApi.Key);
-
-        DateTime? started = DateTime.UtcNow;
-        DateTime? finished = null;
-        var status = "running";
-
-        _lastRunInfo[cuteContentSyncApi.Key] = (lastRunStarted: started, lastRunFinished: finished, status);
-
-        try
+        while (entry is not null)
         {
-            var command = new CommandAppBuilder(args).Build();
+            string[] args = ["content", "sync-api", "--key", entry.Key, "--verbosity", verbosity, "--apply", "--force", "--log-output"];
 
-            await command.RunAsync(args);
+            _console.WriteNormal("Started content sync-api for '{syncApiKey}'", entry.Key);
 
-            status = "success";
+            entry.LastRunStarted = DateTime.UtcNow;
+            entry.LastRunFinished = null;
+            entry.Status = "running";
+
+            try
+            {
+                var command = new CommandAppBuilder(args).Build();
+
+                await command.RunAsync(args);
+
+                entry.Status = "success";
+                entry.LastRunFinished = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                _console.WriteException(ex);
+                entry.Status = $"error ({ex.Message})";
+                entry.LastRunFinished = DateTime.UtcNow;
+            }
+            finally
+            {
+                _console.WriteNormal("Completed content sync-api for '{syncApiKey}'", entry.Key);
+            }
+
+            entry = entry.RunNext;
         }
-        catch (Exception ex)
-        {
-            _console.WriteException(ex);
-
-            status = $"error ({ex.Message})";
-        }
-        finally
-        {
-            _console.WriteNormal("Completed content sync-api for '{syncApiKey}'", cuteContentSyncApi.Key);
-        }
-
-        finished = DateTime.Now;
-
-        _lastRunInfo[cuteContentSyncApi.Key] = (lastRunStarted: started, lastRunFinished: finished, status);
     }
 }
