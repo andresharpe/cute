@@ -266,9 +266,11 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
             }
             else
             {
+                var newEntry = serializer.DeserializeEntry(localFlatEntry);
                 var cloudFlatEntry = serializer.SerializeEntry(cloudEntry);
 
-                if (ValuesDiffer(localFlatEntry, cloudFlatEntry, serializer, progressUpdater))
+                if (ValuesDiffer(localFlatEntry, cloudFlatEntry, serializer, progressUpdater)
+                    || ArrayElementCountsDiffer(cloudEntry.Fields, newEntry.Fields)) // this is sometimes necessary as the cloud may contain a single string in an array field that looks like an array (contains commas), but isn't
                 {
                     _withUpdatedFlatEntries.Add(serializer.DeserializeEntry(cloudFlatEntry));
 
@@ -338,6 +340,36 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         }
 
         return isChanged;
+    }
+
+    public static bool ArrayElementCountsDiffer(JObject cloudEntry, JObject newEntry)
+    {
+        if (cloudEntry == null || newEntry == null)
+            return true;
+
+        foreach (var cloudProperty in cloudEntry.Properties())
+        {
+            var newProperty = newEntry.Property(cloudProperty.Name);
+            if (newProperty == null)
+                continue;
+
+            if (cloudProperty.Value.Type == JTokenType.Array && newProperty.Value.Type == JTokenType.Array)
+            {
+                JArray cloudArray = (JArray)cloudProperty.Value;
+                JArray newArray = (JArray)newProperty.Value;
+
+                if (cloudArray.Count != newArray.Count)
+                    return true;
+            }
+            else if (cloudProperty.Value.Type == JTokenType.Object && newProperty.Value.Type == JTokenType.Object)
+            {
+                // Recursively compare nested objects
+                if (ArrayElementCountsDiffer((JObject)cloudProperty.Value, (JObject)newProperty.Value))
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task UpsertRequiredEntries(List<Entry<JObject>> entries,
