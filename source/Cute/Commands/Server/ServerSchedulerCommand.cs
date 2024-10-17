@@ -31,11 +31,23 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         public DateTime? LastRunStarted { get; set; }
         public TimeSpan? Duration => LastRunFinished - LastRunStarted;
 
-        public string? CronSchedule { get; set; }
-
         public ScheduledEntry? RunNext = null;
 
-        public bool IsRunAfter => Schedule.StartsWith("runafter:", StringComparison.OrdinalIgnoreCase);
+        public HashSet<string> GetCircularDependencies()
+        {
+            HashSet<string> chainedKeys = new([Key]);
+            var entry = RunNext;
+            while (entry is not null)
+            {
+                if(chainedKeys.Contains(entry.Key))
+                {
+                    return chainedKeys;
+                }
+                chainedKeys.Add(entry.Key);
+                entry = entry.RunNext;
+            }
+            return [];
+        }
 
         public ScheduledEntry(CuteContentSyncApi cuteContentSyncApi)
         {
@@ -59,10 +71,10 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private static readonly object _schedulerLock = new();
 
-    private static readonly ConcurrentDictionary<Guid, ScheduledEntry> _cronTasks = [];
+    private static readonly ConcurrentDictionary<Guid, ScheduledEntry> _scheduledEntries = [];
 
-    private static ScheduledEntry GetScheduleByKey(string key) =>
-        _cronTasks.Values.First(s => s.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+    private static ScheduledEntry? GetScheduleByKey(string key) =>
+        _scheduledEntries.Values.FirstOrDefault(s => s.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -108,29 +120,40 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             .SelectMany(i => i.ScheduledTasks, (i, j) => new { j.Id, i.NextOccurrence })
             .ToDictionary(o => o.Id, o => o.NextOccurrence);
 
-        foreach (var (key, entry) in _cronTasks.OrderBy(kv => nextRuns[kv.Key]))
+        var renderRow = async (HttpContext context, string key, string schedule, string? cronExpression, string? lastRunStartedStr, string? lastRunFinishedStr, string? status, string nextRunStr) =>
         {
-            string? lastRunStarted = entry.LastRunStarted?.ToString("R");
-            string? lastRunFinished = entry.LastRunFinished?.ToString("R");
-            string? status = entry.Status;
-            string? nextRun = nextRuns[key].ToString("R");
-
-            string schedule = entry.Schedule;
-
             await context.Response.WriteAsync($"<tr>");
-            await context.Response.WriteAsync($"<td>{entry.Key}</td>");
-            await context.Response.WriteAsync($"<td>{entry.Schedule}</td>");
-            await context.Response.WriteAsync($"<td>{entry.CronSchedule}</td>");
+            await context.Response.WriteAsync($"<td>{key}</td>");
+            await context.Response.WriteAsync($"<td>{schedule}</td>");
+            await context.Response.WriteAsync($"<td>{cronExpression}</td>");
             await context.Response.WriteAsync($"<td>");
-            if (lastRunStarted is not null)
-                await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStarted}</b><br>");
-            if (lastRunFinished is not null)
-                await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinished}</b><br>");
+            if (lastRunStartedStr is not null)
+                await context.Response.WriteAsync($"<small>Last run started:</small><br><b>{lastRunStartedStr}</b><br>");
+            if (lastRunFinishedStr is not null)
+                await context.Response.WriteAsync($"<small>Last run ended:</small><br><b>{lastRunFinishedStr}</b><br>");
             if (status is not null)
                 await context.Response.WriteAsync($"<small>Status:</small><br><b>{status}</b><br>");
-            await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRun}</b><br>");
+            await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRunStr}</b><br>");
             await context.Response.WriteAsync($"</td>");
             await context.Response.WriteAsync($"</tr>");
+        };
+
+        foreach (var (key, cronEntry) in _scheduledEntries.Where(k => nextRuns.ContainsKey(k.Key)).OrderBy(kv => nextRuns[kv.Key]))
+        {
+            var entry = cronEntry;
+
+            while (entry is not null)
+            {
+                string? lastRunStarted = entry.LastRunStarted?.ToString("R");
+                string? lastRunFinished = entry.LastRunFinished?.ToString("R");
+                string? status = entry.Status;
+                string? nextRun = nextRuns[key].ToString("R");
+
+                string? cronExpression = entry.IsRunAfter ? null : entry.Schedule?.ToCronExpression().ToString();
+
+                await renderRow(context, entry.Key, entry.Schedule!, cronExpression, lastRunStarted, lastRunFinished, status, nextRun);
+                entry = entry.RunNext;
+            }
         }
 
         await context.Response.WriteAsync($"</table>");
@@ -141,21 +164,39 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         await context.Response.WriteAsync($"</form>");
     }
 
-    private static void UpdateNextRunLinks()
+    private void UpdateNextRunLinks()
     {
-        foreach (var entry in _cronTasks.Values)
+        foreach (var entry in _scheduledEntries.Values)
         {
             entry.RunNext = null;
         }
 
-        foreach (var entry in _cronTasks.Values)
+        foreach (var entry in _scheduledEntries.Values)
         {
             if (entry.IsRunAfter)
             {
                 var targetKey = entry.Schedule.Replace("runafter:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
                 var targetEntry = GetScheduleByKey(targetKey);
+                if(targetEntry is null)
+                {
+                    _console.WriteException(new CliException($"Run after key '{targetKey}' not found for entry: '{entry.Key}'"));
+                    continue;
+                }
                 targetEntry.RunNext = entry;
             }
+        }
+
+        HashSet<string> allCircularKeys = new();
+        foreach (var entry in _scheduledEntries.Values)
+        {
+            if(allCircularKeys.Contains(entry.Key)) continue;
+
+            var circularKeys = entry.GetCircularDependencies();
+            if (circularKeys.Any())
+            {
+                _console.WriteException(new CliException($"Circular dependency detected for cuteContentSync entries: {string.Join(" > ", circularKeys)}"));
+            }
+            allCircularKeys.UnionWith(circularKeys);
         }
     }
 
@@ -167,56 +208,48 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         lock (_schedulerLock)
         {
-            foreach (var (key, entry) in _cronTasks)
+            foreach (var (key, entry) in _scheduledEntries)
             {
                 if (syncApiEntries.TryGetValue(entry.Key, out CuteContentSyncApi? latestEntry))
                 {
-                    var isTimeScheduled = !latestEntry.Schedule.StartsWith("runafter:", StringComparison.OrdinalIgnoreCase);
-
                     if (!latestEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (isTimeScheduled)
+                        if (entry.IsTimeScheduled)
                         {
                             var cronSchedule = latestEntry.Schedule.ToCronExpression().ToString();
-                            _cronTasks[key].UpdateEntry(latestEntry);
-                            _cronTasks[key].CronSchedule = cronSchedule;
+                            _scheduledEntries[key].UpdateEntry(latestEntry);
                             _scheduler.UpdateTask(key, CrontabSchedule.Parse(cronSchedule));
                         }
                         else
                         {
-                            _cronTasks[key].UpdateEntry(latestEntry);
-                            _cronTasks[key].CronSchedule = latestEntry.Schedule;
+                            _scheduledEntries[key].UpdateEntry(latestEntry);
                         }
                     }
                     syncApiEntries.Remove(entry.Key);
                 }
                 else
                 {
-                    _cronTasks.Remove(key, out _);
-                    _scheduler.RemoveTask(key);
+                    _scheduledEntries.Remove(key, out _);
+                    if (entry.IsTimeScheduled)
+                    {
+                        _scheduler.RemoveTask(key);
+                    }
                 }
             }
 
             foreach (var entry in syncApiEntries.Values)
             {
                 var key = Guid.NewGuid();
-                var isTimeScheduled = !entry.Schedule.StartsWith("runafter:", StringComparison.OrdinalIgnoreCase);
 
-                if (isTimeScheduled)
+                if (entry.IsTimeScheduled)
                 {
                     var cronSchedule = entry.Schedule.ToCronExpression().ToString();
-                    _cronTasks[key] = new ScheduledEntry(entry)
-                    {
-                        CronSchedule = cronSchedule
-                    };
-                    _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(cronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_cronTasks[key]), ct)));
+                    _scheduledEntries[key] = new ScheduledEntry(entry);
+                    _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(cronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_scheduledEntries[key]), ct)));
                 }
                 else
                 {
-                    _cronTasks[key] = new ScheduledEntry(entry)
-                    {
-                        CronSchedule = entry.Schedule
-                    };
+                    _scheduledEntries[key] = new ScheduledEntry(entry);
                 }
             }
         }
@@ -292,6 +325,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     {
         await ProcessContentSyncApi(entry);
 
+        UpdateScheduler();
+
         DisplaySchedule();
     }
 
@@ -299,14 +334,12 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     {
         _console.WriteNormal("Schedule loaded at {now} ({nowFriendly})", DateTime.UtcNow.ToString("O"), DateTime.UtcNow.ToString("R"));
 
-        foreach (var entry in _cronTasks.Values.OrderBy(s => s.Order))
+        foreach (var entry in _scheduledEntries.Values.OrderBy(s => s.Order))
         {
             var frequency = entry.Schedule;
 
-            var cronSchedule = entry.CronSchedule;
-
-            _console.WriteNormal("Content sync-api '{syncApiKey}' usually scheduled to run on schedule '{frequency} ({cronSchedule})'",
-                entry.Key, frequency, cronSchedule);
+            _console.WriteNormal("Content sync-api '{syncApiKey}' usually scheduled to run on schedule '{frequency}'",
+                entry.Key, frequency);
         }
     }
 
