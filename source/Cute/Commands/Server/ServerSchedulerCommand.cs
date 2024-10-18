@@ -86,7 +86,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         _scheduler.Start();
 
-        await StartWebServer();
+        await StartWebServer(settings);
 
         return 0;
     }
@@ -94,14 +94,6 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     public override void ConfigureWebApplication(WebApplication webApp)
     {
         webApp.MapPost("/reload", RefreshSchedule).DisableAntiforgery();
-    }
-
-    public override void ConfigureWebApplicationBuilder(WebApplicationBuilder webBuilder)
-    {
-        webBuilder.WebHost.ConfigureKestrel(web =>
-        {
-            web.ListenLocalhost(_settings!.Port);
-        });
     }
 
     public override async Task RenderHomePageBody(HttpContext context)
