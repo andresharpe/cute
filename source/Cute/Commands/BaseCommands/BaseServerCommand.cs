@@ -64,13 +64,11 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
         return await base.ExecuteAsync(context, settings);
     }
 
-    public abstract void ConfigureWebApplicationBuilder(WebApplicationBuilder webBuilder);
-
     public abstract void ConfigureWebApplication(WebApplication webApp);
 
     public abstract Task RenderHomePageBody(HttpContext context);
 
-    public async Task StartWebServer()
+    public async Task StartWebServer(TSettings settings)
     {
         var webBuilder = WebApplication.CreateBuilder();
 
@@ -78,7 +76,7 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
 
         webBuilder.Logging.ClearProviders().AddSerilog();
 
-        ConfigureWebApplicationBuilder(webBuilder);
+        ConfigureWebApplicationBuilder(webBuilder, settings);
 
         var webApp = webBuilder.Build();
 
@@ -100,6 +98,14 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
         {
             _console.WriteException(ex);
         }
+    }
+
+    public virtual void ConfigureWebApplicationBuilder(WebApplicationBuilder webBuilder, TSettings settings)
+    {
+        webBuilder.WebHost.ConfigureKestrel(web =>
+        {
+            web.ListenLocalhost(settings.Port);
+        });
     }
 
     private async Task DisplayHomePage(HttpContext context, [FromServices] HealthCheckService healthCheckService)
