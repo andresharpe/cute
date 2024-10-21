@@ -44,6 +44,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
     private string _googleApiKey = string.Empty;
 
+    private bool _mustUpdateGooglePlaceId = true;
+
     private IEnumerable<GeoInfoCompact>? _adminCodeToGeoId;
 
     public class Settings : LoggedInSettings
@@ -79,6 +81,11 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         [CommandOption("-p|--password")]
         [Description("The password of the online zip file containing CSV data.")]
         public string Password { get; set; } = default!;
+
+        [CommandOption("-g|--google-places")]
+        [Description("Update google places Id where missong?")]
+        [DefaultValue(true)]
+        public bool UpdateGooglePlacesId { get; set; } = true;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -87,6 +94,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         {
             return ValidationResult.Error($"Path to input file '{settings.InputFileOrUrl}' was not found.");
         }
+
         return base.Validate(context, settings);
     }
 
@@ -96,6 +104,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         {
             throw new CliException("Google API key not found in environment variables. (Cute__GoogleApiKey)");
         }
+
+        _mustUpdateGooglePlaceId = settings.UpdateGooglePlacesId;
 
         await FilterAndExtractGeos(settings);
 
@@ -764,7 +774,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
     private async Task<string?> GetGooglePlacesId(string? placeName)
     {
-        if (placeName is not null) return null;
+        if (!_mustUpdateGooglePlaceId) return null;
 
         if (placeName is null) return null;
 
