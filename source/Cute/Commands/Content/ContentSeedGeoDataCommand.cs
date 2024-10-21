@@ -14,8 +14,9 @@ using Cute.Lib.Extensions;
 using Cute.Lib.Utilities;
 using Cute.Services;
 using Cute.UiComponents;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using SharpCompress.Archives;
+using Newtonsoft.Json.Serialization;
 using SharpCompress.Archives.SevenZip;
 using SharpCompress.Readers;
 using Spectre.Console;
@@ -35,7 +36,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 {
     private readonly List<Entry<JObject>> _newEntryRecords = [];
 
-    private readonly List<GeoOutputFormat> _newRecords = [];
+    private readonly List<GeoFormat> _newRecords = [];
 
     private readonly HttpClient _httpClient = httpClient;
 
@@ -82,7 +83,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        if (!File.Exists(settings.InputFileOrUrl))
+        if (!Uri.IsWellFormedUriString(settings.InputFileOrUrl, UriKind.Absolute) && !File.Exists(settings.InputFileOrUrl))
         {
             return ValidationResult.Error($"Path to input file '{settings.InputFileOrUrl}' was not found.");
         }
@@ -118,8 +119,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 new UpsertBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
-                    .WithNewEntries(_newEntryRecords)
-                    .WithMatchField(nameof(GeoOutputFormat.Key).ToCamelCase())
+                    .WithNewEntries(_newEntryRecords, "Simplemaps.com")
+                    .WithMatchField(nameof(GeoFormat.Key).ToCamelCase())
                     .WithApplyChanges(true)
                     .WithVerbosity(settings.Verbosity),
 
@@ -134,29 +135,70 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         return 0;
     }
 
-    private static StreamReader GetStreamReaderFrom7zUrl(string url, string password)
+    private static async Task<StreamReader> GetStreamReaderFrom7zUrl(string url, string password)
     {
-        var httpClient = new HttpClient();
-        var response = httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).Result;
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
-        var responseStream = response.Content.ReadAsStreamAsync().Result;
+        var tempFilePath = Path.GetTempFileName();
 
-        // Open the 7z archive using SharpCompress
-        using var archive = SevenZipArchive.Open(responseStream, new ReaderOptions { Password = password });
-
-        foreach (var entry in archive.Entries)
+        try
         {
-            if (!entry.IsDirectory && entry.Key is not null && entry.Key.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            using (var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                var csvStream = new MemoryStream();
-                entry.WriteTo(csvStream);
-                csvStream.Seek(0, SeekOrigin.Begin);
-                return new StreamReader(csvStream);
+                await response.Content.CopyToAsync(fileStream);
             }
+
+            var readerOptions = new ReaderOptions { Password = password };
+            var archive = SevenZipArchive.Open(tempFilePath, readerOptions);
+
+            foreach (var entry in archive.Entries)
+            {
+                if (!entry.IsDirectory
+                    && entry.Key is not null
+                    && entry.Key.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+                {
+                    var entryStream = entry.OpenEntryStream();
+                    return new TemporaryFileStreamReader(entryStream, tempFilePath, archive);
+                }
+            }
+
+            throw new FileNotFoundException("CSV file not found in the 7z archive.");
+        }
+        catch
+        {
+            if (File.Exists(tempFilePath))
+            {
+                File.Delete(tempFilePath);
+            }
+            throw;
+        }
+    }
+
+    private class TemporaryFileStreamReader : StreamReader
+    {
+        private readonly string _tempFilePath;
+        private readonly SevenZipArchive _archive;
+
+        public TemporaryFileStreamReader(Stream stream, string tempFilePath, SevenZipArchive archive) : base(stream)
+        {
+            _tempFilePath = tempFilePath;
+            _archive = archive;
         }
 
-        throw new FileNotFoundException("CSV file not found in the 7z archive.");
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing)
+            {
+                _archive?.Dispose();
+                if (File.Exists(_tempFilePath))
+                {
+                    File.Delete(_tempFilePath);
+                }
+            }
+        }
     }
 
     public static int CsvRecordCount(string fileName)
@@ -170,11 +212,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         _console.WriteBlankLine();
 
-        _console.WriteNormalWithHighlights($"Counting geo universe records in {settings.InputFileOrUrl}...", Globals.StyleHeading);
-
         var inputEntriesCount = CsvRecordCount(settings.InputFileOrUrl);
 
-        _console.WriteNormalWithHighlights($"Found {inputEntriesCount:N0} entries...", Globals.StyleHeading);
+        _console.WriteNormalWithHighlights($"Reading approximately {inputEntriesCount:N0} geo universe records from {settings.InputFileOrUrl}...", Globals.StyleHeading);
 
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
@@ -184,7 +224,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         var inputFileOrUrl = settings.InputFileOrUrl;
 
         using StreamReader reader = Uri.IsWellFormedUriString(inputFileOrUrl, UriKind.Absolute)
-            ? GetStreamReaderFrom7zUrl(inputFileOrUrl, settings.Password)
+            ? await GetStreamReaderFrom7zUrl(inputFileOrUrl, settings.Password)
             : new StreamReader(inputFileOrUrl, System.Text.Encoding.UTF8);
 
         using var csvReader = new CsvReader(reader, config);
@@ -224,7 +264,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         _console.WriteNormalWithHighlights($"...{dataCountryCode.Count:N0} related countries found.", Globals.StyleHeading);
 
         var countryToGeoId = ContentfulConnection
-                .GetPreviewEntries<GeoInfo>(
+                .GetPreviewEntries<GeoFormat>(
                     new EntryQuery.Builder()
                         .WithContentType($"{prefix}Geo")
                         .WithQueryConfig(q => q.FieldEquals("fields.geoType", "country"))
@@ -238,7 +278,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         _console.WriteNormalWithHighlights($"...{countryToGeoId.Count:N0} existing country Geos found.", Globals.StyleHeading);
 
         var adminCodeToGeoId = ContentfulConnection
-            .GetPreviewEntries<GeoInfo>(
+            .GetPreviewEntries<GeoFormat>(
                 new EntryQuery.Builder()
                     .WithContentType($"{prefix}Geo")
                     .WithQueryConfig(q => q.FieldEquals("fields.geoType", "state-or-province"))
@@ -251,7 +291,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         _console.WriteNormalWithHighlights($"...{adminCodeToGeoId.Count:N0} existing state and province Geos found.", Globals.StyleHeading);
 
         var cityToGeoId = ContentfulConnection
-            .GetPreviewEntries<GeoInfo>(
+            .GetPreviewEntries<GeoFormat>(
                 new EntryQuery.Builder()
                     .WithContentType($"{prefix}Geo")
                     .WithQueryConfig(q => q.FieldEquals("fields.geoType", "city-or-town"))
@@ -264,7 +304,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         _console.WriteNormalWithHighlights($"...{cityToGeoId.Count:N0} existing town and city Geos found.", Globals.StyleHeading);
 
         var countryCodeToInfo = ContentfulConnection
-            .GetPreviewEntries<GeoInfo>($"{prefix}Country")
+            .GetPreviewEntries<GeoFormat>($"{prefix}Country")
              .ToBlockingEnumerable()
             .Select(x => x.Entry)
             .Where(e => dataCountryCode.Contains(e.Key))
@@ -314,6 +354,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         if (animationFrame >= animation.Count) animationFrame = 0;
                     }
 
+                    // begin - ecide whether we skip or include row //
+
                     if (record.SameName) continue;
 
                     if (!dataCountryCode.Contains(record.CountryIso2)) continue;
@@ -340,29 +382,35 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         if (!veryNearLocations) continue;
                     }
 
+                    // end - decide whether to skip or include row
+
                     var adminCode = await WriteStateOrProvinveEntryIfMissing(record, countryToGeoId, adminCodeToGeoId);
 
                     var (tzStandardOffset, tzDaylightSavingOffset) = record.Timezone.ToTimeZoneOffsets();
 
-                    if (cityToGeoId.TryGetValue(record.Id, out GeoInfo? existingEntry))
+                    if (cityToGeoId.TryGetValue(record.Id, out GeoFormat? existingEntry))
                     {
                         existingEntry.Count++;
+
+                        if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId))
+                        {
+                            continue;
+                        }
                     }
 
-                    var newRecord = new GeoOutputFormat()
+                    var newRecord = new GeoFormat()
                     {
-                        Id = existingEntry?.Sys.Id,
+                        Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
                         Key = record.Id,
                         Title = existingEntry?.Title ?? $"{record.CountryName} | {record.AdminName} | {record.CityName}",
                         Name = existingEntry?.Name ?? record.CityName,
-                        AlternateNames = record.CityAlternateName.Replace(',', '\u2E32').Replace('|', ','),
-                        DataGeoParent = existingEntry?.DataGeoParent?.Sys.Id ?? adminCodeToGeoId[adminCode].Sys.Id,
+                        AlternateNames = record.CityAlternateName.Replace(',', '\u2E32').Replace('|', ',').Split(',').ToList(),
+                        DataGeoParent = existingEntry?.DataGeoParent ?? adminCodeToGeoId[adminCode],
                         GeoType = "city-or-town",
                         GeoSubType = string.IsNullOrEmpty(record.Capital)
                             ? record.PopulationProper > 10000 ? "city" : "town"
                             : $"city:capital:{record.Capital}",
-                        Lat = existingEntry?.LatLon?.Lat ?? record.Lat,
-                        Lon = existingEntry?.LatLon?.Lon ?? record.Lon,
+                        LatLong = existingEntry?.LatLong ?? new() { Lat = record.Lat, Lon = record.Lon },
                         Ranking = record.Ranking,
                         Population = existingEntry?.Population ?? record.Population ?? 0,
                         Density = record.Density,
@@ -405,24 +453,27 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
     }
 
     private async Task<string> WriteCountryEntryIfMissing(string countryCode,
-        Dictionary<string, GeoInfo> countryGeoInfo,
-        Dictionary<string, GeoInfo> countryInfoList)
+        Dictionary<string, GeoFormat> countryGeoInfo,
+        Dictionary<string, GeoFormat> countryInfoList)
     {
-        if (countryGeoInfo.TryGetValue(countryCode, out GeoInfo? existingEntry))
+        if (countryGeoInfo.TryGetValue(countryCode, out GeoFormat? existingEntry))
         {
             existingEntry.Count++;
+            if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId))
+            {
+                return existingEntry.Key;
+            }
         }
 
         var countryInfo = countryInfoList[countryCode];
 
-        var newRecord = new GeoOutputFormat()
+        var newRecord = new GeoFormat()
         {
-            Id = existingEntry?.Sys.Id ?? ContentfulIdGenerator.NewId(),
+            Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
             Key = countryCode,
             Title = countryInfo.Name,
             Name = countryInfo.Name,
-            Lat = countryInfo.LatLon.Lat,
-            Lon = countryInfo.LatLon.Lon,
+            LatLong = countryInfo.LatLong,
             Population = countryInfo.Population,
             GeoType = "country",
             GooglePlacesId = existingEntry?.GooglePlacesId ?? countryInfo.GooglePlacesId,
@@ -430,7 +481,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         if (existingEntry is null)
         {
-            existingEntry = new() { Key = countryCode, Sys = new() { Id = newRecord.Id }, Count = 1 };
+            existingEntry = newRecord;
+            existingEntry.Count = 1;
             countryGeoInfo.Add(countryCode, existingEntry);
         }
 
@@ -444,7 +496,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
     }
 
     private async Task<string> WriteStateOrProvinveEntryIfMissing(SimplemapsGeoInput record,
-        Dictionary<string, GeoInfo> countryToToGeoId, Dictionary<string, GeoInfo> adminCodeToGeoId)
+        Dictionary<string, GeoFormat> countryToToGeoId, Dictionary<string, GeoFormat> adminCodeToGeoId)
     {
         if (record.AdminType.StartsWith("London borough"))
         {
@@ -460,40 +512,32 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 ? record.CityName.ToUpper()
                 : record.AdminName;
 
-        if (adminCodeToGeoId.TryGetValue(adminCode, out GeoInfo? existingEntry))
+        if (adminCodeToGeoId.TryGetValue(adminCode, out GeoFormat? existingEntry))
         {
             existingEntry.Count++;
+            if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId))
+            {
+                return existingEntry.Key;
+            }
         }
 
-        var newRecord = new GeoOutputFormat()
+        var newRecord = new GeoFormat()
         {
-            Id = existingEntry?.Sys.Id ?? ContentfulIdGenerator.NewId(),
+            Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
             Key = existingEntry?.Key ?? adminCode,
             Title = existingEntry?.Title ?? $"{record.CountryName} | {adminName} ({adminCode})",
             Name = existingEntry?.Name ?? record.AdminName,
-            DataGeoParent = existingEntry?.DataGeoParent?.Sys.Id ?? countryToToGeoId[record.CountryIso2].Sys.Id,
+            DataGeoParent = existingEntry?.DataGeoParent ?? countryToToGeoId[record.CountryIso2],
             GeoType = "state-or-province",
             GeoSubType = record.AdminType,
-            Lat = existingEntry?.LatLon?.Lat ?? record.Lat,
-            Lon = existingEntry?.LatLon?.Lon ?? record.Lon,
+            LatLong = existingEntry?.LatLong ?? new() { Lat = record.Lat, Lon = record.Lon },
             GooglePlacesId = existingEntry?.GooglePlacesId,
         };
 
         if (existingEntry is null)
         {
-            existingEntry = new()
-            {
-                Key = newRecord.Key,
-                Sys = new() { Id = newRecord.Id },
-                Title = newRecord.Title,
-                Name = newRecord.Name,
-                Count = 1,
-                DataGeoParent = new()
-                {
-                    Sys = new() { Id = countryToToGeoId[record.CountryIso2].Sys.Id }
-                }
-            };
-
+            existingEntry = newRecord;
+            existingEntry.Count = 1;
             adminCodeToGeoId.Add(adminCode, existingEntry);
         }
 
@@ -590,66 +634,23 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public string Id { get; set; } = default!;
     }
 
-    public class GeoOutputFormat
-    {
-        [Name("sys.Id")]
-        public string? Id { get; set; } = default!;
-
-        [Name("key.en")]
-        public string Key { get; set; } = default!;
-
-        [Name("title.en")]
-        public string Title { get; set; } = default!;
-
-        [Name("dataGeoParent.en")]
-        public string DataGeoParent { get; set; } = default!;
-
-        [Name("name.en")]
-        public string Name { get; set; } = default!;
-
-        [Name("alternateNames.en[]")]
-        public string AlternateNames { get; set; } = default!;
-
-        [Name("geoType.en")]
-        public string GeoType { get; set; } = default!;
-
-        [Name("geoSubType.en")]
-        public string? GeoSubType { get; set; } = default!;
-
-        [Name("latLong.en.lat")]
-        public double Lat { get; set; } = default!;
-
-        [Name("latLong.en.lon")]
-        public double Lon { get; set; } = default!;
-
-        [Name("ranking.en")]
-        public int Ranking { get; set; } = default!;
-
-        [Name("population.en")]
-        public int? Population { get; set; } = default!;
-
-        [Name("density.en")]
-        public double? Density { get; set; } = default!;
-
-        [Name("timeZoneStandardOffset.en")]
-        public string? TimeZoneStandardOffset { get; set; } = default!;
-
-        [Name("timeZoneDaylightSavingsOffset.en")]
-        public string? TimeZoneDaylightSavingsOffset { get; set; } = default!;
-
-        [Name("googlePlacesId.en")]
-        public string? GooglePlacesId { get; set; } = default!;
-    }
-
-    public class GeoInfo()
+    public class GeoFormat
     {
         public SystemProperties Sys { get; set; } = default!;
         public string Key { get; set; } = default!;
         public string Title { get; set; } = default!;
         public string Name { get; set; } = default!;
-        public GeoInfo DataGeoParent { get; set; } = default!;
-        public Location LatLon { get; set; } = default!;
-        public int? Population { get; set; } = 0;
+        public List<string> AlternateNames { get; set; } = default!;
+        public GeoFormat DataGeoParent { get; set; } = default!;
+        public string GeoType { get; set; } = default!;
+        public string GeoSubType { get; set; } = default!;
+        public Location LatLong { get; set; } = default!;
+        public int? Ranking { get; set; } = default!;
+        public int? Population { get; set; } = default!;
+        public double? Density { get; set; } = default!;
+        public string TimeZoneStandardOffset { get; set; } = default!;
+        public string TimeZoneDaylightSavingsOffset { get; set; } = default!;
+        public string WikidataQid { get; set; } = default!;
         public string? GooglePlacesId { get; set; } = default!;
         public int Count { get; set; } = 0;
     }
@@ -672,17 +673,14 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         var adminCodeToGeoId = stateAndProvinceCount
             .ToDictionary(g => g.Id, g => g);
 
-        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
-            Delimiter = ",",
-        };
-
-        var rewriteLinks = new Dictionary<string, string>();
+        var rewriteLinks = new Dictionary<string, GeoFormat>();
 
         var recordsRead = 0;
         var outputEvery = 1000;
         var nextOutput = outputEvery;
         var recordsWritten = 0;
+
+        var jsonSerializer = new JsonSerializer { ContractResolver = new CamelCasePropertyNamesContractResolver() };
 
         foreach (var newRecord in _newRecords)
         {
@@ -700,9 +698,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 {
                     SystemProperties = new SystemProperties
                     {
-                        Id = newRecord.Id,
+                        Id = newRecord.Sys.Id,
                     },
-                    Fields = JObject.FromObject(newRecord)
+                    Fields = JObject.FromObject(newRecord, jsonSerializer)
                 };
 
                 _newEntryRecords.Add(countryEntry);
@@ -714,15 +712,15 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
             if (newRecord.GeoType == "state-or-province")
             {
-                if (adminCodeToGeoId[newRecord.Id!].Count > 1)
+                if (adminCodeToGeoId[newRecord.Sys.Id].Count > 1)
                 {
                     var provinceEntry = new Entry<JObject>
                     {
                         SystemProperties = new SystemProperties
                         {
-                            Id = newRecord.Id,
+                            Id = newRecord.Sys.Id,
                         },
-                        Fields = JObject.FromObject(newRecord)
+                        Fields = JObject.FromObject(newRecord, jsonSerializer)
                     };
 
                     _newEntryRecords.Add(provinceEntry);
@@ -734,26 +732,25 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
                 // supress this - don't write
 
-                rewriteLinks.Add(newRecord.Id!, newRecord.DataGeoParent!);
+                rewriteLinks.Add(newRecord.Sys.Id, newRecord.DataGeoParent);
 
                 continue;
             }
 
             // cities-and-towns
 
-            if (rewriteLinks.TryGetValue(newRecord.DataGeoParent, out var newLink))
+            if (rewriteLinks.TryGetValue(newRecord.DataGeoParent.Sys.Id, out var newLink))
             {
                 newRecord.DataGeoParent = newLink;
             }
 
             var entry = new Entry<JObject>
             {
-                SystemProperties = new SystemProperties
-                {
-                    Id = newRecord.Id,
-                },
-                Fields = JObject.FromObject(newRecord)
+                SystemProperties = newRecord.Sys,
+                Fields = JObject.FromObject(newRecord, jsonSerializer)
             };
+
+            _newEntryRecords.Add(entry);
 
             recordsWritten++;
         }
@@ -767,9 +764,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
     private async Task<string?> GetGooglePlacesId(string? placeName)
     {
-        if (placeName is null) return null;
+        if (placeName is not null) return null;
 
-        if (_newRecords.Count >= 0) return string.Empty;
+        if (placeName is null) return null;
 
         var retries = 0;
         var success = false;
@@ -798,13 +795,24 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
                 JObject json = JObject.Parse(responseBody);
 
-                return json["results"]?[0]?["place_id"]?.ToString();
+                if (json["results"] is not null
+                    && json["results"] is JArray results
+                    && results.Count > 0
+                    && results[0]["place_id"]?.Value<string>() is string placeId
+                    )
+                {
+                    return placeId;
+                }
+
+                _console.WriteNormalWithHighlights($"Google Places API request failed for '{placeName}'", Globals.StyleHeading);
+
+                return "[todo]";
             }
         }
         catch (Exception ex)
         {
             _console.WriteNormalWithHighlights($"Google Places API request failed for '{placeName}': {ex.Message}. {ex.InnerException?.Message}", Globals.StyleHeading);
         }
-        return null;
+        return "[todo]";
     }
 }

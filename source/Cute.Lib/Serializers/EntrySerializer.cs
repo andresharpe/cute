@@ -94,7 +94,7 @@ public class EntrySerializer
         return SerializeEntry(DeserializeEntry(flatEntry)).Where(o => o.Key.StartsWith("sys.") || o.Value is not null).ToDictionary();
     }
 
-    public IDictionary<string, object?> SerializeEntry(Entry<JObject> entry)
+    public IDictionary<string, object?> SerializeEntry(Entry<JObject> entry, bool includeMissingFieldsInEntry = true)
     {
         var leanEntry = new Dictionary<string, object?>
         {
@@ -106,13 +106,20 @@ public class EntrySerializer
             ["sys.PublishedCounter"] = entry.SystemProperties.PublishCounter,
             ["sys.PublishedAt"] = entry.SystemProperties.PublishedAt,
             ["sys.FirstPublishedAt"] = entry.SystemProperties.FirstPublishedAt,
-            ["sys.ContentType"] = entry.SystemProperties.ContentType.SystemProperties.Id,
-            ["sys.Space"] = entry.SystemProperties.Space.SystemProperties.Id,
-            ["sys.Environment"] = entry.SystemProperties.Environment.SystemProperties.Id,
+            ["sys.ContentType"] = entry.SystemProperties.ContentType?.SystemProperties.Id,
+            ["sys.Space"] = entry.SystemProperties.Space?.SystemProperties.Id,
+            ["sys.Environment"] = entry.SystemProperties.Environment?.SystemProperties.Id,
         };
 
         foreach (var (fieldName, fieldSerializer) in _fieldSerializers)
         {
+            if (!includeMissingFieldsInEntry
+                && !entry.Fields.ContainsKey(fieldName)
+                && !entry.Fields.ContainsKey(fieldSerializer.Name))
+            {
+                continue;
+            }
+
             leanEntry[fieldName] = fieldSerializer.Serialize(entry.Fields, fieldName);
         }
 

@@ -94,6 +94,14 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
             $"Elapsed time: {elapsed.Days}d {elapsed.Hours}h {elapsed.Minutes}m {elapsed.Seconds}.{elapsed.Milliseconds}s",
             Globals.StyleHeading);
 
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+
+        long peakMemory = process.PeakWorkingSet64;
+
+        _console.WriteNormalWithHighlights(
+            $"Memory used : {peakMemory / (1024 * 1024)} MB",
+            Globals.StyleHeading);
+
         return result;
     }
 
