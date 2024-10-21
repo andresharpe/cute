@@ -23,14 +23,14 @@ public class ServerWebhooksCommand(IConsoleWriter console, ILogger<ServerWebhook
               "version": "{ /payload/sys/version }",
               "commands": [
                 {
-                  "command": "join",
+                  "command": "content join",
                   "parameters": {
                     "--join-id": "ContentGeo",
                     "--entry-id": "{ /payload/sys/id }"
                   }
                 },
                 {
-                  "command": "generate",
+                  "command": "content generate",
                   "parameters": {
                     "--prompt-id": "DataGeo.BusinessRationale",
                     "--entry-id": "{ /payload/sys/id }",
@@ -38,7 +38,7 @@ public class ServerWebhooksCommand(IConsoleWriter console, ILogger<ServerWebhook
                   }
                 },
                 {
-                  "command": "generate",
+                  "command": "content generate",
                   "parameters": {
                     "--prompt-id": "ContentGeo.BusinessRationale",
                     "--related-entry-id": "{ /payload/sys/id }",
@@ -49,7 +49,7 @@ public class ServerWebhooksCommand(IConsoleWriter console, ILogger<ServerWebhook
             }
             """;
     private static readonly JsonSerializerSettings _jsonSettings = new() { ContractResolver = new CamelCasePropertyNamesContractResolver() };
-    private readonly HashSet<string> _validCommands = new()
+    private readonly HashSet<string> _allowedCommands = new()
     {
         "content join",
         "content generate"
@@ -73,7 +73,7 @@ public class ServerWebhooksCommand(IConsoleWriter console, ILogger<ServerWebhook
 
         await context.Response.WriteAsync($"<ul>");
 
-        foreach (var commandName in _validCommands)
+        foreach (var commandName in _allowedCommands)
         {
             await context.Response.WriteAsync($"<li>{commandName}</li>");
         }
@@ -124,6 +124,13 @@ public class ServerWebhooksCommand(IConsoleWriter console, ILogger<ServerWebhook
             return;
         }
 
+        if (webhookCommandCollection.Commands.Any(c => !_allowedCommands.Contains(c.Command)))
+        {
+            context.Response.StatusCode = 400;
+            await context.Response.WriteAsync("{{ \"Response\": \"Command not allowed\" }}");
+            return;
+        }
+
         var request = new WebhookRequest { Headers = headers, CommandRequests = webhookCommandCollection };
 
         _ = Task.Run(async () => await ExecuteCommand(request));
@@ -154,6 +161,11 @@ public class ServerWebhooksCommand(IConsoleWriter console, ILogger<ServerWebhook
             {
                 foreach (var command in request.CommandRequests.Commands)
                 {
+                    if (!command.Parameters.ContainsKey("--force"))
+                    {
+                        command.Parameters.Add("--force", "true");
+                    }
+
                     var args = command.Command
                         .Trim()
                         .Split(' ')
