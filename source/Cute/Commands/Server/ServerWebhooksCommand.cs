@@ -161,14 +161,16 @@ public class ServerWebhooksCommand(IConsoleWriter console, ILogger<ServerWebhook
             {
                 foreach (var command in request.CommandRequests.Commands)
                 {
-                    if (!command.Parameters.ContainsKey("--force"))
-                    {
-                        command.Parameters.Add("--force", "true");
-                    }
+                    command.Parameters.Remove("--force");
+                    command.Parameters.Remove("--log-output");
+                    command.Parameters.Remove("--verbosity");
+                    command.Parameters.Add("--force", "true");
+                    command.Parameters.Add("--log-output", "true");
+                    command.Parameters.Add("--verbosity", "Detailed");
 
                     var args = command.Command
                         .Trim()
-                        .Split(' ')
+                        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
                         .Union(command.Parameters.SelectMany(p => new string[] { p.Key, p.Value }).ToList());
 
                     await _commandApp.RunAsync(args.ToArray());
