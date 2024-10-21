@@ -338,7 +338,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         while (entry is not null)
         {
-            string[] args = ["content", "sync-api", "--key", entry.Key, "--verbosity", verbosity, "--apply", "--force", "--log-output"];
+            string[] args = ["content", "sync-api", "--key", entry.Key, "--verbosity", "Detailed", "--apply", "--force", "--log-output"];
 
             _console.WriteNormal("Started content sync-api for '{syncApiKey}'", entry.Key);
 

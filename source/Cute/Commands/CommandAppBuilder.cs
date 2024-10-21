@@ -202,6 +202,9 @@ public class CommandAppBuilder
 
                 branchConfig.AddCommand<ServerSchedulerCommand>("scheduler")
                     .WithDescription("Schedule and run cuteContentSyncApi entries.");
+
+                branchConfig.AddCommand<ServerWebhooksCommand>("webhooks")
+                    .WithDescription("Process callbacks from contentful.");
             });
 
             commandConfig.AddCommand<VersionCommand>("version")
