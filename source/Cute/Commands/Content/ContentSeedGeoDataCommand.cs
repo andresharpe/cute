@@ -83,7 +83,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public string Password { get; set; } = default!;
 
         [CommandOption("-g|--google-places")]
-        [Description("Update google places Id where missong?")]
+        [Description("Update google places Id where missing?")]
         [DefaultValue(true)]
         public bool UpdateGooglePlacesId { get; set; } = true;
     }
@@ -105,6 +105,11 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             throw new CliException("Google API key not found in environment variables. (Cute__GoogleApiKey)");
         }
 
+        if (string.IsNullOrEmpty(settings.Password) && AppSettings.GetSettings().TryGetValue("Cute__ZipPassword", out var password))
+        {
+            settings.Password = password ?? string.Empty;
+        }
+
         _mustUpdateGooglePlaceId = settings.UpdateGooglePlacesId;
 
         await FilterAndExtractGeos(settings);
@@ -113,6 +118,12 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         if (settings.Apply)
         {
+            if(_newEntryRecords.Count == 0)
+            {
+                _console.WriteNormal("No new entries to upload.");
+                return 0;
+            }
+
             var prefix = settings.ContentTypePrefix;
             var contentTypeId = await ResolveContentTypeId($"{prefix}Geo") ?? throw new CliException($"Content type '{prefix}Geo' not found.");
             var contentType = await GetContentTypeOrThrowError(contentTypeId);
@@ -256,6 +267,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         _console.WriteNormalWithHighlights($"Checking Contentful data in {AppSettings.ContentfulDefaultEnvironment}", Globals.StyleHeading);
 
+        var newDate = new DateTime();
+        var today = DateTime.Now;
         var dataLocations = ContentfulConnection.GetDeliveryEntries<JObject>($"{prefix}Location")
             .ToBlockingEnumerable()
             .Select(e => new
@@ -263,8 +276,10 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 CountryCode = e.Entry.SelectToken($"{prefix}CountryEntry.iso2Code")?.Value<string>(),
                 Lat = e.Entry.SelectToken("latLng.lat")?.Value<double>() ?? 0.0f,
                 Lon = e.Entry.SelectToken("latLng.lon")?.Value<double>() ?? 0.0f,
+                CloseDate = e.Entry.SelectToken("closeDate")?.Value<DateTime?>(),
             })
             .Where(i => i.CountryCode is not null)
+            .Where(i => i.CloseDate is null || i.CloseDate == newDate || i.CloseDate > today)
             .ToList();
 
         _console.WriteNormalWithHighlights($"...{dataLocations.Count:N0} locations found.", Globals.StyleHeading);
