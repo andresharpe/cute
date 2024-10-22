@@ -77,7 +77,7 @@ public sealed class LoginCommand(IConsoleWriter console, IPersistedTokenCache to
             .MoreChoicesText($"[{Globals.StyleDim.ToMarkup()}](Move up and down to reveal more spaces)[/]")
             .HighlightStyle(Globals.StyleSubHeading);
 
-        if (currentSettings?.ContentfulDefaultSpace == null)
+        if (currentSettings?.ContentfulDefaultSpace == null || !spaces.Any(s => s.SystemProperties.Id.Equals(currentSettings.ContentfulDefaultSpace)))
         {
             promptSpace.AddChoices(spaces
                 .OrderBy(e => e.Name)
