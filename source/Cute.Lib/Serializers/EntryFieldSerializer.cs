@@ -32,6 +32,8 @@ internal class EntryFieldSerializer
 
     public bool IsLocalized => _localized;
 
+    public string Name => _name;
+
     public EntryFieldSerializer(string localeCode, Field contentfulFieldDef)
     {
         _localeCode = localeCode;
@@ -88,11 +90,34 @@ internal class EntryFieldSerializer
 
     public object? Serialize(JObject entry, string fieldName)
     {
-        var prop = entry[_name]?[_localeCode];
+        // assume delivery or preview entry
+        JToken? prop = entry[_name];
 
         if (prop is null || prop.IsNull())
         {
             return null;
+        }
+
+        if (prop is JObject obj)
+        {
+            // but if may be a management entry
+            prop = obj[_localeCode];
+
+            if (prop is null || prop.IsNull())
+            {
+                if (_contentfulType == FieldType.Link && obj["sys"] != null)
+                {
+                    prop = obj;
+                }
+                else if (_contentfulType == FieldType.Location && obj["lat"] != null)
+                {
+                    prop = obj;
+                }
+                else
+                {
+                    return null;
+                }
+            }
         }
 
         return _contentfulType switch
@@ -105,22 +130,11 @@ internal class EntryFieldSerializer
             FieldType.Date => prop.Value<DateTime>(),
             FieldType.Location => prop[fieldName[^3..]]?.Value<double>(),
             FieldType.Boolean => prop.Value<bool>(),
-            FieldType.Link => ToLinkString(entry),
+            FieldType.Link => prop["sys"]?["id"]?.Value<string>(),
             FieldType.Array => ToArrayString(prop),
             FieldType.Object => prop.ToString(),
             _ => throw new NotImplementedException(),
         };
-    }
-
-    private string? ToLinkString(JObject entry)
-    {
-        var linkEntry = entry[_name]?[_localeCode];
-
-        if (linkEntry is null) return null;
-
-        if (linkEntry.IsNull()) return null;
-
-        return entry[_name]?[_localeCode]?["sys"]?["id"]?.Value<string>();
     }
 
     public JToken? Deserialize(IDictionary<string, object?> values)

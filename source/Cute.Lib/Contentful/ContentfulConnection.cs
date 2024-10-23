@@ -42,6 +42,7 @@ public class ContentfulConnection
     private Lazy<Task<Space>> _defaultSpace = null!;
     private Lazy<Task<IEnumerable<ContentTypeExtended>>> _contentTypesExtended = null!;
     private Lazy<Task<User>> _currentUser = null!;
+    private Lazy<Task<IEnumerable<ApiKey>>> _apiKeys = null!;
 
     // Public interface with async properties
     public ContentfulOptions Options => new()
@@ -74,6 +75,8 @@ public class ContentfulConnection
     public async Task<IEnumerable<ContentfulEnvironment>> GetEnvironmentsAsync() => await _environments.Value;
 
     public async Task<ContentfulEnvironment> GetDefaultEnvironmentAsync() => await _defaultEnvironment.Value;
+
+    public async Task<IEnumerable<ApiKey>> GetApiKeysAsync() => await _apiKeys.Value;
 
     public async Task<IEnumerable<Space>> GetSpacesAsync() => await _spaces.Value;
 
@@ -355,6 +358,9 @@ public class ContentfulConnection
             contentfulConnection._contentTypes =
                 new(contentfulConnection.GetContentTypes, true);
 
+            contentfulConnection._apiKeys =
+                new(contentfulConnection.GetApiKeys, true);
+
             contentfulConnection._locales =
                 new(contentfulConnection.GetLocales, true);
 
@@ -400,6 +406,11 @@ public class ContentfulConnection
     private async Task<IEnumerable<ContentType>> GetContentTypes()
     {
         return await RateLimiter.SendRequestAsync(() => _contentfulManagementClient.GetContentTypes());
+    }
+
+    private async Task<IEnumerable<ApiKey>> GetApiKeys()
+    {
+        return await RateLimiter.SendRequestAsync(() => _contentfulManagementClient.GetAllApiKeys());
     }
 
     private async Task<IEnumerable<Locale>> GetLocales()

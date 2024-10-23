@@ -134,13 +134,13 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
         return this;
     }
 
-    public BulkActionBase WithNewEntries(List<Entry<JObject>> withNewEntries)
+    public BulkActionBase WithNewEntries(List<Entry<JObject>> withNewEntries, string? sourceName = null)
     {
         _ = _contentType ?? throw new CliException("'WithContentType' and 'WithContentLocales' must be called before 'WithNewEntries'");
 
         _ = _contentLocales ?? throw new CliException("'WithContentType' and 'WithContentLocales' must be called before 'WithNewEntries'");
 
-        _withNewEntriesAdapter = new EntryListInputAdapter(withNewEntries, _contentType, _contentLocales);
+        _withNewEntriesAdapter = new EntryListInputAdapter(withNewEntries, _contentType, _contentLocales, sourceName);
 
         _withUpdatedFlatEntries = withNewEntries;
 
