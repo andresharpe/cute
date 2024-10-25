@@ -137,6 +137,13 @@ public class GenerateBulkAction(
 
             progressUpdater?.Invoke(0, Math.Max(1, queryResult.Count));
 
+            if(queryResult.Count == 0)
+            {
+                displayActions.DisplayFormatted?.Invoke($"No entries to process for locale '{locale}'...");
+                displayActions.DisplayBlankLine?.Invoke();
+                continue;
+            }
+
             if (modelNames == null || modelNames.Length == 0)
             {
                 switch (_operation)
