@@ -18,6 +18,44 @@ public class CuteContentGenerate
     public double PresencePenalty { get; set; } = default!;
     public CuteDataQuery CuteDataQueryEntry { get; set; } = default!;
     public string PromptOutputContentField { get; set; } = default!;
-    public DataLanguage GeneratorTargetDataLanguageEntry { get; set; } = default!;
+    public string? Locale { get; set; }
     public List<DataLanguage> TranslatorTargetDataLanguageEntries { get; set; } = default!;
+}
+
+public class CuteContentGenerateLocalized
+{
+    public SystemProperties Sys { get; set; } = default!;
+    public Dictionary<string, string> Key { get; set; } = default!;
+    public Dictionary<string, string> Title { get; set; } = default!;
+    public Dictionary<string, string> SystemMessage { get; set; } = default!;
+    public Dictionary<string, string> Prompt { get; set; } = default!;
+    public Dictionary<string, string> DeploymentModel { get; set; } = default!;
+    public Dictionary<string, int> MaxTokenLimit { get; set; } = default!;
+    public Dictionary<string, double> Temperature { get; set; } = default!;
+    public Dictionary<string, double> TopP { get; set; } = default!;
+    public Dictionary<string, double> FrequencyPenalty { get; set; } = default!;
+    public Dictionary<string, double> PresencePenalty { get; set; } = default!;
+    public Dictionary<string, CuteDataQueryLocalized> CuteDataQueryEntry { get; set; } = default!;
+    public Dictionary<string, string> PromptOutputContentField { get; set; } = default!;
+
+    public CuteContentGenerate GetBasicEntry(string targetLocale, string defaultLocale)
+    {
+        return new CuteContentGenerate
+        {
+            Sys = Sys,
+            Key = Key[defaultLocale],
+            Title = Title[defaultLocale],
+            SystemMessage = SystemMessage[targetLocale],
+            Prompt = Prompt[targetLocale],
+            DeploymentModel = DeploymentModel[defaultLocale],
+            MaxTokenLimit = MaxTokenLimit[defaultLocale],
+            Temperature = Temperature[defaultLocale],
+            TopP = TopP[defaultLocale],
+            FrequencyPenalty = FrequencyPenalty[defaultLocale],
+            PresencePenalty = PresencePenalty[defaultLocale],
+            CuteDataQueryEntry = CuteDataQueryEntry[defaultLocale].GetBasicEntry(defaultLocale),
+            PromptOutputContentField = PromptOutputContentField[defaultLocale],
+            Locale = targetLocale
+        };
+    }
 }

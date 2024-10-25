@@ -74,7 +74,7 @@ public class ContentGenerateTestCommand(IConsoleWriter console, ILogger<ContentG
 
         var contentLocales = new ContentLocales([defaultLocaleCode], defaultLocaleCode);
 
-        var apiSyncEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentGenerate>(settings.Key)
+        var cuteContentGenerate = ContentfulConnection.GetPreviewEntryByKey<CuteContentGenerate>(settings.Key)
             ?? throw new CliException($"No generate entry '{contentMetaTypeId}' with key '{settings.Key}' was found.");
 
         var displayActions = new DisplayActions()

@@ -13,6 +13,7 @@ public class EntryQuery
     private Action<QueryBuilder<object>>? _queryConfigurator = null!;
     private string? _queryString = null!;
     private int _includeLevels = 2;
+    private string _locale = string.Empty;
 
     public int PageSize => _pageSize;
     public int? Limit => _limit;
@@ -30,6 +31,11 @@ public class EntryQuery
             .Include(_includeLevels)
             .Limit(_pageSize)
             .Skip(skip);
+
+        if (!string.IsNullOrEmpty(_locale))
+        {
+            queryBuilder.LocaleIs(_locale);
+        }
 
         if (_orderByField != null)
         {
@@ -110,6 +116,12 @@ public class EntryQuery
         public Builder WithIncludeLevels(int includeLevels)
         {
             _entryQuery._includeLevels = includeLevels;
+            return this;
+        }
+
+        public Builder WithLocale(string locale)
+        {
+            _entryQuery._locale = locale;
             return this;
         }
 
