@@ -36,10 +36,12 @@ public class CuteContentGenerateContentType
 
             new FieldBuilder("systemMessage", FieldType.Text)
                 .IsRequired()
+                .IsLocalized()
                 .Build(),
 
             new FieldBuilder("prompt", FieldType.Text)
                 .IsRequired()
+                .IsLocalized()
                 .Build(),
 
             new FieldBuilder("deploymentModel", FieldType.Symbol)

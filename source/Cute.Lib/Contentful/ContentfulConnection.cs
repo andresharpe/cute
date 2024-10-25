@@ -176,6 +176,23 @@ public class ContentfulConnection
         .Select(e => e.Entry)
         .FirstOrDefault();
 
+    public T? GetPreviewEntryByKeyWithAllLocales<T>(string fieldValue, string contentType) where T : class, new()
+        => GetPreviewEntryByKeyWithLocale<T>("fields.key", fieldValue, contentType, "*");
+    public T? GetPreviewEntryByKeyWithLocale<T>(string fieldValue, string locale) where T : class, new()
+        => GetPreviewEntryByKeyWithLocale<T>("fields.key", fieldValue, typeof(T).Name.ToCamelCase(), locale);
+    public T? GetPreviewEntryByKeyWithLocale<T>(string fieldName, string fieldValue, string contentType, string locale) where T : class, new()
+    => GetPreviewEntries<T>(
+        new EntryQuery.Builder()
+            .WithContentType(contentType)
+            .WithQueryConfig(qb => qb.FieldEquals(FixFieldName(fieldName), fieldValue))
+            .WithLocale(locale)
+            .WithLimit(1)
+            .Build()
+        )
+        .ToBlockingEnumerable()
+        .Select(e => e.Entry)
+        .FirstOrDefault();
+
     public IEnumerable<T> GetAllPreviewEntries<T>() where T : class, new()
     => GetPreviewEntries<T>(typeof(T).Name.ToCamelCase())
         .ToBlockingEnumerable()

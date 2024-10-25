@@ -86,68 +86,81 @@ public class GenerateBulkAction(
         displayActions.DisplayFormatted?.Invoke($"Reading prompt entry {metaPromptKey}...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var cuteContentGenerateEntry = _contentfulConnection.GetPreviewEntryByKey<CuteContentGenerate>(metaPromptKey)
+        var cuteContentGenerateEntryLocalized = _contentfulConnection.GetPreviewEntryByKeyWithAllLocales<CuteContentGenerateLocalized>(metaPromptKey, "cuteContentGenerate")
             ?? throw new CliException($"No 'cuteContentGenerate' entry with key '{metaPromptKey}' found.");
+
+        if (cuteContentGenerateEntryLocalized is null)
+        {
+            throw new CliException($"No 'cuteContentGenerate' entry with key '{metaPromptKey}' found.");
+        }
+
+        var defaultLocaleCode = (await _contentfulConnection.GetDefaultLocaleAsync()).Code;
+        var locales = GetProcessedLocales(cuteContentGenerateEntryLocalized, displayActions)
+            .OrderByDescending(k => k == defaultLocaleCode);
 
         if (_operation == GenerateOperation.ListBatches)
         {
-            await ListBatches(cuteContentGenerateEntry, displayActions);
+            await ListBatches(cuteContentGenerateEntryLocalized.GetBasicEntry((await _contentfulConnection.GetDefaultLocaleAsync()).Code, (await _contentfulConnection.GetDefaultLocaleAsync()).Code), displayActions);
             return;
         }
 
-        displayActions.DisplayFormatted?.Invoke($"Executing query {cuteContentGenerateEntry.CuteDataQueryEntry.Key}...");
-        displayActions.DisplayBlankLine?.Invoke();
-
-        var queryResult = new JArray();
-        var totalRead = 0;
-        await foreach (var entry in GetQueryData(cuteContentGenerateEntry))
+        foreach (var locale in locales)
         {
-            progressUpdater?.Invoke(queryResult.Count, ++totalRead);
+            var cuteContentGenerateEntry = cuteContentGenerateEntryLocalized.GetBasicEntry(locale, (await _contentfulConnection.GetDefaultLocaleAsync()).Code);
+            displayActions.DisplayFormatted?.Invoke($"Executing query {cuteContentGenerateEntry.CuteDataQueryEntry.Key}...");
+            displayActions.DisplayBlankLine?.Invoke();
 
-            if (!testOnly && dataFilter is not null && !dataFilter.Compare(entry))
+            var queryResult = new JArray();
+            var totalRead = 0;
+            await foreach (var entry in GetQueryData(cuteContentGenerateEntry))
             {
-                continue;
+                progressUpdater?.Invoke(queryResult.Count, ++totalRead);
+
+                if (!testOnly && dataFilter is not null && !dataFilter.Compare(entry))
+                {
+                    continue;
+                }
+
+                if (!testOnly && await EntryHasExistingContentWithFallback(cuteContentGenerateEntry, entry, locale))
+                {
+                    continue;
+                }
+
+                queryResult.Add(entry);
             }
 
-            if (!testOnly && EntryHasExistingContent(cuteContentGenerateEntry, entry))
+            displayActions.DisplayFormatted?.Invoke($"Found {queryResult.Count} entries...");
+            displayActions.DisplayBlankLine?.Invoke();
+
+            displayActions.DisplayRuler?.Invoke();
+            displayActions.DisplayBlankLine?.Invoke();
+
+            progressUpdater?.Invoke(0, Math.Max(1, queryResult.Count));
+
+            if (modelNames == null || modelNames.Length == 0)
             {
-                continue;
+                switch (_operation)
+                {
+                    case GenerateOperation.GenerateSingle:
+                        await ProcessQueryResults(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                        break;
+
+                    case GenerateOperation.GenerateParallel:
+                        ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                        break;
+
+                    case GenerateOperation.GenerateBatch:
+                        await ProcessQueryResultsInBatch(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                        break;
+
+                    default:
+                        throw new NotImplementedException();
+                }
             }
-
-            queryResult.Add(entry);
-        }
-
-        displayActions.DisplayFormatted?.Invoke($"Found {queryResult.Count} entries...");
-        displayActions.DisplayBlankLine?.Invoke();
-
-        displayActions.DisplayRuler?.Invoke();
-        displayActions.DisplayBlankLine?.Invoke();
-
-        progressUpdater?.Invoke(0, Math.Max(1, queryResult.Count));
-
-        if (modelNames == null || modelNames.Length == 0)
-        {
-            switch (_operation)
+            else
             {
-                case GenerateOperation.GenerateSingle:
-                    await ProcessQueryResults(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
-                    break;
-
-                case GenerateOperation.GenerateParallel:
-                    ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
-                    break;
-
-                case GenerateOperation.GenerateBatch:
-                    await ProcessQueryResultsInBatch(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
-                    break;
-
-                default:
-                    throw new NotImplementedException();
+                await ProcessQueryResultsForModels(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, modelNames);
             }
-        }
-        else
-        {
-            await ProcessQueryResultsForModels(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, modelNames);
         }
     }
 
@@ -418,11 +431,6 @@ public class GenerateBulkAction(
         foreach (var entry in queryResult.Cast<JObject>())
         {
             progressUpdater?.Invoke(recordNum++, recordTotal);
-
-            if (EntryHasExistingContent(cuteContentGenerateEntry, entry) && !testOnly)
-            {
-                continue;
-            }
 
             var entryKey = entry["key"]?.Value<string>()
                 ?? "(unknown entry key)";
@@ -904,11 +912,19 @@ public class GenerateBulkAction(
         }
     }
 
-    private static bool EntryHasExistingContent(CuteContentGenerate cuteContentGenerateEntry, JObject entry)
+    private static bool EntryHasExistingContent(CuteContentGenerate cuteContentGenerateEntry, JObject entry, string? fallbackValue = null)
     {
         var content = entry.SelectToken(cuteContentGenerateEntry.PromptOutputContentField);
 
         if (content.IsNull()) return false;
+
+        if (!string.IsNullOrEmpty(fallbackValue))
+        {
+            if (fallbackValue == content.ConvertObjectToJsonString())
+            {
+                return false;
+            }
+        }
 
         if (content is JArray jArray)
         {
@@ -923,6 +939,30 @@ public class GenerateBulkAction(
         if (string.IsNullOrWhiteSpace(content?.Value<string>())) return false;
 
         return true;
+    }
+
+    Dictionary<string, string> fallbackValues = new Dictionary<string, string>();
+    private async Task<bool> EntryHasExistingContentWithFallback(CuteContentGenerate cuteContentGenerateEntry, JObject entry, string locale)
+    {
+        var defaultLocale = await _contentfulConnection.GetDefaultLocaleAsync();
+        string? fallbackValue = null;
+        var id = entry.SelectToken("$.sys.id")?.Value<string>() ?? throw new CliException("The query needs to return a 'sys.id' for each item.");
+
+        var content = entry.SelectToken(cuteContentGenerateEntry.PromptOutputContentField);
+
+        if (defaultLocale.Code != locale)
+        {
+            if (id != null && fallbackValues.ContainsKey(id))
+            {
+                fallbackValue = fallbackValues[id];
+            }
+        }
+        else
+        {
+            fallbackValues[id] = content.ConvertObjectToJsonString();
+        }
+
+        return EntryHasExistingContent(cuteContentGenerateEntry, entry, fallbackValue);
     }
 
     private async Task UpdateContentfulEntry(CuteContentGenerate cuteContentGenerateEntry, JObject entry, string promptResult, DisplayActions displayActions)
@@ -948,7 +988,7 @@ public class GenerateBulkAction(
 
         var oldValueRef = fields[fieldId];
 
-        var locale = cuteContentGenerateEntry.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en";
+        var locale = cuteContentGenerateEntry.Locale ?? _contentLocales?.DefaultLocale ?? "en";
 
         if (oldValueRef is null)
         {
@@ -1128,13 +1168,26 @@ public class GenerateBulkAction(
         return _contentfulConnection.GraphQL.GetDataEnumerable(
             query,
             cuteContentGenerateEntry.CuteDataQueryEntry.JsonSelector,
-            cuteContentGenerateEntry.GeneratorTargetDataLanguageEntry?.Iso2code ?? _contentLocales?.DefaultLocale ?? "en",
+            cuteContentGenerateEntry.Locale ?? _contentLocales?.DefaultLocale ?? "en",
             preview: true);
     }
 
     private static string RenderTemplate(ScriptObject scriptObject, Template template)
     {
         return template.Render(scriptObject, memberRenamer: member => member.Name.ToCamelCase());
+    }
+
+    private List<string> GetProcessedLocales(CuteContentGenerateLocalized cuteContentGenerateLocalized, DisplayActions displayActions)
+    {
+        var commonLocales = cuteContentGenerateLocalized.SystemMessage.Keys.Intersect(cuteContentGenerateLocalized.Prompt.Keys).ToList();
+        var incompleteLocales = cuteContentGenerateLocalized.SystemMessage.Keys.Union(cuteContentGenerateLocalized.Prompt.Keys).Except(commonLocales).ToList();
+
+        if (incompleteLocales.Count > 0)
+        {
+            displayActions.DisplayAlert?.Invoke($"cuteContentGenerate entry with the key '{cuteContentGenerateLocalized.Key.Values.FirstOrDefault()}' is missing either 'SystemMessage' or 'Prompt' for the following locales '{string.Join("', '", incompleteLocales)}'. These locales will be ignored during data generation.");
+        }
+
+        return commonLocales;
     }
 
     private class GenerateJob
