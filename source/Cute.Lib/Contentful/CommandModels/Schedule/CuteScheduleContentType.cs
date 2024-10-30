@@ -31,7 +31,6 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
 
                     new FieldBuilder("schedule", FieldType.Symbol)
                         .IsRequired()
-                        .DefaultValue("en", "never")
                         .Build(),
 
                     new FieldBuilder("cronSchedule", FieldType.Symbol)

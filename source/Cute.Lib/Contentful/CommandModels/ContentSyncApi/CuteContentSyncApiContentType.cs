@@ -32,9 +32,6 @@ public class CuteContentSyncApiContentType
              new FieldBuilder("yaml", FieldType.Text)
                     .Build(),
 
-             new FieldBuilder("schedule", FieldType.Symbol)
-                    .Build(),
-
             ]);
 
         _contentType = contentTypeBuilder.Build();

@@ -1,4 +1,5 @@
-﻿using Cute.Commands.BaseCommands;
+﻿using Contentful.Core.Search;
+using Cute.Commands.BaseCommands;
 using Cute.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.CommandModels.Schedule;
@@ -66,6 +67,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             return [];
         }
     }
+
+    private static readonly string[] AllowedCommands = { "cute content generate", "cute content sync-api", "cute content seed-geo" };
 
     private Settings? _settings;
 
@@ -207,24 +210,57 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         var syncApiEntries = GetSyncApiEntries()
             .ToDictionary(t => t.Key);
 
+        Func<string, bool> isAllowed = command =>
+        {
+            var allowed = AllowedCommands
+            .Any(allowedCommand => command
+                .Trim()
+                .Replace("  ", " ")
+                .StartsWith(allowedCommand, StringComparison.OrdinalIgnoreCase)
+            );
+
+            if (!allowed)
+            {
+                _console.WriteAlert($"Command '{command}' is not allowed.");
+            }
+
+            return allowed;
+        };
+
         lock (_schedulerLock)
         {
             foreach (var (key, entry) in _scheduledEntries)
             {
+                bool removeSchedule = false;
                 if (syncApiEntries.TryGetValue(entry.Key, out CuteSchedule? latestEntry))
                 {
-                    if (!latestEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
+                    if (isAllowed(latestEntry.Command) == false)
                     {
-                        _scheduledEntries[key].UpdateEntry(latestEntry);
-                        if (entry.IsTimeScheduled)
+                        removeSchedule = true;
+                    }
+                    else if (!latestEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (latestEntry.IsTimeScheduled)
                         {
                             var cronSchedule = latestEntry.Schedule.ToCronExpression().ToString();
+                            entry.CronSchedule = cronSchedule;
                             _scheduler.UpdateTask(key, CrontabSchedule.Parse(cronSchedule));
                         }
+                        else
+                        {
+                            // When a scheduled entry is changed to a Run After entry, remove the scheduled task
+                            _scheduler.RemoveTask(key);
+                        }
+                        _scheduledEntries[key].UpdateEntry(latestEntry);
                     }
                     syncApiEntries.Remove(entry.Key);
                 }
                 else
+                {
+                    removeSchedule = true;
+                }
+
+                if (removeSchedule)
                 {
                     _scheduledEntries.Remove(key, out _);
                     if (entry.IsTimeScheduled)
@@ -234,15 +270,16 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
                 }
             }
 
-            foreach (var entry in syncApiEntries.Values)
+            foreach (var entry in syncApiEntries.Values.Where(entry => isAllowed(entry.Command)))
             {
                 var key = Guid.NewGuid();
-                _scheduledEntries[key] = new ScheduledEntry(entry);
                 if (entry.IsTimeScheduled)
                 {
                     var cronSchedule = entry.Schedule.ToCronExpression().ToString();
+                    entry.CronSchedule = cronSchedule;
                     _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(cronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_scheduledEntries[key]), ct)));
                 }
+                _scheduledEntries[key] = new ScheduledEntry(entry);
             }
         }
 
@@ -263,7 +300,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
                 ?? throw new CliException($"No API sync entry with key '{_settings.Key}' was found.");
         }
 
-        var cronTasks =
+        var cronTasksList =
             (
                 specifiedJob is null
                 ? ContentfulConnection.GetAllPreviewEntries<CuteSchedule>().ToArray()
@@ -271,8 +308,9 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             )
             .Where(cronTask => !string.IsNullOrEmpty(cronTask.Schedule) || cronTask.RunAfter != null)
             .Where(cronTask => !cronTask.Schedule.Equals("never", StringComparison.OrdinalIgnoreCase) || cronTask.RunAfter != null)
-            .ToArray();
+            .ToList();
 
+        var cronTasks = cronTasksList.ToArray();
         if (cronTasks.Length == 0)
         {
             throw new CliException($"No data sync entries found with a valid schedule.");
@@ -416,11 +454,17 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             return;
         }
 
-        UpdateField(fields, "lastRunStatus", scheduledEntry.LastRunStatus, locale);
-        UpdateField(fields, "lastRunFinished", scheduledEntry.LastRunFinished?.ToString("yyyy-MM-ddTHH:mm:ssZ"), locale);
-        UpdateField(fields, "lastRunStarted", scheduledEntry.LastRunStarted?.ToString("yyyy-MM-ddTHH:mm:ssZ"), locale);
-        UpdateField(fields, "lastRunDuration", scheduledEntry.LastRunDuration, locale);
-        UpdateField(fields, "lastRunErrorMessage", scheduledEntry.LastRunErrorMessage, locale);
+        UpdateField(fields, nameof(scheduledEntry.CronSchedule).ToCamelCase(), scheduledEntry.CronSchedule, locale);
+        UpdateField(fields, nameof(scheduledEntry.LastRunStatus).ToCamelCase(), scheduledEntry.LastRunStatus, locale);
+        UpdateField(fields, nameof(scheduledEntry.LastRunFinished).ToCamelCase(), scheduledEntry.LastRunFinished?.ToString("yyyy-MM-ddTHH:mm:ssZ"), locale);
+        UpdateField(fields, nameof(scheduledEntry.LastRunStarted).ToCamelCase(), scheduledEntry.LastRunStarted?.ToString("yyyy-MM-ddTHH:mm:ssZ"), locale);
+        UpdateField(fields, nameof(scheduledEntry.LastRunDuration).ToCamelCase(), scheduledEntry.LastRunDuration, locale);
+        UpdateField(fields, nameof(scheduledEntry.LastRunErrorMessage).ToCamelCase(), scheduledEntry.LastRunErrorMessage, locale);
+
+        if(scheduledEntry.IsRunAfter && !scheduledEntry.Schedule.StartsWith("Run After", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateField(fields, nameof(scheduledEntry.Schedule).ToCamelCase(), $"Run After '{scheduledEntry.RunAfter!.Key}'", locale);
+        }
 
         await ContentfulConnection.CreateOrUpdateEntryAsync(remoteEntry, remoteEntry.SystemProperties.Version);
         await ContentfulConnection.PublishEntryAsync(remoteEntry.SystemProperties.Id, remoteEntry.SystemProperties.Version!.Value + 1);
