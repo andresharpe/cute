@@ -27,7 +27,7 @@ public class CuteFunctions : ScriptObject
     {
         if (value is JToken jToken)
         {
-            return keepList is null
+            return keepList is null || keepList.Length == 0
                 ? jToken.ToString()
                 : SelectProperties(jToken, keepList)?.ToString() ?? string.Empty;
         }
