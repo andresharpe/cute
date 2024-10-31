@@ -8,6 +8,7 @@ using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Contentful.CommandModels.ContentJoinCommand;
 using Cute.Lib.Contentful.CommandModels.ContentSyncApi;
 using Cute.Lib.Contentful.CommandModels.ContentTestData;
+using Cute.Lib.Contentful.CommandModels.Schedule;
 using Cute.Lib.InputAdapters.MemoryAdapters;
 using Cute.Services;
 using Spectre.Console;
@@ -132,6 +133,11 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
         if (await CreateContentTypeIfNotExist(TestGeoContentType.Instance()))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"testGeo"}'...", Globals.StyleHeading);
+        }
+
+        if (await CreateContentTypeIfNotExist(CuteScheduleContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type '{"CuteSchedule"}'...", Globals.StyleHeading);
         }
     }
 }
