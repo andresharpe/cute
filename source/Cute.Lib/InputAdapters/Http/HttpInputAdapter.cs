@@ -220,12 +220,13 @@ public class HttpInputAdapter(
 
             if (_adapter.ResultsJsonPath is null)
             {
-                rootArray = results.ResponseContent as JArray
+                rootArray = results.ResponseContent as JArray ?? new JArray(results.ResponseContent!)
                     ?? throw new CliException("The result of the endpoint call is not a json array.");
             }
             else if (results.ResponseContent is JObject obj)
             {
-                rootArray = obj.SelectToken($"$.{_adapter.ResultsJsonPath}") as JArray
+                var selectedToken = obj.SelectToken($"$.{_adapter.ResultsJsonPath}");
+                rootArray = selectedToken as JArray ?? new JArray(selectedToken!)
                     ?? throw new CliException($"The json path '{_adapter.ResultsJsonPath}' does not exist or is not a json array.");
             }
             else
