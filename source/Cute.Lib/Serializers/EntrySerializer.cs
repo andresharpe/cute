@@ -15,7 +15,21 @@ public class EntrySerializer
 
     private readonly string[] _locales;
 
-    public IEnumerable<string> ColumnFieldNames => _sysFields.Concat(_fieldSerializers.Keys);
+    public static readonly HashSet<string> SysFields = [
+        "sys.Id",
+        "sys.Type",
+        "sys.UpdatedAt",
+        "sys.Version",
+        "sys.PublishedVersion",
+        "sys.PublishedCounter",
+        "sys.PublishedAt",
+        "sys.FirstPublishedAt",
+        "sys.ContentType",
+        "sys.Space",
+        "sys.Environment",
+    ];
+
+    public IEnumerable<string> ColumnFieldNames => SysFields.Concat(_fieldSerializers.Keys);
 
     public EntrySerializer(ContentType contentType, ContentLocales contentLocales)
     {
@@ -49,20 +63,6 @@ public class EntrySerializer
             }
         }
     }
-
-    private readonly string[] _sysFields = [
-        "sys.Id",
-        "sys.Type",
-        "sys.UpdatedAt",
-        "sys.Version",
-        "sys.PublishedVersion",
-        "sys.PublishedCounter",
-        "sys.PublishedAt",
-        "sys.FirstPublishedAt",
-        "sys.ContentType",
-        "sys.Space",
-        "sys.Environment",
-    ];
 
     public Dictionary<string, object?> CreateNewFlatEntry()
     {

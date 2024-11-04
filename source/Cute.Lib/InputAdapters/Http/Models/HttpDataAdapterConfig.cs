@@ -23,17 +23,21 @@ public class HttpDataAdapterConfig
     public string FilterExpression { get; set; } = default!;
     public Pagination Pagination { get; set; } = default!;
 
-    internal Dictionary<string, Template> CompileMappingTemplates()
+    internal Dictionary<Template, Template> CompileMappingTemplates()
     {
-        var templates = Mapping.ToDictionary(m => m.FieldName, m => Template.Parse(m.Expression));
+        var templates = Mapping.ToDictionary(m => Template.Parse(m.FieldName), m => Template.Parse(m.Expression));
 
         var errors = new List<string>();
 
-        foreach (var (fieldName, template) in templates)
+        foreach (var (fieldNameTemplate, valueTemplate) in templates)
         {
-            if (template.HasErrors)
+            if (fieldNameTemplate.HasErrors)
             {
-                errors.Add($"Error(s) in mapping for field '{fieldName}'.{template.Messages.Select(m => $"\n...{m.Message}")} ");
+                errors.Add($"Error(s) in mapping for field name '{fieldNameTemplate}'.{fieldNameTemplate.Messages.Select(m => $"\n...{m.Message}")} ");
+            }
+            if (valueTemplate.HasErrors)
+            {
+                errors.Add($"Error(s) in mapping for field expression '{fieldNameTemplate}'.{valueTemplate.Messages.Select(m => $"\n...{m.Message}")} ");
             }
         }
 
