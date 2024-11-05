@@ -34,7 +34,7 @@ public class HttpInputAdapter(
 
     private readonly ScriptObject _scriptObject = CreateScripObject(contentfulConnection, envSettings);
 
-    private readonly Dictionary<string, Template> _compiledTemplates = adapter.CompileMappingTemplates();
+    private readonly Dictionary<Template, Template> _compiledTemplates = adapter.CompileMappingTemplates();
 
     private readonly Dictionary<string, Template> _compiledPreTemplates = adapter.CompilePreMappingTemplates();
 
@@ -84,8 +84,6 @@ public class HttpInputAdapter(
             ?? throw new CliException($"Content type '{_adapter.ContentType}' does not exist.");
 
         _serializer = new EntrySerializer(_contentType, _contentLocales);
-
-        ValidateDataAdapter(_adapter, _contentType, _serializer);
 
         if (_entryEnumerators is null)
         {
@@ -417,7 +415,7 @@ public class HttpInputAdapter(
                     _scriptObject.SetValue("row", o, true);
                     var vars = _compiledPreTemplates.ToDictionary(t => t.Key, t => t.Value.Render(_scriptObject));
                     _scriptObject.SetValue("var", vars, true);
-                    var newRecord = _compiledTemplates.ToDictionary(t => t.Key, t => t.Value.Render(_scriptObject));
+                    var newRecord = _compiledTemplates.ToDictionary(t => t.Key.Render(_scriptObject), t => t.Value.Render(_scriptObject));
                     _scriptObject.Remove("var");
                     _scriptObject.Remove("row");
                     return newRecord;
@@ -501,23 +499,5 @@ public class HttpInputAdapter(
         }
 
         return contentEntryEnumerators;
-    }
-
-    private static void ValidateDataAdapter(HttpDataAdapterConfig adapter, ContentType contentType, EntrySerializer serializer)
-    {
-        var fields = serializer.ColumnFieldNames.ToHashSet();
-        var missingFields = new HashSet<string>();
-
-        foreach (var mapping in adapter.Mapping)
-        {
-            if (!fields.Contains(mapping.FieldName))
-            {
-                missingFields.Add(mapping.FieldName);
-            }
-        }
-        if (missingFields.Count > 0)
-        {
-            throw new CliException($"Field(s) '{string.Join(", ", missingFields)}' not found in contentType '{contentType.SystemProperties.Id}' (Id: '{adapter.Id}')");
-        }
     }
 }

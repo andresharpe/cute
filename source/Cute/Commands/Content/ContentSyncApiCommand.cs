@@ -62,9 +62,9 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         var contentSyncApiTypeId = contentSyncApiType.SystemProperties.Id;
 
-        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();       
 
-        var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
+        var contentLocales = new ContentLocales((await ContentfulConnection.GetContentLocalesAsync()).Locales, defaultLocale.Code);
 
         var apiSyncEntry = ContentfulConnection.GetPreviewEntryByKey<CuteContentSyncApi>(settings.Key)
             ?? throw new CliException($"No API sync entry '{contentSyncApiTypeId}' with key '{settings.Key}' was found.");

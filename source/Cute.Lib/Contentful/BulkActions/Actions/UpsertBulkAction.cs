@@ -38,6 +38,8 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         await GetAllEntriesFromAdapter(progressUpdaterCount, progressUpdaterRead);
 
+        mergeNewAdapterEntries();
+
         count = Math.Max(1, _withFlatEntries?.Count ?? throw new CliException($"Unexpected null value."));
 
         progressUpdaterCount?.Invoke(new(count, count, $"Counted {_withFlatEntries.Count} '{_contentTypeId}' entries from '{_withNewEntriesAdapter.SourceName.Snip(60)}'.", null));
@@ -83,6 +85,42 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
             if (++i % 1000 == 0)
             {
                 NotifyUserInterface($"Getting '{_contentTypeId}' entry {i}/{totalRecords}...", progressUpdaterRead);
+            }
+        }
+    }
+
+    private void mergeNewAdapterEntries()
+    {
+        if (_matchField is not null)
+        {
+            var duplicateKeyEntries = _withFlatEntries!
+                .GroupBy(e => e[_matchField]?.ToString())
+                .Where(e => e.Count() >= 2)
+                .ToDictionary(e => e.Key ?? string.Empty, e => e.ToList());
+
+            _withFlatEntries =_withFlatEntries!
+                .GroupBy(e => e[_matchField]?.ToString())
+                .Where(e => e.Count() == 1)
+                .Select(g => g.First())
+                .ToList();
+
+            foreach (var (key, entries) in duplicateKeyEntries)
+            {
+                HashSet<string> conflictingFields = new HashSet<string>();
+                var mergedEntry = entries.First();
+                for (var i = 1; i < entries.Count; i++)
+                {
+                    conflictingFields.UnionWith(mergedEntry.MergeWith(entries[i]));
+                }
+
+                conflictingFields.ExceptWith(EntrySerializer.SysFields);
+
+                if (conflictingFields.Count > 0)
+                {
+                    NotifyUserInterfaceOfError($"Merge conflict detected for entry with the key: '{key}', conflicting fields: '{string.Join(", ", conflictingFields)}'");
+                }
+
+                _withFlatEntries.Add(mergedEntry);
             }
         }
     }
