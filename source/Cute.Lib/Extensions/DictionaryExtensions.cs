@@ -7,13 +7,16 @@
             HashSet<TKey> conflictingKeys = new HashSet<TKey>();
             foreach (var kvp in source)
             {
-                if (!target.ContainsKey(kvp.Key) || target[kvp.Key] is null)
+                if (target.TryGetValue(kvp.Key, out var existingValue))
+                {
+                    if (existingValue is not null && kvp.Value is not null && !existingValue.Equals(kvp.Value))
+                    {
+                        conflictingKeys.Add(kvp.Key);
+                    }
+                }
+                else
                 {
                     target[kvp.Key] = kvp.Value;
-                }
-                else if (target[kvp.Key] is not null && kvp.Value is not null && !target[kvp.Key]!.Equals(kvp.Value))
-                {
-                    conflictingKeys.Add(kvp.Key);
                 }
             }
 

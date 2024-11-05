@@ -2,6 +2,7 @@
 using Cute.Lib.Contentful;
 using Cute.Lib.Extensions;
 using Newtonsoft.Json.Linq;
+using System.Collections.Immutable;
 
 namespace Cute.Lib.Serializers;
 
@@ -15,7 +16,7 @@ public class EntrySerializer
 
     private readonly string[] _locales;
 
-    public static readonly HashSet<string> SysFields = [
+    public static readonly ImmutableHashSet<string> SysFields = [
         "sys.Id",
         "sys.Type",
         "sys.UpdatedAt",
@@ -37,7 +38,7 @@ public class EntrySerializer
         _locales = contentLocales.GetAllLocales();
         _fieldSerializers = [];
         _fields = [];
-
+        
         var allLocaleCodes = _locales;
 
         string[] defaultLocaleCodes = [contentLocales.DefaultLocale];
