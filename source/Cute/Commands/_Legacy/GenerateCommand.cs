@@ -6,6 +6,8 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Services;
+using Cute.Services.Translation.Factories;
+using Cute.Services.Translation.Interfaces;
 using Cute.UiComponents;
 using Newtonsoft.Json.Linq;
 using OpenAI.Chat;
@@ -22,16 +24,16 @@ namespace Cute.Commands._Legacy;
 public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 {
     private readonly ILogger<GenerateCommand> _logger;
-    private readonly AzureTranslator _translator;
+    private readonly ITranslator _translator;
     private readonly GenerateBulkAction _generateCommandRunner;
 
     public GenerateCommand(IConsoleWriter console, ILogger<GenerateCommand> logger,
-        LegacyContentfulConnection contentfulConnection, AppSettings appSettings, AzureTranslator translator,
+        LegacyContentfulConnection contentfulConnection, AppSettings appSettings, TranslateFactory translatorFactory,
         GenerateBulkAction generateCommandRunner)
         : base(console, logger, contentfulConnection, appSettings)
     {
         _logger = logger;
-        _translator = translator;
+        _translator = translatorFactory.Create(Lib.Enums.TranslationService.Azure);
         _generateCommandRunner = generateCommandRunner;
     }
 
@@ -412,7 +414,7 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
         _console.WriteBlankLine();
         _console.WriteDim(quotedText);
 
-        var translations = await _translator.Translate(generatorLanguageCode, codesToTranslate, quotedText);
+        var translations = await _translator.Translate(quotedText, generatorLanguageCode, codesToTranslate);
 
         if (translations is null) return;
 
@@ -420,7 +422,7 @@ public sealed class GenerateCommand : LoggedInCommand<GenerateCommand.Settings>
 
         foreach (var translation in translations)
         {
-            var languageCode = translation.To;
+            var languageCode = translation.TargetLanguage;
             var output = translation.Text;
 
             AnsiConsole.Write(new Rule() { Style = Globals.StyleDim });

@@ -41,7 +41,7 @@ public class AzureTranslator : ITranslator
         }).ToArray();
     }
 
-    public async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate)
+    private async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate)
     {
         var toLanguageCodesUrl = string.Join("", toLanguageCodes.Select(c => $"&to={c}"));
 
