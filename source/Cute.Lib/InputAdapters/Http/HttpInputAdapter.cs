@@ -32,7 +32,7 @@ public class HttpInputAdapter(
 
     private readonly HttpClient _httpClient = httpClient;
 
-    private readonly ScriptObject _scriptObject = CreateScripObject(contentfulConnection, envSettings);
+    private readonly ScriptObject _scriptObject = CreateScriptObject(contentfulConnection, envSettings);
 
     private readonly Dictionary<Template, Template> _compiledTemplates = adapter.CompileMappingTemplates();
 
@@ -459,7 +459,7 @@ public class HttpInputAdapter(
         }
     }
 
-    private static ScriptObject CreateScripObject(ContentfulConnection contentfulConnection, IReadOnlyDictionary<string, string?> envSettings)
+    private static ScriptObject CreateScriptObject(ContentfulConnection contentfulConnection, IReadOnlyDictionary<string, string?> envSettings)
     {
         ScriptObject? scriptObject = [];
 

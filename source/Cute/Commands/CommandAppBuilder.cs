@@ -15,10 +15,15 @@ using Cute.Lib.AiModels;
 using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
+using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.SiteGen;
 using Cute.Services;
+using Cute.Services.Translation;
+using Cute.Services.Translation.Factories;
+using Cute.Services.Translation.Interfaces;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Events;
 using Spectre.Console;
@@ -228,7 +233,12 @@ public class CommandAppBuilder
         services.AddSingleton<IContentfulOptionsProvider>(_appSettings);
         services.AddTransient<ContentfulConnection>();
         services.AddSingleton<IAzureOpenAiOptionsProvider>(_appSettings);
+        services.AddSingleton<TranslateFactory>();
         services.AddTransient<AzureTranslator>();
+        services.AddTransient<GPT4oTranslator>();
+        services.AddTransient<GoogleTranslator>();
+        services.AddTransient<DeeplTranslator>();
+
         services.AddTransient<HttpResponseFileCache>();
         services.AddTransient<SiteGenerator>();
         services.AddTransient<GenerateBulkAction>();
