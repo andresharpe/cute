@@ -16,7 +16,7 @@ public class EntrySerializer
 
     private readonly string[] _locales;
 
-    public static readonly ImmutableHashSet<string> SysFields = [
+    private static readonly List<string> _sysFields = [
         "sys.Id",
         "sys.Type",
         "sys.UpdatedAt",
@@ -30,7 +30,9 @@ public class EntrySerializer
         "sys.Environment",
     ];
 
-    public IEnumerable<string> ColumnFieldNames => SysFields.Concat(_fieldSerializers.Keys);
+    public static readonly ImmutableHashSet<string> SysFields = ImmutableHashSet.CreateRange(_sysFields);
+
+    public IEnumerable<string> ColumnFieldNames => _sysFields.Concat(_fieldSerializers.Keys);
 
     public EntrySerializer(ContentType contentType, ContentLocales contentLocales)
     {
