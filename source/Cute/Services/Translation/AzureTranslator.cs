@@ -1,11 +1,12 @@
 ﻿using System.Text;
 using Cute.Config;
+using Cute.Services.Translation.Interfaces;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace Cute.Services;
+namespace Cute.Services.Translation;
 
-public class AzureTranslator
+public class AzureTranslator : ITranslator
 {
     private readonly string _apiKey;
     private readonly string _endpoint;
@@ -20,7 +21,27 @@ public class AzureTranslator
         _httpClient = httpClient;
     }
 
-    public async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate)
+    public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+    {
+        var result = await Translate(fromLanguageCode, [toLanguageCode], textToTranslate);
+        return result?.Select(result => new TranslationResponse
+        {
+            Text = result.Text,
+            TargetLanguage = result.To
+        }).FirstOrDefault();
+    }
+
+    public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
+    {
+        var result = await Translate(fromLanguageCode, toLanguageCodes, textToTranslate);
+        return result?.Select(result => new TranslationResponse
+        {
+            Text = result.Text,
+            TargetLanguage = result.To
+        }).ToArray();
+    }
+
+    private async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate)
     {
         var toLanguageCodesUrl = string.Join("", toLanguageCodes.Select(c => $"&to={c}"));
 

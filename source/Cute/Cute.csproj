@@ -34,6 +34,8 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="ColorfulCode" Version="1.0.0-preview1" />
+		<PackageReference Include="DeepL.net" Version="1.10.0" />
+		<PackageReference Include="Google.Cloud.Translation.V2" Version="3.4.0" />
 		<PackageReference Include="Markdig" Version="0.37.0" />
 		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="9.0.0-rc.1.24452.1" />
 		<PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="9.0.0-rc.1.24452.1" />

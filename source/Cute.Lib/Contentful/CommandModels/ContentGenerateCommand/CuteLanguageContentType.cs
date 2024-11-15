@@ -47,6 +47,12 @@ public static class CuteLanguageContentType
              new FieldBuilder("wikidataQid", FieldType.Symbol)
                     .Build(),
 
+             new FieldBuilder("isContentfulLocale", FieldType.Boolean)
+                    .Build(),
+
+             new FieldBuilder("translationService", FieldType.Symbol)
+                    .Build(),
+
             ]);
 
         _contentType = contentTypeBuilder.Build();

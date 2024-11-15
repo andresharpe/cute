@@ -134,6 +134,8 @@ public class ContentfulConnection
 
     public IAsyncEnumerable<(T Entry, int TotalEntries)> GetPreviewEntries<T>(EntryQuery entryQuery) where T : class, new()
         => GetEntries(entryQuery, q => _contentfulPreviewClient.GetEntries<T>(queryString: q));
+    public IAsyncEnumerable<(T Entry, int TotalEntries)> GetPreviewEntries<T>() where T : class, new()
+        => GetPreviewEntries<T>(typeof(T).Name.ToCamelCase());
 
     public IAsyncEnumerable<(T Entry, int TotalEntries)> GetPreviewEntries<T>(ContentType contentType) where T : class, new()
         => GetEntries(new EntryQuery.Builder()
