@@ -307,7 +307,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
                 : [specifiedJob]
             )
             .Where(cronTask => !string.IsNullOrEmpty(cronTask.Schedule) || cronTask.RunAfter != null)
-            .Where(cronTask => !cronTask.Schedule.Equals("never", StringComparison.OrdinalIgnoreCase) || cronTask.RunAfter != null)
+            .Where(cronTask => !"never".Equals(cronTask.Schedule, StringComparison.OrdinalIgnoreCase) || cronTask.RunAfter != null)
             .ToList();
 
         var cronTasks = cronTasksList.ToArray();
