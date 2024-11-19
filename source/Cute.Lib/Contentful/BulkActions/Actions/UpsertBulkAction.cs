@@ -93,13 +93,19 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
     {
         if (_matchField is not null)
         {
+            _ = _contentLocales ?? throw new CliException("You need to call 'WithContentLocales' before 'Execute'");
+
+            _matchField = _matchField.RemoveFromEnd($".{_contentLocales.DefaultLocale}");
+
+            var matchKey = $"{_matchField}.{_contentLocales.DefaultLocale}";
+
             var duplicateKeyEntries = _withFlatEntries!
-                .GroupBy(e => e[_matchField]?.ToString())
+                .GroupBy(e => e[matchKey]?.ToString())
                 .Where(e => e.Count() >= 2)
                 .ToDictionary(e => e.Key ?? string.Empty, e => e.ToList());
 
             _withFlatEntries =_withFlatEntries!
-                .GroupBy(e => e[_matchField]?.ToString())
+                .GroupBy(e => e[matchKey]?.ToString())
                 .Where(e => e.Count() == 1)
                 .Select(g => g.First())
                 .ToList();
