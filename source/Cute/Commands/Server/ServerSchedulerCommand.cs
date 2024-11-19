@@ -31,6 +31,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     {
         public ScheduledEntry? RunNext = null;
 
+        public bool IsValidSchedule { get; private set; } = true;
+
         public ScheduledEntry(CuteSchedule entry)
         {
             Sys = entry.Sys;
@@ -49,6 +51,12 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             Schedule = entry.Schedule;
             CronSchedule = entry.CronSchedule;
             RunAfter = entry.RunAfter;
+            if (IsTimeScheduled)
+            {
+                var cronSchedule = Schedule.ToCronExpression();
+                IsValidSchedule = cronSchedule.IsFullyParsed();
+                CronSchedule = cronSchedule.ToString();
+            }
         }
 
         public HashSet<string> GetCircularDependencies()
@@ -234,22 +242,26 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
                 bool removeSchedule = false;
                 if (syncApiEntries.TryGetValue(entry.Key, out CuteSchedule? latestEntry))
                 {
+                    var latestScheduledEntry = new ScheduledEntry(latestEntry);
                     if (isAllowed(latestEntry.Command) == false)
                     {
                         removeSchedule = true;
                     }
-                    else if (!latestEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
+                    else if (!latestScheduledEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (latestEntry.IsTimeScheduled)
+                        if (latestScheduledEntry.IsTimeScheduled && latestScheduledEntry.IsValidSchedule)
                         {
-                            var cronSchedule = latestEntry.Schedule.ToCronExpression().ToString();
-                            entry.CronSchedule = cronSchedule;
-                            _scheduler.UpdateTask(key, CrontabSchedule.Parse(cronSchedule));
+                            _scheduler.UpdateTask(key, CrontabSchedule.Parse(latestScheduledEntry.CronSchedule));
                         }
                         else
                         {
                             // When a scheduled entry is changed to a Run After entry, remove the scheduled task
                             _scheduler.RemoveTask(key);
+                            if (!latestScheduledEntry.IsValidSchedule)
+                            {
+                                _console.WriteAlert($"Invalid schedule detected for '{latestScheduledEntry.Key}'.");
+                                removeSchedule = true;
+                            }
                         }
                         _scheduledEntries[key].UpdateEntry(latestEntry);
                     }
@@ -273,13 +285,17 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             foreach (var entry in syncApiEntries.Values.Where(entry => isAllowed(entry.Command)))
             {
                 var key = Guid.NewGuid();
-                if (entry.IsTimeScheduled)
+                var scheduledEntry = new ScheduledEntry(entry);
+                if (scheduledEntry.IsTimeScheduled)
                 {
-                    var cronSchedule = entry.Schedule.ToCronExpression().ToString();
-                    entry.CronSchedule = cronSchedule;
-                    _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(cronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_scheduledEntries[key]), ct)));
+                    if(scheduledEntry.IsValidSchedule == false)
+                    {
+                        _console.WriteAlert($"Invalid schedule detected for '{scheduledEntry.Key}'.");
+                        continue;
+                    }
+                    _scheduler.AddTask(new AsyncScheduledTask(key, CrontabSchedule.Parse(scheduledEntry.CronSchedule), ct => Task.Run(() => ProcessAndUpdateSchedule(_scheduledEntries[key]), ct)));
                 }
-                _scheduledEntries[key] = new ScheduledEntry(entry);
+                _scheduledEntries[key] = scheduledEntry;
             }
         }
 
@@ -307,7 +323,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
                 : [specifiedJob]
             )
             .Where(cronTask => !string.IsNullOrEmpty(cronTask.Schedule) || cronTask.RunAfter != null)
-            .Where(cronTask => !cronTask.Schedule.Equals("never", StringComparison.OrdinalIgnoreCase) || cronTask.RunAfter != null)
+            .Where(cronTask => !"never".Equals(cronTask.Schedule, StringComparison.OrdinalIgnoreCase) || cronTask.RunAfter != null)
             .ToList();
 
         var cronTasks = cronTasksList.ToArray();
