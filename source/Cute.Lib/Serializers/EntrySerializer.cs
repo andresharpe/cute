@@ -153,9 +153,9 @@ public class EntrySerializer
         };
 
         if (flatEntry.TryGetValue("sys.Id",
-            out var obj) && obj is not null) entry.SystemProperties.Id = (string)obj;
+            out var obj) && obj is not null) entry.SystemProperties.Id = obj.ToString();
         if (flatEntry.TryGetValue("sys.Type",
-            out obj) && obj is not null) entry.SystemProperties.Type = (string)obj;
+            out obj) && obj is not null) entry.SystemProperties.Type = obj.ToString();
         if (flatEntry.TryGetValue("sys.UpdatedAt",
             out obj) && obj is not null) entry.SystemProperties.UpdatedAt = ObjectExtensions.FromInvariantDateTime(obj);
         if (flatEntry.TryGetValue("sys.Version",
@@ -169,11 +169,11 @@ public class EntrySerializer
         if (flatEntry.TryGetValue("sys.FirstPublishedAt",
             out obj) && obj is not null) entry.SystemProperties.FirstPublishedAt = ObjectExtensions.FromInvariantDateTime(obj);
         if (flatEntry.TryGetValue("sys.ContentType",
-            out obj) && obj is not null) entry.SystemProperties.ContentType.SystemProperties.Id = (string)obj;
+            out obj) && obj is not null) entry.SystemProperties.ContentType.SystemProperties.Id = obj.ToString();
         if (flatEntry.TryGetValue("sys.Space",
-            out obj) && obj is not null) entry.SystemProperties.Space.SystemProperties.Id = (string)obj;
+            out obj) && obj is not null) entry.SystemProperties.Space.SystemProperties.Id = obj.ToString();
         if (flatEntry.TryGetValue("sys.Environment",
-            out obj) && obj is not null) entry.SystemProperties.Environment.SystemProperties.Id = (string)obj;
+            out obj) && obj is not null) entry.SystemProperties.Environment.SystemProperties.Id = obj.ToString();
 
         var allLocaleCodes = _locales;
         var defaultLocaleCodes = _locales[0..1];

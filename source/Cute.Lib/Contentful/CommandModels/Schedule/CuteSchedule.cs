@@ -8,7 +8,7 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
         public string Id => Sys != null ? Sys.Id : "";
         public string Key { get; set; } = default!;
         public string Command { get; set; } = default!;
-        public string Schedule { get; set; } = default!;
+        public string? Schedule { get; set; } = default!;
 
         public string? CronSchedule { get; set; } = default!;
 

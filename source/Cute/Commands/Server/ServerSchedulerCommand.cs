@@ -53,8 +53,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             RunAfter = entry.RunAfter;
             if (IsTimeScheduled)
             {
-                var cronSchedule = Schedule.ToCronExpression();
-                IsValidSchedule = cronSchedule.IsFullyParsed();
+                var cronSchedule = Schedule?.ToCronExpression();
+                IsValidSchedule = cronSchedule != null && cronSchedule.Value.IsFullyParsed();
                 CronSchedule = cronSchedule.ToString();
             }
         }
@@ -247,7 +247,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
                     {
                         removeSchedule = true;
                     }
-                    else if (!latestScheduledEntry.Schedule.Equals(entry.Schedule, StringComparison.OrdinalIgnoreCase))
+                    else if (!string.Equals(latestScheduledEntry.Schedule, entry.Schedule, StringComparison.OrdinalIgnoreCase))
                     {
                         if (latestScheduledEntry.IsTimeScheduled && latestScheduledEntry.IsValidSchedule)
                         {
@@ -477,7 +477,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         UpdateField(fields, nameof(scheduledEntry.LastRunDuration).ToCamelCase(), scheduledEntry.LastRunDuration, locale);
         UpdateField(fields, nameof(scheduledEntry.LastRunErrorMessage).ToCamelCase(), scheduledEntry.LastRunErrorMessage, locale);
 
-        if(scheduledEntry.IsRunAfter && !scheduledEntry.Schedule.StartsWith("Run After", StringComparison.OrdinalIgnoreCase))
+        if(scheduledEntry.IsRunAfter && (string.IsNullOrEmpty(scheduledEntry.Schedule) || !scheduledEntry.Schedule.StartsWith("Run After", StringComparison.OrdinalIgnoreCase)))
         {
             UpdateField(fields, nameof(scheduledEntry.Schedule).ToCamelCase(), $"Run After '{scheduledEntry.RunAfter!.Key}'", locale);
         }
