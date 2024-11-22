@@ -38,7 +38,9 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         await GetAllEntriesFromAdapter(progressUpdaterCount, progressUpdaterRead);
 
-        mergeNewAdapterEntries();
+        MergeNewAdapterEntries();
+
+        CleanUpLocalizations(_withFlatEntries!);
 
         count = Math.Max(1, _withFlatEntries?.Count ?? throw new CliException($"Unexpected null value."));
 
@@ -89,7 +91,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         }
     }
 
-    private void mergeNewAdapterEntries()
+    private void MergeNewAdapterEntries()
     {
         if (_matchField is not null)
         {
@@ -127,6 +129,43 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
                 }
 
                 _withFlatEntries.Add(mergedEntry);
+            }
+        }
+    }
+
+    private void CleanUpLocalizations(List<IDictionary<string, object?>> flatEntries)
+    {
+        foreach (var flatEntry in flatEntries)
+        {
+            CleanupFlatEntryLocalizations(flatEntry);
+        }
+    }
+
+    private void CleanupFlatEntryLocalizations(IDictionary<string, object?> flatEntry)
+    {
+        Dictionary<string, object?> defaultLocaleFields = new();
+        foreach (var (key, value) in flatEntry)
+        {
+            if (key.EndsWith($".{_contentLocales!.DefaultLocale}"))
+            {
+                defaultLocaleFields[key.RemoveFromEnd($".{_contentLocales!.DefaultLocale}")] = value;
+            }
+        }
+
+        foreach (var (key, value) in flatEntry)
+        {
+            if (!key.Contains(".") || key.EndsWith($".{_contentLocales!.DefaultLocale}"))
+            {
+                continue;
+            }
+
+            var keyBase = key.Substring(0, key.LastIndexOf('.'));
+            if (defaultLocaleFields.TryGetValue(keyBase, out var defaultValue))
+            {
+                if (string.Equals(value?.ToString(), defaultValue?.ToString()))
+                {
+                    flatEntry[key] = null;
+                }
             }
         }
     }
@@ -312,6 +351,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
             {
                 var newEntry = serializer.DeserializeEntry(localFlatEntry);
                 var cloudFlatEntry = serializer.SerializeEntry(cloudEntry);
+                CleanupFlatEntryLocalizations(cloudFlatEntry);
 
                 if (ValuesDiffer(localFlatEntry, cloudFlatEntry, serializer, progressUpdater)
                     || ArrayElementCountsDiffer(cloudEntry.Fields, newEntry.Fields)) // this is sometimes necessary as the cloud may contain a single string in an array field that looks like an array (contains commas), but isn't
