@@ -100,7 +100,7 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
 
         _console.WriteNormalWithHighlights($"Reading entries {contentTypeId} in {settings.SourceEnvironmentId}", Globals.StyleHeading);
 
-        var createEntries = ContentfulConnection
+        var createEntries = sourceEnvClient
             .GetManagementEntries<Entry<JObject>>(contentTypeId)
             .ToBlockingEnumerable()
             .Select(e => e.Entry)
