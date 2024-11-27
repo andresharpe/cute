@@ -159,12 +159,18 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
                 continue;
             }
 
+            if (value is null)
+            {
+                flatEntry.Remove(key);
+                continue;
+            }
+
             var keyBase = key.Substring(0, key.LastIndexOf('.'));
             if (defaultLocaleFields.TryGetValue(keyBase, out var defaultValue))
             {
                 if (string.Equals(value?.ToString(), defaultValue?.ToString()))
                 {
-                    flatEntry[key] = null;
+                    flatEntry.Remove(key);
                 }
             }
         }

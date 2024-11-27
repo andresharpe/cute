@@ -198,13 +198,11 @@ public class EntrySerializer
                     {
                         values.Add(fieldName, value);
                     }
-                    else
-                    {
-                        values.Add(fieldName, null);
-                    }
                 }
-
-                newObject.Add(new JProperty(localeCode, entryFieldsSerializer.Deserialize(values)));
+                if (values.Any())
+                {
+                    newObject.Add(new JProperty(localeCode, entryFieldsSerializer.Deserialize(values)));
+                }
             }
 
             entry.Fields[field.Id] = newObject;
