@@ -68,7 +68,7 @@ public static class TestCountryContentType
                     )
                     .Build(),
 
-                new FieldBuilder("latLong", FieldType.Location)
+                new FieldBuilder("latLon", FieldType.Location)
                     .Build(),
 
                 new FieldBuilder("flagSvgUrl", FieldType.Symbol)

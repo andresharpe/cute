@@ -61,7 +61,7 @@ public static class TestGeoContentType
                 new FieldBuilder("geoSubType", FieldType.Symbol)
                     .Build(),
 
-                new FieldBuilder("latLong", FieldType.Location)
+                new FieldBuilder("latLon", FieldType.Location)
                     .IsRequired()
                     .Build(),
 

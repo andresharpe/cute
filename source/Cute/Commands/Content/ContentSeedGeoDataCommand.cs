@@ -274,8 +274,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             .Select(e => new
             {
                 CountryCode = e.Entry.SelectToken($"{prefix}CountryEntry.iso2Code")?.Value<string>(),
-                Lat = e.Entry.SelectToken("latLng.lat")?.Value<double>() ?? 0.0f,
-                Lon = e.Entry.SelectToken("latLng.lon")?.Value<double>() ?? 0.0f,
+                Lat = e.Entry.SelectToken("latLon.lat")?.Value<double>() ?? 0.0f,
+                Lon = e.Entry.SelectToken("latLon.lon")?.Value<double>() ?? 0.0f,
                 CloseDate = e.Entry.SelectToken("closeDate")?.Value<DateTime?>(),
             })
             .Where(i => i.CountryCode is not null)
@@ -435,7 +435,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         GeoSubType = string.IsNullOrEmpty(record.Capital)
                             ? record.PopulationProper > 10000 ? "city" : "town"
                             : $"city:capital:{record.Capital}",
-                        LatLong = existingEntry?.LatLong ?? new() { Lat = record.Lat, Lon = record.Lon },
+                        LatLon = existingEntry?.LatLon ?? new() { Lat = record.Lat, Lon = record.Lon },
                         Ranking = record.Ranking,
                         Population = existingEntry?.Population ?? record.Population ?? 0,
                         Density = record.Density,
@@ -498,7 +498,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             Key = countryCode,
             Title = countryInfo.Name,
             Name = countryInfo.Name,
-            LatLong = countryInfo.LatLong,
+            LatLon = countryInfo.LatLon,
             Population = countryInfo.Population,
             GeoType = "country",
             GooglePlacesId = existingEntry?.GooglePlacesId ?? countryInfo.GooglePlacesId,
@@ -555,7 +555,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             DataGeoParent = existingEntry?.DataGeoParent ?? countryToToGeoId[record.CountryIso2],
             GeoType = "state-or-province",
             GeoSubType = record.AdminType,
-            LatLong = existingEntry?.LatLong ?? new() { Lat = record.Lat, Lon = record.Lon },
+            LatLon = existingEntry?.LatLon ?? new() { Lat = record.Lat, Lon = record.Lon },
             GooglePlacesId = existingEntry?.GooglePlacesId,
         };
 
@@ -669,7 +669,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public GeoFormat DataGeoParent { get; set; } = default!;
         public string GeoType { get; set; } = default!;
         public string GeoSubType { get; set; } = default!;
-        public Location LatLong { get; set; } = default!;
+        public Location LatLon { get; set; } = default!;
         public int? Ranking { get; set; } = default!;
         public int? Population { get; set; } = default!;
         public double? Density { get; set; } = default!;
