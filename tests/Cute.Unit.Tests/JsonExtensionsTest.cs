@@ -103,7 +103,7 @@ public class JsonExtensionsTest
                   "en": "Aalst's",
                   "fr": "Aalst's"
                 },
-                "latLong": {
+                "latLon": {
                   "en": {
                     "lon": 4.074311,
                     "lat": 50.945359
@@ -362,8 +362,8 @@ public class JsonExtensionsTest
                   "Localized": true
                 },
                 {
-                  "Id": "latLong",
-                  "Name": "LatLong",
+                  "Id": "latLon",
+                  "Name": "LatLon",
                   "Type": "Location",
                   "Required": false,
                   "Localized": false

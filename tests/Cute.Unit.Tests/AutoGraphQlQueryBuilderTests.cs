@@ -56,6 +56,7 @@ public class AutoGraphQlQueryBuilderTests
                 }
               }
             }
+
             """;
 
         success.Should().BeTrue();

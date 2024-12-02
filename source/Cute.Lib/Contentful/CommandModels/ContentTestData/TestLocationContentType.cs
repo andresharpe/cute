@@ -75,7 +75,7 @@ public static class TestLocationContentType
                 new FieldBuilder("neutralDescription", FieldType.Text)
                     .Build(),
 
-                new FieldBuilder("latLong", FieldType.Location)
+                new FieldBuilder("latLon", FieldType.Location)
                     .Build(),
 
                 new FieldBuilder("receptionOpenTimes", FieldType.Object)
