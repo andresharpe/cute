@@ -1186,8 +1186,11 @@ public class GenerateBulkAction(
 
     private List<string> GetProcessedLocales(CuteContentGenerateLocalized cuteContentGenerateLocalized, DisplayActions displayActions)
     {
-        var commonLocales = cuteContentGenerateLocalized.SystemMessage.Keys.Intersect(cuteContentGenerateLocalized.Prompt.Keys).ToList();
-        var incompleteLocales = cuteContentGenerateLocalized.SystemMessage.Keys.Union(cuteContentGenerateLocalized.Prompt.Keys).Except(commonLocales).ToList();
+        var nonNullPromptKeys = cuteContentGenerateLocalized.Prompt.Keys.Where(k => !string.IsNullOrWhiteSpace(cuteContentGenerateLocalized.Prompt[k])).ToList();
+        var nonNullSystemMessageKeys = cuteContentGenerateLocalized.SystemMessage.Keys.Where(k => !string.IsNullOrWhiteSpace(cuteContentGenerateLocalized.SystemMessage[k])).ToList();
+
+        var commonLocales = nonNullSystemMessageKeys.Intersect(nonNullPromptKeys).ToList();
+        var incompleteLocales = nonNullSystemMessageKeys.Union(nonNullPromptKeys).Except(commonLocales).ToList();
 
         if (incompleteLocales.Count > 0)
         {
