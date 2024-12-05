@@ -211,10 +211,15 @@ public class EntrySerializer
         return entry;
     }
 
-    public bool CompareAndUpdateEntry<T>(IDictionary<string, object?> flatEntry, string fieldName, T newValue)
+    public bool CompareAndUpdateEntry<T>(IDictionary<string, object?> flatEntry, string fieldName, T newValue, bool appendFields)
     {
         if (!flatEntry.TryGetValue(fieldName, out var oldValue))
         {
+            if (appendFields)
+            {
+                flatEntry[fieldName] = newValue;
+                return true;
+            }
             return false;
         }
 

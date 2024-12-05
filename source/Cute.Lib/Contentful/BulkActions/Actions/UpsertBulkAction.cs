@@ -9,6 +9,15 @@ namespace Cute.Lib.Contentful.BulkActions.Actions;
 public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpClient httpClient)
     : BulkActionBase(contentfulConnection, httpClient)
 {
+
+    private readonly bool _appendFields = false;
+
+    public UpsertBulkAction(ContentfulConnection contentfulConnection, HttpClient httpClient, bool appendFields)
+        : this(contentfulConnection, httpClient)
+    {
+        _appendFields = appendFields;
+    }
+
     public override IList<ActionProgressIndicator> ActionProgressIndicators() =>
     [
         new() { Intent = "Counting new entries..." },
@@ -403,7 +412,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
                 oldValue = cloudFlatEntry[fieldName]?.ToString();
             }
 
-            var isFieldChanged = serializer.CompareAndUpdateEntry(cloudFlatEntry, fieldName, value);
+            var isFieldChanged = serializer.CompareAndUpdateEntry(cloudFlatEntry, fieldName, value, _appendFields);
 
             if (isFieldChanged)
             {

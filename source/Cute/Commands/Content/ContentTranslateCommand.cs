@@ -114,13 +114,15 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     {
                         queryBuilder.WithQueryString($"fields.key={settings.Key}");
                     }
-
+                    
+                    taskTranslate.MaxValue = 1;
+                    
                     await foreach (var (entry, total) in ContentfulConnection.GetManagementEntries<Entry<JObject>>(
                         queryBuilder.Build()))
                     {
                         if (taskTranslate.MaxValue == 1)
                         {
-                            taskTranslate.MaxValue = total * targetLocales.Count;
+                            taskTranslate.MaxValue = total * targetLocales.Count * fieldsToTranslate.Count;
                         }
 
                         var entryId = entry.SystemProperties.Id;
@@ -143,7 +145,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                 {
                                     foreach (var targetLocale in targetLocales)
                                     {
-                                        if (fieldData[targetLocale.Code] is null || !fieldData[targetLocale.Code]!.HasValues)
+                                        if (fieldData[targetLocale.Code] is null || string.IsNullOrEmpty(fieldData[targetLocale.Code]!.Value<string>()))
                                         {
                                             TranslationService tService;
                                             if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
@@ -174,7 +176,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             {
                 await PerformBulkOperations(
                     [
-                        new UpsertBulkAction(ContentfulConnection, _httpClient)
+                        new UpsertBulkAction(ContentfulConnection, _httpClient, true)
                             .WithContentType(contentType)
                             .WithContentLocales(contentLocales)
                             .WithNewEntries(translatedEntries)
@@ -185,6 +187,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                             .WithVerbosity(settings.Verbosity),
                     ]
                 );
+            }
+            else
+            {
+                Console.WriteLine("There are no entries to translate.");
             }
 
             return 0;
