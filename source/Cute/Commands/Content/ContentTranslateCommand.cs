@@ -7,6 +7,7 @@ using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
+using Cute.Lib.Serializers;
 using Cute.Services;
 using Cute.Services.Translation.Factories;
 using Cute.UiComponents;
@@ -104,6 +105,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 {
                     var taskTranslate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Translating[/]");
 
+                    var targetLocaleCodes = targetLocales.Select(targetLocales => targetLocales.Code).ToArray();
+                    var contentLocales = new ContentLocales(targetLocaleCodes, defaultLocale.Code);
+                    var serializer = new EntrySerializer(contentType, contentLocales);
+
                     var queryBuilder = new EntryQuery.Builder()
                     .WithContentType(settings.ContentTypeId)
                     .WithPageSize(1)
@@ -126,45 +131,52 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         }
 
                         var entryId = entry.SystemProperties.Id;
-                        var entryFields = entry.Fields;
                         var entryChanged = false;
+                        var flatEntry = serializer.SerializeEntry(entry);
 
-                        foreach (var field in fieldsToTranslate)
+                        var defaultLocaleFieldNames = flatEntry.Keys.Where(k => k.Contains($".{defaultLocale.Code}")).ToArray();
+
+                        foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
                         {
-                            if (entryFields.ContainsKey(field.Id))
+                            if(!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith(f.Id)))
                             {
-                                var fieldData = entryFields[field.Id];
+                                continue;
+                            }
 
-                                if (fieldData is null)
-                                {
-                                    continue;
-                                }
+                            var flatEntryDefaultLocaleValue = flatEntry[defaultLocaleFieldName];
 
-                                var defaultLocaleFieldValue = fieldData[defaultLocale.Code]?.ToString();
-                                if (!string.IsNullOrEmpty(defaultLocaleFieldValue))
+                            if (flatEntryDefaultLocaleValue is not string || string.IsNullOrEmpty(flatEntryDefaultLocaleValue.ToString()))
+                            {
+                                continue;
+                            }
+
+                            var defaultLocaleFieldValue = flatEntryDefaultLocaleValue.ToString();
+
+                            if (!string.IsNullOrEmpty(defaultLocaleFieldValue))
+                            {
+                                foreach (var targetLocale in targetLocales)
                                 {
-                                    foreach (var targetLocale in targetLocales)
+                                    var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
+                                    if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null)
                                     {
-                                        if (fieldData[targetLocale.Code] is null || string.IsNullOrEmpty(fieldData[targetLocale.Code]!.Value<string>()))
+                                        TranslationService tService;
+                                        if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
                                         {
-                                            TranslationService tService;
-                                            if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
-                                            {
-                                                tService = TranslationService.Azure;
-                                            }
-                                            var translator = _translateFactory.Create(tService);
-                                            fieldData[targetLocale.Code] = (await translator.Translate(defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code))?.Text;
-                                            entryChanged = true;
+                                            tService = TranslationService.Azure;
                                         }
-                                        taskTranslate.Increment(1);
+                                        var translator = _translateFactory.Create(tService);
+                                        flatEntry[targetLocaleFieldName] = (await translator.Translate(defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code))?.Text;
+                                        entryChanged = true;
                                     }
+                                    taskTranslate.Increment(1);
                                 }
                             }
+                            
                         }
 
                         if (entryChanged)
                         {
-                            translatedEntries.Add(entry);
+                            translatedEntries.Add(serializer.DeserializeEntry(flatEntry));
                         }
                     }
 
