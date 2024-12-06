@@ -105,9 +105,9 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 {
                     var taskTranslate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Translating[/]");
 
-                    var locales = targetLocales.Select(targetLocales => targetLocales.Code).ToArray();
-                    var contentLocale = new ContentLocales(locales, defaultLocale.Code);
-                    var serializer = new EntrySerializer(contentType, contentLocale);
+                    var targetLocaleCodes = targetLocales.Select(targetLocales => targetLocales.Code).ToArray();
+                    var contentLocales = new ContentLocales(targetLocaleCodes, defaultLocale.Code);
+                    var serializer = new EntrySerializer(contentType, contentLocales);
 
                     var queryBuilder = new EntryQuery.Builder()
                     .WithContentType(settings.ContentTypeId)
@@ -131,7 +131,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         }
 
                         var entryId = entry.SystemProperties.Id;
-                        var entryFields = entry.Fields;
                         var entryChanged = false;
                         var flatEntry = serializer.SerializeEntry(entry);
 
