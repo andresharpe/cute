@@ -134,35 +134,35 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                         foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
                         {
-                            if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith(f.Id)) ||
-                            !flatEntry.TryGetValue(defaultLocaleFieldName, out var flatEntryDefaultLocaleValue) ||
-                            flatEntryDefaultLocaleValue is not string ||
-                            string.IsNullOrEmpty(flatEntryDefaultLocaleValue.ToString()))
+                            if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith(f.Id)))
+                            {
+                                continue;
+                            }
+
+                            var flatEntryDefaultLocaleValue = flatEntry[defaultLocaleFieldName];
+                            var defaultLocaleFieldValue = flatEntryDefaultLocaleValue?.ToString();
+
+                            if (flatEntryDefaultLocaleValue is not string || string.IsNullOrEmpty(defaultLocaleFieldValue))
                             {
                                 taskTranslate.Increment(targetLocales.Count);
                                 continue;
                             }
 
-                            var defaultLocaleFieldValue = flatEntryDefaultLocaleValue.ToString();
-
-                            if (!string.IsNullOrEmpty(defaultLocaleFieldValue))
+                            foreach (var targetLocale in targetLocales)
                             {
-                                foreach (var targetLocale in targetLocales)
+                                var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
+                                if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null)
                                 {
-                                    var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
-                                    if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null)
+                                    TranslationService tService;
+                                    if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
                                     {
-                                        TranslationService tService;
-                                        if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
-                                        {
-                                            tService = TranslationService.Azure;
-                                        }
-                                        var translator = _translateFactory.Create(tService);
-                                        flatEntry[targetLocaleFieldName] = (await translator.Translate(defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code))?.Text;
-                                        entryChanged = true;
+                                        tService = TranslationService.Azure;
                                     }
-                                    taskTranslate.Increment(1);
+                                    var translator = _translateFactory.Create(tService);
+                                    flatEntry[targetLocaleFieldName] = (await translator.Translate(defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code))?.Text;
+                                    entryChanged = true;
                                 }
+                                taskTranslate.Increment(1);
                             }
                             
                         }
