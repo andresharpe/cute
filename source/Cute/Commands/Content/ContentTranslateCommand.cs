@@ -33,10 +33,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("-f|--field <CODE>")]
         [Description("List of fields to translate.")]
         public string[] Fields { get; set; } = default!;
-
-        [CommandOption("-a|--apply")]
-        [Description("Apply and publish all the required edits. The default behaviour is to only list the detected changes.")]
-        public bool Apply { get; set; } = false;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -98,7 +94,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
         try
         {
-            List<Entry<JObject>> translatedEntries = new();
+            bool needToPublish = false;
             await ProgressBars.Instance()
                 .AutoClear(false)
                 .StartAsync(async ctx =>
@@ -138,15 +134,12 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                         foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
                         {
-                            if(!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith(f.Id)))
+                            if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith(f.Id)) ||
+                            !flatEntry.TryGetValue(defaultLocaleFieldName, out var flatEntryDefaultLocaleValue) ||
+                            flatEntryDefaultLocaleValue is not string ||
+                            string.IsNullOrEmpty(flatEntryDefaultLocaleValue.ToString()))
                             {
-                                continue;
-                            }
-
-                            var flatEntryDefaultLocaleValue = flatEntry[defaultLocaleFieldName];
-
-                            if (flatEntryDefaultLocaleValue is not string || string.IsNullOrEmpty(flatEntryDefaultLocaleValue.ToString()))
-                            {
+                                taskTranslate.Increment(targetLocales.Count);
                                 continue;
                             }
 
@@ -176,7 +169,11 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                         if (entryChanged)
                         {
-                            translatedEntries.Add(serializer.DeserializeEntry(flatEntry));
+                            var cloudEntry = await ContentfulConnection.GetManagementEntryAsync(entryId);
+                            var deserializedEntry = serializer.DeserializeEntry(flatEntry);
+                            cloudEntry.Fields = deserializedEntry.Fields;
+                            needToPublish = true;
+                            await ContentfulConnection.CreateOrUpdateEntryAsync(cloudEntry, entry.SystemProperties.Version);
                         }
                     }
 
@@ -184,15 +181,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 });            
 
             var contentLocales = new ContentLocales(targetLocales.Select(t => t.Code).ToArray(), defaultLocale.Code);
-            if (translatedEntries.Count > 0 && settings.Apply)
+            if (needToPublish)
             {
                 await PerformBulkOperations(
                     [
-                        new UpsertBulkAction(ContentfulConnection, _httpClient, true)
-                            .WithContentType(contentType)
-                            .WithContentLocales(contentLocales)
-                            .WithNewEntries(translatedEntries)
-                            .WithVerbosity(settings.Verbosity),
                         new PublishBulkAction(ContentfulConnection, _httpClient)
                             .WithContentType(contentType)
                             .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
