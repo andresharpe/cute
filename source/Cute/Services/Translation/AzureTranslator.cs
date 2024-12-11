@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using Cute.Config;
 using Cute.Services.Translation.Interfaces;
 using Newtonsoft.Json;
@@ -12,6 +13,9 @@ public class AzureTranslator : ITranslator
     private readonly string _endpoint;
     private readonly string _region;
     private readonly HttpClient _httpClient;
+    private readonly string? _categoryId;
+
+    private readonly string _pattern = @"{{.*?}}";
 
     public AzureTranslator(AppSettings settings, HttpClient httpClient)
     {
@@ -19,11 +23,16 @@ public class AzureTranslator : ITranslator
         _endpoint = settings.AzureTranslatorEndpoint;
         _region = settings.AzureTranslatorRegion;
         _httpClient = httpClient;
+        if(settings.GetSettings().TryGetValue("Cute__AzureTranslationCategory", out var categoryId))
+        {
+            _categoryId = categoryId;
+        }
     }
 
     public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
     {
         var result = await Translate(fromLanguageCode, [toLanguageCode], textToTranslate);
+
         return result?.Select(result => new TranslationResponse
         {
             Text = result.Text,
@@ -43,11 +52,22 @@ public class AzureTranslator : ITranslator
 
     private async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate)
     {
+        var matches = Regex.Matches(textToTranslate, _pattern);
+        string processedTextToTranslate = Regex.Replace(textToTranslate, _pattern, match =>
+        {
+            return $"<mstrans:dictionary translation=\"{match.Value}\">{match.Value}</mstrans:dictionary>";
+        });
+
         var toLanguageCodesUrl = string.Join("", toLanguageCodes.Select(c => $"&to={c}"));
 
         var route = $"/translate?api-version=3.0&from={fromLanguageCode}{toLanguageCodesUrl}";
 
-        var body = new object[] { new { Text = textToTranslate } };
+        if (!string.IsNullOrEmpty(_categoryId))
+        {
+            route += $"&category={_categoryId}";
+        }
+
+        var body = new object[] { new { Text = processedTextToTranslate } };
 
         var requestBody = JsonConvert.SerializeObject(body);
 
