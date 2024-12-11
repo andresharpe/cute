@@ -215,7 +215,7 @@ We're going to sync to the [users endpoint](https://jsonplaceholder.typicode.com
 ```
 Our `Users` content entry has a few matching fields and some which we'll map.
 
-![contentful Users model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/user.png)
+![contentful Users model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-user.png)
 
 Basic identifiers, API headers and endpoints as well as field mappings can be configured as per the code snippet below.
 
