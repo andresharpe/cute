@@ -134,7 +134,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                         foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
                         {
-                            if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith(f.Id)))
+                            if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith($"{f.Id}.")))
                             {
                                 continue;
                             }
