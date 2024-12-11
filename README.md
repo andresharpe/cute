@@ -135,6 +135,168 @@ OPTIONS:
     -a, --apply                 Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
 ```
 
+## Sync Content with APIs
+
+You can synchronize your Contentful content with external APIs by using the `cute content sync-api` command option.
+
+```
+USAGE:
+    cute content sync-api [OPTIONS]
+
+OPTIONS:
+    -h, --help                  Prints help information
+    -s, --space-id <ID>         The Contentful space identifier.
+    -e, --environment-id <ID>   The Contentful environment identifier.
+        --force                 Specifies whether warning prompts should be bypassed
+    -k, --key                   The key of the cuteContentSyncApi entry
+    -a, --apply                 Apply and publish all the required edits
+    -u, --use-filecache         Whether or not to cache responses to a local file cache for subsequent calls
+```
+
+Prior to running the command, you should configure API settings and field mappings in your Contentful space under the ```cuteContentSyncApi``` content type.
+
+![contentful contentSyncApi screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentSyncApi.png)
+
+Create a new entry for the relevant content as per the graphic below:
+
+![contentful contentSyncApi yaml screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentSyncApi-yaml.png)
+
+We're going to sync to the [users endpoint](https://jsonplaceholder.typicode.com/users) over at [{JSON} Placeholder](https://jsonplaceholder.typicode.com/) to populate our `Users` content. A small sample is shown below:
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Leanne Graham",
+    "username": "Bret",
+    "email": "Sincere@april.biz",
+    "address": {
+      "street": "Kulas Light",
+      "suite": "Apt. 556",
+      "city": "Gwenborough",
+      "zipcode": "92998-3874",
+      "geo": {
+        "lat": "-37.3159",
+        "lng": "81.1496"
+      }
+    },
+    "phone": "1-770-736-8031 x56442",
+    "website": "hildegard.org",
+    "company": {
+      "name": "Romaguera-Crona",
+      "catchPhrase": "Multi-layered client-server neural-net",
+      "bs": "harness real-time e-markets"
+    }
+  },
+  {
+    "id": 2,
+    "name": "Ervin Howell",
+    "username": "Antonette",
+    "email": "Shanna@melissa.tv",
+    "address": {
+      "street": "Victor Plains",
+      "suite": "Suite 879",
+      "city": "Wisokyburgh",
+      "zipcode": "90566-7771",
+      "geo": {
+        "lat": "-43.9509",
+        "lng": "-34.4618"
+      }
+    },
+    "phone": "010-692-6593 x09125",
+    "website": "anastasia.net",
+    "company": {
+      "name": "Deckow-Crist",
+      "catchPhrase": "Proactive didactic contingency",
+      "bs": "synergize scalable supply-chains"
+    }
+  }
+]
+```
+Our `Users` content entry has a few matching fields and some which we'll map.
+
+![contentful Users model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/user.png)
+
+Basic identifiers, API headers and endpoints as well as field mappings can be configured as per the code snippet below.
+
+```yaml
+# dataUser.yaml
+
+contentType: user
+contentKeyField: "id.en"
+contentDisplayField: "name.en"
+
+endPoint: https://jsonplaceholder.typicode.com/users
+
+headers:
+    Accept: "application/json"
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+mapping:
+    - fieldName: id.en
+      expression: '{{ row.id }}'
+
+    - fieldName: userName.en
+      expression: '{{ row.username }}'
+
+    - fieldName: name.en
+      expression: '{{ row.name }}'
+
+    - fieldName: email.en
+      expression: '{{ row.email }}'
+
+    - fieldName: phoneNumber.en
+      expression: '{{ row.phone }}'
+```
+
+Running the `cute content sync-api -c dataUser.
+
+![cute content sync-api screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/sync-api.png)
+
+## Translating Content
+
+You can translate your content into languages of your choice using various popular AI translation services including Azure, DeepL, Google Translation and ChatGPT.
+
+
+
+Typing `cute content translate --help` will show the full usage and options.
+
+```
+USAGE:
+    cute content translate [OPTIONS]
+
+OPTIONS:
+    -h, --help                  Prints help information
+    -c, --content-type-id <ID>  The Contentful content type id
+    -f, --field                 The field(s) which will be translated. If not specified, all localized fields will be translated
+    -l, --locale <CODE>         The locale code (eg. 'en') linked to the relevant language. If unspecified, all localized fields and languages will be translated
+    -k, --key                   The key of a single entry to be translated
+    -a, --apply                 Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
+```
+
+### Criteria for translating an entry
+
+***cute*** will filter your content entries and process all entries where:
+- The target translated content field is empty, *AND*
+- The default locale content field (source) is not empty. 
+
+### Working with multiple AI Translators
+
+***cute*** let's you work with one or several AI translation services, depending on your requirement. You're not limited to a single translation service for all your languages. You can choose the translation service that yields the best result for all or any of the languages you are translating content to.
+
+Within your Contentful model, locate the ```cuteLanguageTranslation``` section. Here you add `language` entries and assign `Azure`, `Google`, `DeepL` or `GPT4o` to the `translationService` field.
+
+If no translation service is specified, Azure Translation Service will be used.
+
+### Example
+
+I work in the admissions department for a technical college with students from all over the globe. I'd like to translate the opening and closing paragraph of our acceptance letter for French, Russian, Georgian and Spanish.
+
+```
+cute content translate -c dataAcceptanceLetter --field paragraphOpening, paragraphClosing --locale fr,ru,ka,es
+```
+This command will get all the dataAcceptanceLetter entries and will translate opening and closing paragraph fields to locales fr (French), ru (Russian), ka (Georgian) and es (Spanish) where applicable.
+
 # Generating strong JavaScript or .NET Types
 
 ***cute*** supports structural subtyping through the `type scaffold` command option. You can export TypeScript (TS) or .NET (CS) interface declarations, or a simple Excel file with individual worksheets detailing your content model. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
