@@ -54,6 +54,16 @@ namespace Cute.Services.Translation
             return result;
         }
 
+        public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+        {
+            throw new NotImplementedException();
+        }
+
         private async Task<string> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
         {
             var message = new UserChatMessage($"Translate text from language {fromLanguageCode} to language {toLanguageCode}. Text: {textToTranslate}");
