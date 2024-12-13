@@ -39,5 +39,15 @@ namespace Cute.Services.Translation
                 Text = result.TranslatedText
             };
         }
+
+        public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

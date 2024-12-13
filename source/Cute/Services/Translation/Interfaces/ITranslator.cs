@@ -4,6 +4,8 @@
     {
         Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes);
         Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode);
+        Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes);
+        Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, string toLanguageCode);
     }
 
     public class TranslationResponse

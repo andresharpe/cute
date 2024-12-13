@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
 using Cute.Config;
+using Cute.Lib.Exceptions;
 using Cute.Services.Translation.Interfaces;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -50,7 +51,28 @@ public class AzureTranslator : ITranslator
         }).ToArray();
     }
 
-    private async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate)
+    public async Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
+    {
+        var result = await Translate(fromLanguageCode, toLanguageCodes, textToTranslate, true);
+        return result?.Select(result => new TranslationResponse
+        {
+            Text = result.Text,
+            TargetLanguage = result.To
+        }).ToArray();
+    }
+
+    public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+    {
+        var result = await Translate(fromLanguageCode, [toLanguageCode], textToTranslate, true);
+
+        return result?.Select(result => new TranslationResponse
+        {
+            Text = result.Text,
+            TargetLanguage = result.To
+        }).FirstOrDefault();
+    }
+
+    private async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate, bool useCustomModel = false)
     {
         var matches = Regex.Matches(textToTranslate, _pattern);
         string processedTextToTranslate = Regex.Replace(textToTranslate, _pattern, match =>
@@ -62,9 +84,16 @@ public class AzureTranslator : ITranslator
 
         var route = $"/translate?api-version=3.0&from={fromLanguageCode}{toLanguageCodesUrl}";
 
-        if (!string.IsNullOrEmpty(_categoryId))
+        if(useCustomModel)
         {
-            route += $"&category={_categoryId}";
+            if (!string.IsNullOrEmpty(_categoryId))
+            {
+                route += $"&category={_categoryId}";
+            }
+            else
+            {
+                throw new CliException("Category is not provided for custom model translation");
+            }
         }
 
         var body = new object[] { new { Text = processedTextToTranslate } };

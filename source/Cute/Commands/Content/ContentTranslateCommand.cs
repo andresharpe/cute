@@ -10,6 +10,7 @@ using Cute.Lib.Exceptions;
 using Cute.Lib.Serializers;
 using Cute.Services;
 using Cute.Services.Translation.Factories;
+using Cute.Services.Translation.Interfaces;
 using Cute.UiComponents;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
@@ -33,6 +34,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("-f|--field <CODE>")]
         [Description("List of fields to translate.")]
         public string[] Fields { get; set; } = default!;
+
+        [CommandOption("--custom-model <CODE>")]
+        [Description("Specifies whether custom model translation should be used")]
+        public bool UseCustomModel { get; set; } = false;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -92,6 +97,18 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             return -1;
         }
 
+        Func<ITranslator, string, string, string, Task<string?>> translate = settings.UseCustomModel ?
+            async (translator, text, from, to) =>
+            {
+                var translation = await translator.TranslateWithCustomModel(text, from, to);
+                return translation?.Text;
+            } :
+            async (translator, text, from, to) =>
+            {
+                var translation = await translator.Translate(text, from, to);
+                return translation?.Text;
+            };
+
         try
         {
             bool needToPublish = false;
@@ -99,7 +116,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 .AutoClear(false)
                 .StartAsync(async ctx =>
                 {
-                    var taskTranslate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Translating[/]");
+                    var taskTranslate = ctx.AddTask($"{Emoji.Known.Robot}  Translating (0 symbols translated)");
 
                     var targetLocaleCodes = targetLocales.Select(targetLocales => targetLocales.Code).ToArray();
                     var contentLocales = new ContentLocales(targetLocaleCodes, defaultLocale.Code);
@@ -117,7 +134,9 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     }
                     
                     taskTranslate.MaxValue = 1;
-                    
+
+                    long symbols = 0;
+
                     await foreach (var (entry, total) in ContentfulConnection.GetManagementEntries<Entry<JObject>>(
                         queryBuilder.Build()))
                     {
@@ -153,14 +172,16 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                 var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
                                 if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null)
                                 {
+                                    symbols += defaultLocaleFieldValue.Length;
                                     TranslationService tService;
                                     if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
                                     {
                                         tService = TranslationService.Azure;
                                     }
                                     var translator = _translateFactory.Create(tService);
-                                    flatEntry[targetLocaleFieldName] = (await translator.Translate(defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code))?.Text;
+                                    flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code);//(await translator.Translate(defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code))?.Text;
                                     entryChanged = true;
+                                    taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
                                 }
                                 taskTranslate.Increment(1);
                             }
