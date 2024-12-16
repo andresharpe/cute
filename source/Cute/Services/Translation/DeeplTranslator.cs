@@ -11,11 +11,11 @@ namespace Cute.Services.Translation
         Translator _translator;
         public DeeplTranslator(AppSettings appSettings)
         {
-            if (!appSettings.GetSettings().TryGetValue("Cute__DeeplApiKey", out var deeplApiKey))
+            if (!appSettings.GetSettings().TryGetValue("Cute__DeeplApiKey", out var deeplApiKey) || string.IsNullOrEmpty(deeplApiKey))
             {
-                throw new CliException("Deepl API Key not found in appsettings.json");
+                throw new CliException("Deepl API Key not found in the environment");
             }
-            _translator = new Translator("deeplApiKey");
+            _translator = new Translator(deeplApiKey!);
         }
         public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
         {
