@@ -1,7 +1,6 @@
 ﻿using Contentful.Core.Models;
 using Cute.Commands.BaseCommands;
 using Cute.Config;
-using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
@@ -179,7 +178,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                         tService = TranslationService.Azure;
                                     }
                                     var translator = _translateFactory.Create(tService);
-                                    flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code);//(await translator.Translate(defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code))?.Text;
+                                    flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code);
                                     entryChanged = true;
                                     taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
                                 }
