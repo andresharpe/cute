@@ -24,19 +24,13 @@ public class HttpInputAdapter(
     IReadOnlyDictionary<string, string?> envSettings,
     IEnumerable<ContentType> contentTypes,
     HttpClient httpClient)
-    : InputAdapterBase(adapter.EndPoint)
+    : WebInputAdapter(adapter.EndPoint, adapter, contentfulConnection, envSettings)
 {
     private readonly HttpDataAdapterConfig _adapter = adapter;
 
     private readonly ContentLocales _contentLocales = contentLocales;
 
     private readonly HttpClient _httpClient = httpClient;
-
-    private readonly ScriptObject _scriptObject = CreateScriptObject(contentfulConnection, envSettings);
-
-    private readonly Dictionary<Template, Template> _compiledTemplates = adapter.CompileMappingTemplates();
-
-    private readonly Dictionary<string, Template> _compiledPreTemplates = adapter.CompilePreMappingTemplates();
 
     private readonly ContentEntryEnumerators? _entryEnumerators = GetEntryEnumerators(adapter.EnumerateForContentTypes, contentfulConnection, contentTypes);
 
@@ -48,14 +42,6 @@ public class HttpInputAdapter(
 
         return this;
     }
-
-    private ContentType _contentType = default!;
-
-    private List<Dictionary<string, string>> _results = default!;
-
-    private EntrySerializer _serializer = default!;
-
-    private int _currentRecordIndex = -1;
 
     public override async Task<IDictionary<string, object?>?> GetRecordAsync()
     {
@@ -405,31 +391,6 @@ public class HttpInputAdapter(
         }
     }
 
-    private List<Dictionary<string, string>> MapResultValues(JArray rootArray)
-    {
-        try
-        {
-            var batchValue = rootArray.Cast<JObject>()
-                .Select(o =>
-                {
-                    _scriptObject.SetValue("row", o, true);
-                    var vars = _compiledPreTemplates.ToDictionary(t => t.Key, t => t.Value.Render(_scriptObject));
-                    _scriptObject.SetValue("var", vars, true);
-                    var newRecord = _compiledTemplates.ToDictionary(t => t.Key.Render(_scriptObject), t => t.Value.Render(_scriptObject));
-                    _scriptObject.Remove("var");
-                    _scriptObject.Remove("row");
-                    return newRecord;
-                })
-                .ToList();
-
-            return batchValue;
-        }
-        catch (ScriptRuntimeException e)
-        {
-            throw new CliException(e.Message, e);
-        }
-    }
-
     private JArray FilterResultValues(JArray inputValues)
     {
         try
@@ -457,19 +418,6 @@ public class HttpInputAdapter(
         {
             throw new CliException(e.Message, e);
         }
-    }
-
-    private static ScriptObject CreateScriptObject(ContentfulConnection contentfulConnection, IReadOnlyDictionary<string, string?> envSettings)
-    {
-        ScriptObject? scriptObject = [];
-
-        CuteFunctions.ContentfulConnection = contentfulConnection;
-
-        scriptObject.SetValue("cute", new CuteFunctions(), true);
-
-        scriptObject.SetValue("config", envSettings, true);
-
-        return scriptObject;
     }
 
     private static ContentEntryEnumerators? GetEntryEnumerators(
