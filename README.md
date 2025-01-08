@@ -155,6 +155,12 @@ OPTIONS:
 
 Prior to running the command, you should configure API settings and field mappings in your Contentful space under the ```cuteContentSyncApi``` content type.
 
+If you have not yet created a `cuteContentSyncApi` content type in your Contentful space you can add it and configure the fields as per the screenshot below:
+
+![contentful cuteContentSyncApi model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentSyncApi-model.png)
+
+Then click the 'Add Entry' button:
+
 ![contentful contentSyncApi screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentSyncApi.png)
 
 Create a new entry for the relevant content as per the graphic below:
@@ -215,7 +221,7 @@ We're going to sync to the [users endpoint](https://jsonplaceholder.typicode.com
 ```
 Our `Users` content entry has a few matching fields and some which we'll map.
 
-![contentful Users model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/user.png)
+![contentful Users model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-user.png)
 
 Basic identifiers, API headers and endpoints as well as field mappings can be configured as per the code snippet below.
 
@@ -257,8 +263,6 @@ Running the `cute content sync-api -c dataUser.
 
 You can translate your content into languages of your choice using various popular AI translation services including Azure, DeepL, Google Translation and ChatGPT.
 
-
-
 Typing `cute content translate --help` will show the full usage and options.
 
 ```
@@ -296,6 +300,54 @@ I work in the admissions department for a technical college with students from a
 cute content translate -c dataAcceptanceLetter --field paragraphOpening, paragraphClosing --locale fr,ru,ka,es
 ```
 This command will get all the dataAcceptanceLetter entries and will translate opening and closing paragraph fields to locales fr (French), ru (Russian), ka (Georgian) and es (Spanish) where applicable.
+
+# Running cute as a Server
+
+***cute*** can be run as a stand-alone server in two modes:
+- Schedule and run all or specific entries from the `CuteSchedule` content type in your Contentful space.
+- Webhooks mode will process callbacks configured in—and triggered from—your Contentful space.
+
+## Scheduler
+
+Typing `cute server scheduler --help` will show the full usage and options.
+
+```
+USAGE:
+    cute server scheduler [OPTIONS]
+
+OPTIONS:
+    -h, --help                  Prints help information
+    -p, --port                  The port to listen on
+    -k, --key                   CuteSchedule Key
+```
+
+Prior to running ***cute*** as a scheduler for the first time you will need to define a `cuteSchedule` content type in your Contentful space as per the attached screenshot below:
+
+![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteSchedule-model.png)
+
+You can then configure your scheduled commands, all of which will be loaded when the scheduler is started. Alternatively, scheduled commands can be individually invoked by referencing them with the optional `--key` command option.
+
+The screenshot below illustrates how we create a scheduled entry for the `dataUser` content type which we synced from an external API.
+
+We'll configure it to invoke the `dataUser` entry we created in the `cuteContentSyncApi` section, and we'll schedule it to run at 2:01 p.m. every day.
+
+![contentful cuteSchedule screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteSchedule-dataUser.png)
+
+All that remains is to run the command. We'll invoke it to listen on port 2345.
+
+```shell
+cute server scheduler --port 2345
+```
+![cute server scheduler terminal ready](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-server-scheduler.png)
+
+***cute*** also exposes a monitoring interface on the port that the server is running. All the `cuteSchedule` entries are listed along with their configured properties.
+
+![cute server scheduler monitor](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/localhost-cute-scheduler.png)
+
+When the scheduled entries are triggered, either by a cron schedule or a sequenced condition, the relevant command will be run and information will be displayed as per the screenshot below:
+
+![cute server scheduler terminal output](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-server-scheduler-output.png)
+
 
 # Generating strong JavaScript or .NET Types
 
