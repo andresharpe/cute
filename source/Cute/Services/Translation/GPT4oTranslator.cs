@@ -1,4 +1,5 @@
 ﻿using Azure.AI.OpenAI;
+using Cute.Config;
 using Cute.Lib.AiModels;
 using Cute.Services.Translation.Interfaces;
 using OpenAI.Chat;
@@ -18,8 +19,9 @@ namespace Cute.Services.Translation
             TopP = 0.85f
         };
         private readonly ChatClient _chatClient;
+        private readonly AppSettings _appSettings;
 
-        public GPT4oTranslator(IAzureOpenAiOptionsProvider azureOpenAiOptionsProvider)
+        public GPT4oTranslator(IAzureOpenAiOptionsProvider azureOpenAiOptionsProvider, AppSettings appSettings)
         {
             var options = azureOpenAiOptionsProvider.GetAzureOpenAIClientOptions();
 
@@ -29,6 +31,7 @@ namespace Cute.Services.Translation
             );
 
             _chatClient = client.GetChatClient(options.DeploymentName);
+            _appSettings = appSettings;
         }
 
         public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
@@ -66,10 +69,16 @@ namespace Cute.Services.Translation
 
         private async Task<string> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
         {
-            var message = new UserChatMessage($"Translate text from language {fromLanguageCode} to language {toLanguageCode}. Text: {textToTranslate}");
+            List<ChatMessage> messages = [];
+            if (_appSettings.GetSettings().TryGetValue("Cute__GPT4oTranslationSystemMessage", out var systemMessageText) || string.IsNullOrEmpty(systemMessageText))
+            {
+                messages.Add(new SystemChatMessage(systemMessageText));
+            }
+
+            messages.Add(new UserChatMessage($"Translate text from language {fromLanguageCode} to language {toLanguageCode}. Text: {textToTranslate}"));
 
             StringBuilder sb = new();
-            await foreach (var part in _chatClient.CompleteChatStreamingAsync([message], _chatCompletionOptions))
+            await foreach (var part in _chatClient.CompleteChatStreamingAsync(messages, _chatCompletionOptions))
             {
                 if (part == null || part.ToString() == null) continue;
 

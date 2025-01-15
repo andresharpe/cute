@@ -178,9 +178,16 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                         tService = TranslationService.Azure;
                                     }
                                     var translator = _translateFactory.Create(tService);
-                                    flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code);
-                                    entryChanged = true;
-                                    taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
+                                    try
+                                    {
+                                        flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code);
+                                        entryChanged = true;
+                                        taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _console.WriteAlert($"Error translating text from {defaultLocale.Code} to {targetLocale.Code} using {tService}. Error Message: {ex.Message}");
+                                    }
                                 }
                                 taskTranslate.Increment(1);
                             }
