@@ -1,7 +1,6 @@
 ﻿using Azure.AI.OpenAI;
 using Cute.Config;
 using Cute.Lib.AiModels;
-using Cute.Lib.Exceptions;
 using Cute.Services.Translation.Interfaces;
 using OpenAI.Chat;
 using System.ClientModel;
