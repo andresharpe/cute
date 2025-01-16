@@ -365,6 +365,30 @@ OPTIONS:
     -n, --namespace       The optional namespace for the generated type
 ```
 
+# Configuring Data Queries in Cute
+
+Certain of the built-in features of ***cute***—like AI content generation—will operate on data sets which is the result of queries on your content in your Contentful space.
+
+These queries are conveniently defined and persisted alongside your other content under the `🤖 Cute / DataQuery` section of your Contentful space.
+
+If it's the first time you're configuring a data query, you will need to define a `cuteDataQuery` content type in your Contentful space as per the attached screenshot below:
+
+![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteDataQuery-model.png)
+
+A data query entry will be comprised of a key, title, query, jsonSelector and variablePrefix. See the attached screenshot below for an example.
+
+![contentful cuteDataQuery entry screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cuteDataQuery-entry.png)
+
+Your `query` should be a valid [GraphQL]() query and can be validated prior to running your command using a method of your choosing.
+
+You can validate your GraphQL query using Contentful's built-in [GraphiQL](https://app.contentful.com/spaces/tgugit5v0cu5/apps/list?app=graphiql) playground which can be installed from the App sub-menu.
+
+![contentful GraphiQL app screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-GraphiQL.png)
+
+Alternatively, you could use a tool like [Postman's](https://www.postman.com/) GraphQL request feature.
+
+![contentful GraphiQL app screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/postman-GraphQL.png)
+
 # Content generation using OpenAI
 
 You can generate content using OpenAI Generative Pre-trained Transformer (GPT) using the bulk operation feature of ***cute***.
@@ -373,7 +397,17 @@ OpenAI ChatGPT uses a state-of-the-art Large Language Model (LLM) to generate te
 
 Prompts and system messages that are generally used to interact with ChatGPT are configured and persisted in your Contentful space. This is especially useful as your AI prompts are persisted and backed up in the cloud right alongside your content.
 
-Prompts can be added and configured in the ```🤖 Cute / ContentGenerate``` section your Contentful space. A typical prompt entry has an id, a system message, a prompt, points to a content type and field.  Something like :-
+> 💡 In order to use ***cute's*** content generation feature, you'll need a valid [OpenAI API key](https://platform.openai.com/settings/organization/api-keys) which is entered when you run the `cute login` command along with a valid endpoint and deployment model.
+
+### Configuring AI Content Generation
+
+Content generation entries can be added and configured in the `🤖 Cute / ContentGenerate` section your Contentful space.
+
+If it's the first time you're using the content generation feature of ***cute*** you will need to define a `cuteContentGenerate` content type in your Contentful space as per the attached screenshot below:
+
+![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentGenerate-model.png)
+
+A `cuteContentGenerate` entry has an id, a system message, a prompt, points to a data query and an output field.  Something like :-
 
 |Title|Note|
 |-|-|
@@ -386,7 +420,7 @@ Prompts can be added and configured in the ```🤖 Cute / ContentGenerate``` sec
 |topP|Controls the diversity of the generated output by truncating the probability distribution of words. It functions as a filter to determine the number of words or phrases the language model examines while predicting the next word. For instance, when the Top P value is set at 0.4, the model only considers 40% of the most probable words or phrases. A higher Top P value results in more diverse creative responses. A lower value will result in more focused and coherent responses.|
 |frequencyPenalty|Controls the repetitiveness of words in generated responses. Increasing this value is like telling ChatGPT not to use the same words too often.|
 |presencePenalty|Manages the appearance of words in generated text based on their position, rather than frequency. This parameter encourages ChatGPT to employ a more diverse vocabulary|
-|cuteDataQueryEntry|A link to the associated data query in ```🤖 Cute / DataQuery```|
+|cuteDataQueryEntry|A link to the associated data query in ```🤖 Cute / DataQuery```. See [this section](#configuring-data-queries-in-cute) for a detailed overview of creating `cuteDataQuery` entries.|
 |promptOutputContentField|The target field of the content entry where the generated response is stored.|
 
 ```
@@ -404,6 +438,26 @@ OPTIONS:
                                       GenerateBatch or ListBatches)
 ```
 
+### Example
+
+Let's extend our earlier example of an educational institution by adding a content type `diplomaCourse` with a key, title and motivation. We'll use ***cute's*** content generation feature to generate a motivation on why it's a good idea to study a specific subject to advance your career.
+
+We'll add a `cuteContentGenerate` entry called `Diploma Course | Motivation` in our Contentful space as per the attached screenshot below. We'll configure a `systemMessage` and `prompt` as per the highlighted areas and link the entry to our `Diploma Course | All` entry we configured in `cuteDataQuery` in [this section](#configuring-data-queries-in-cute) previously.
+
+![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentGenerate-entry.png)
+
+Let's run the content generate command and have a look at the results.
+
+```
+cute content generate -k DiplomaCourse.Motivation
+```
+You'll notice from the output that the `Diploma Course | All` query returns 3 entries, Econimics, Fine Art and Mathematics, and the ChatGPT responses are displayed for each prompt.
+
+![cute content generate screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-generate.png)
+
+And having a look at the `Mathematics`, `Fine Art` and `Economics` entries under the `diplomaCourse` content type confirms that the `motivation` field have been populated with the ChatGPT response for each respective entry. The screenshot below shows the `Economics` entry.
+
+![cute content generate screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-diplomacourse-economics-entry.png)
 
 # Command Structure for v2.0
 
