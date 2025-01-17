@@ -1,6 +1,7 @@
 ﻿using Azure.AI.OpenAI;
 using Cute.Config;
 using Cute.Lib.AiModels;
+using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Services.Translation.Interfaces;
 using OpenAI.Chat;
 using System.ClientModel;
@@ -36,41 +37,70 @@ namespace Cute.Services.Translation
 
         public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
         {
-            var results = new List<TranslationResponse>();
-            foreach (var languageCode in toLanguageCodes)
-            {
-                var translation = await Translate(textToTranslate, fromLanguageCode, languageCode);
-                results.Add(translation!);
-            }
-
-            return results.ToArray();
+            return await Translate(textToTranslate, fromLanguageCode, toLanguageCodes, null);
         }
 
         public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
         {
+            return await Translate(textToTranslate, fromLanguageCode, toLanguageCode, null);
+        }
+
+        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        {
             TranslationResponse result = new TranslationResponse
             {
-                Text = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguageCode),
+                Text = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguageCode, null, cuteContentTypeTranslation?.TranslationContext),
                 TargetLanguage = toLanguageCode
             };
 
             return result;
         }
 
-        public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
+        public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes, CuteContentTypeTranslation? cuteContentTypeTranslation)
         {
-            throw new NotImplementedException();
+            var results = new List<TranslationResponse>();
+            foreach (var languageCode in toLanguageCodes)
+            {
+                var translation = await Translate(textToTranslate, fromLanguageCode, languageCode, cuteContentTypeTranslation);
+                results.Add(translation!);
+            }
+
+            return results.ToArray();
         }
 
-        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+        public async Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages)
         {
-            throw new NotImplementedException();
+            List<TranslationResponse> results = new();
+            foreach (var toLanguage in toLanguages)
+            {
+                var translation = await TranslateWithCustomModel(textToTranslate, fromLanguageCode, toLanguage, null);
+                results.Add(translation!);
+            }
+
+            return results.ToArray();
         }
 
-        private async Task<string> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+        public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage)
+        {
+            return await TranslateWithCustomModel(textToTranslate, fromLanguageCode, toLanguage, null); 
+        }
+
+        public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        {
+            TranslationResponse result = new TranslationResponse
+            {
+                Text = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguage.Iso2Code, toLanguage.TranslationContext, cuteContentTypeTranslation?.TranslationContext),
+                TargetLanguage = toLanguage.Iso2Code
+            };
+
+            return result;
+        }
+
+        private async Task<string> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, string toLanguageCode, string? languagePrompt, string? contentTypePrompt)
         {
             List<ChatMessage> messages = [];
-            if (_appSettings.GetSettings().TryGetValue("Cute__GPT4oTranslationSystemMessage", out var systemMessageText) || string.IsNullOrEmpty(systemMessageText))
+            var systemMessageText = $"{languagePrompt} {contentTypePrompt}";
+            if (!string.IsNullOrEmpty(systemMessageText.Trim()))
             {
                 messages.Add(new SystemChatMessage(systemMessageText));
             }

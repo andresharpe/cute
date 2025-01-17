@@ -15,6 +15,7 @@ using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
+using System.Management;
 
 namespace Cute.Commands.Content;
 
@@ -81,30 +82,25 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             .ToDictionary
             (
                 x => x.Iso2Code,
-                x => 
-                {
-                    if(Enum.TryParse<TranslationService>(x.TranslationService, out var translationService))
-                    {
-                        return translationService;
-                    }
-                    return TranslationService.Azure;
-                }
+                x => x
             );
+
+        var contentTypeTranslation = ContentfulConnection.GetPreviewEntryByKey<CuteContentTypeTranslation>(settings.ContentTypeId);
 
         if(!ConfirmWithPromptChallenge($"translate entries for {settings.ContentTypeId}"))
         {
             return -1;
         }
 
-        Func<ITranslator, string, string, string, Task<string?>> translate = settings.UseCustomModel ?
+        Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = settings.UseCustomModel ?
             async (translator, text, from, to) =>
             {
-                var translation = await translator.TranslateWithCustomModel(text, from, to);
+                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation);
                 return translation?.Text;
             } :
             async (translator, text, from, to) =>
             {
-                var translation = await translator.Translate(text, from, to);
+                var translation = await translator.Translate(text, from, to.Iso2Code);
                 return translation?.Text;
             };
 
@@ -168,19 +164,25 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                             foreach (var targetLocale in targetLocales)
                             {
+                                if (!translationConfiguration.TryGetValue(targetLocale.Code, out var cuteLanguage))
+                                {
+                                    _console.WriteAlert($"No translation configuration found for locale {targetLocale.Code}");
+                                    continue;
+                                }
+
                                 var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
                                 if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null)
                                 {
                                     symbols += defaultLocaleFieldValue.Length;
                                     TranslationService tService;
-                                    if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
+                                    if(!Enum.TryParse(cuteLanguage.TranslationService, out tService))
                                     {
-                                        tService = TranslationService.Azure;
+                                        tService = TranslationService.GPT4o;
                                     }
                                     var translator = _translateFactory.Create(tService);
                                     try
                                     {
-                                        flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code);
+                                        flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, cuteLanguage);
                                         entryChanged = true;
                                         taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
                                     }
