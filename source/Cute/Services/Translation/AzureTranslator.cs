@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Text.RegularExpressions;
 using Cute.Config;
+using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Exceptions;
 using Cute.Services.Translation.Interfaces;
 using Newtonsoft.Json;
@@ -14,7 +15,6 @@ public class AzureTranslator : ITranslator
     private readonly string _endpoint;
     private readonly string _region;
     private readonly HttpClient _httpClient;
-    private readonly string? _categoryId;
 
     private readonly string _pattern = @"{{.*?}}";
 
@@ -24,10 +24,6 @@ public class AzureTranslator : ITranslator
         _endpoint = settings.AzureTranslatorEndpoint;
         _region = settings.AzureTranslatorRegion;
         _httpClient = httpClient;
-        if(settings.GetSettings().TryGetValue("Cute__AzureTranslationCategory", out var categoryId))
-        {
-            _categoryId = categoryId;
-        }
     }
 
     public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
@@ -51,19 +47,29 @@ public class AzureTranslator : ITranslator
         }).ToArray();
     }
 
-    public async Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
+    public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation)
     {
-        var result = await Translate(fromLanguageCode, toLanguageCodes, textToTranslate, true);
-        return result?.Select(result => new TranslationResponse
-        {
-            Text = result.Text,
-            TargetLanguage = result.To
-        }).ToArray();
+        return await Translate(textToTranslate, fromLanguageCode, toLanguageCode);
     }
 
-    public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+    public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes, CuteContentTypeTranslation? cuteContentTypeTranslation)
     {
-        var result = await Translate(fromLanguageCode, [toLanguageCode], textToTranslate, true);
+        return await Translate(textToTranslate, fromLanguageCode, toLanguageCodes);
+    }
+
+    public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage)
+    {
+        if (string.IsNullOrEmpty(toLanguage.TranslationContext))
+        {
+            throw new CliException($"Translation context is not provided for custom model translation. Language: {toLanguage.Iso2Code}");
+        }
+
+        var result = await Translate(fromLanguageCode, [toLanguage.Iso2Code], textToTranslate, toLanguage.TranslationContext);
 
         return result?.Select(result => new TranslationResponse
         {
@@ -72,7 +78,12 @@ public class AzureTranslator : ITranslator
         }).FirstOrDefault();
     }
 
-    private async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate, bool useCustomModel = false)
+    public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation)
+    {
+        throw new NotImplementedException();
+    }
+
+    private async Task<AzureTranslationResponse[]?> Translate(string fromLanguageCode, IEnumerable<string> toLanguageCodes, string textToTranslate, string? customModel = null)
     {
         var matches = Regex.Matches(textToTranslate, _pattern);
         string processedTextToTranslate = Regex.Replace(textToTranslate, _pattern, match =>
@@ -84,16 +95,10 @@ public class AzureTranslator : ITranslator
 
         var route = $"/translate?api-version=3.0&from={fromLanguageCode}{toLanguageCodesUrl}";
 
-        if(useCustomModel)
+        
+        if (!string.IsNullOrEmpty(customModel))
         {
-            if (!string.IsNullOrEmpty(_categoryId))
-            {
-                route += $"&category={_categoryId}";
-            }
-            else
-            {
-                throw new CliException("Category is not provided for custom model translation");
-            }
+            route += $"&category={customModel}";
         }
 
         var body = new object[] { new { Text = processedTextToTranslate } };

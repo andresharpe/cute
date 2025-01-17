@@ -10,5 +10,6 @@
         public string WikidataQid { get; set; } = default!;
         public bool IsContentfulLocale { get; set; } = default!;
         public string TranslationService { get; set; } = default!;
+        public string TranslationContext { get; set; } = default!;
     }
 }

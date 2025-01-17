@@ -53,6 +53,9 @@ public static class CuteLanguageContentType
              new FieldBuilder("translationService", FieldType.Symbol)
                     .Build(),
 
+             new FieldBuilder("translationContext", FieldType.Text)
+                    .Build(),
+
             ]);
 
         _contentType = contentTypeBuilder.Build();
