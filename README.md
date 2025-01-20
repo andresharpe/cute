@@ -304,8 +304,8 @@ This command will get all the dataAcceptanceLetter entries and will translate op
 # Running cute as a Server
 
 ***cute*** can be run as a stand-alone server in two modes:
-- Schedule and run all or specific entries from the `CuteSchedule` content type in your Contentful space.
-- Webhooks mode will process callbacks configured in—and triggered from—your Contentful space.
+- [Scheduler](#scheduler) mode runs all or specific entries from the `CuteSchedule` content type in your Contentful space.
+- [Webhooks](#webhooks) mode will process callbacks configured in—and triggered from—your Contentful space.
 
 ## Scheduler
 
@@ -348,6 +348,50 @@ When the scheduled entries are triggered, either by a cron schedule or a sequenc
 
 ![cute server scheduler terminal output](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-server-scheduler-output.png)
 
+## Webhooks
+
+Running ***cute*** in `server webhooks` mode is a convenient way to process any ***cute*** command resulting from a content event from within Contentful. The steps required are simple:
+
+- Start a ***cute*** server in webhooks mode
+- Configure a webhook in your Contentful space along with a relevant payload
+- Trigger the event from within Contentful 
+
+Typing `cute server webhooks --help` will show the full usage and options.
+
+```
+USAGE:
+    cute server webhooks [OPTIONS]
+
+OPTIONS:
+    -h, --help                  Prints help information
+    -p, --port                  The port to listen on
+```
+
+### Example
+
+Let's start a ***cute*** server in webhooks mode by executing the `cute server webhooks --port 8080` in a shell of our choice.
+
+The ***cute*** webhooks server is now ready and listening on port 8080, as per the screenshot below:
+
+![cute server webhooks running](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-server-webhooks.png)
+
+As with the scheduler mode, ***cute*** server also exposes a monitoring interface on the port that the server is running in webhooks mode. See the attached screenshot below:
+
+![cute server scheduler monitor](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/localhost-cute-webhooks.png)
+
+Next we'll configure a webhook within Contentful that will be triggered when we publish any changes to our `diplomaCourse` content type, be it an addition or change.
+
+![contentful configure webhook](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-webhook-config.png)
+
+All that remains is to test our webhook server. Now that the server is up and running, and we've configured the webhook for our `diplomaCourse` content type publish event, we can go ahead an add a new course and click the 'publish' button.
+
+As per the attached screenshot animation below, after a few seconds the `motivation` field is populated.
+
+![contentful webhook example](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-webhook-example.png)
+
+To enable local testing of our ***cute*** webhooks server, we've used [ngrok](https://ngrok.com/use-cases/webhook-testing). They have a [useful guide here](contentful-webhook-example) detailing how to test Contentful webhooks with local servers.
+
+Contentful also has documentation on configuring and implementing webhooks [here](https://www.contentful.com/developers/docs/webhooks/).
 
 # Generating strong JavaScript or .NET Types
 
