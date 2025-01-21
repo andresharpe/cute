@@ -318,7 +318,6 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         var contentDisplayField = _contentType.DisplayField;
 
         _withUpdatedFlatEntries = [];
-        _withUpdatedFlatEntries = [];
 
         var fields = serializer.ColumnFieldNames;
 
@@ -471,7 +470,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         return false;
     }
 
-    private async Task UpsertRequiredEntries(List<Entry<JObject>> entries,
+    protected async Task UpsertRequiredEntries(List<Entry<JObject>> entries,
         Action<BulkActionProgressEvent>? progressUpdater)
     {
         if (_contentTypeId == null)

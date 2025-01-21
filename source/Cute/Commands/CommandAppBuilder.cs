@@ -157,6 +157,10 @@ public class CommandAppBuilder
 
                 branchConfig.AddCommand<ContentJoinCommand>("join")
                     .WithDescription("Join multiple content types to a destination content type.");
+
+                branchConfig.AddCommand<ContentClearLocalizationCommand>("clear-fields")
+                    .IsHidden()
+                    .WithDescription("Clear localized fields for content type");
             });
 
             commandConfig.AddBranch("type", branchConfig =>
