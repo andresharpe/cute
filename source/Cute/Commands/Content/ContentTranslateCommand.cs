@@ -15,7 +15,6 @@ using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Management;
 
 namespace Cute.Commands.Content;
 
