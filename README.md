@@ -387,7 +387,7 @@ All that remains is to test our webhook server. Now that the server is up and ru
 
 As per the attached screenshot animation below, after a few seconds the `motivation` field is populated.
 
-![contentful webhook example](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-webhook-example.png)
+![contentful webhook example](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-webhook-example.gif)
 
 To enable local testing of our ***cute*** webhooks server, we've used [ngrok](https://ngrok.com/use-cases/webhook-testing). They have a [useful guide here](contentful-webhook-example) detailing how to test Contentful webhooks with local servers.
 
@@ -432,6 +432,44 @@ You can validate your GraphQL query using Contentful's built-in [GraphiQL](https
 Alternatively, you could use a tool like [Postman's](https://www.postman.com/) GraphQL request feature.
 
 ![contentful GraphiQL app screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/postman-GraphQL.png)
+
+# Joining data in Cute
+
+***cute*** offers a convenient and simple way of creating aggregated content types from two other content types within your space.
+
+Let's start by having a look at the command options and usage. Typing `cute content join --help` will show the full usage and options.
+
+```
+USAGE:
+    cute content join [OPTIONS]
+
+OPTIONS:
+    -h, --help                  Prints help information
+    -k, --key                   The id of the Contentful join entry to generate content for
+    -i, --entry-id              Id of source 2 entry to join content for
+```
+
+If you're using the feature for the first time, you'll need to define a `cuteContentJoin` content type within your Contentful space in which to configure your aggregates, as per the attached screenshot below:
+
+![contentful cuteContentJoin model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentJoin-model.png)
+
+Next we'll configure our content aggregate. We'll use our existing `diplomaCourse` content type and combine that with a new `branchLocation` content type in order to create an aggregated content view of `viewCourseByLocation`.
+
+See the attached screenshot below. The `targetContentType` refers to our new aggregated content type. For source 1 our content type is `branchLocation` and we're selecting all entries `*`. For source 2 our content type is `diplomaCourse` and we're selecting only `MATHEMATICS`. 
+
+![contentful cuteContentJoin entry configuration screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentJoin-entry.png)
+
+Running the `cute content join --key ViewCourseByLocation` command yields the following output:
+
+![cute content join shell output screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-join.png)
+
+And the following entries are created in the `viewCourseByLocation` content type:
+
+![cute content join result screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentJoin-result.png)
+
+And if we look at one of the entries we can see that it concatenates the key and title fields and provides direct access to the underlying content entries of which the aggregate is comprised.
+
+![cute content join result detail](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentJoin-result-detail.png)
 
 # Content generation using OpenAI
 
@@ -495,7 +533,7 @@ Let's run the content generate command and have a look at the results.
 ```
 cute content generate -k DiplomaCourse.Motivation
 ```
-You'll notice from the output that the `Diploma Course | All` query returns 3 entries, Econimics, Fine Art and Mathematics, and the ChatGPT responses are displayed for each prompt.
+You'll notice from the output that the `Diploma Course | All` query returns 3 entries, Economics, Fine Art and Mathematics, and the ChatGPT responses are displayed for each prompt.
 
 ![cute content generate screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-generate.png)
 
