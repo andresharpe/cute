@@ -415,11 +415,13 @@ Certain of the built-in features of ***cute***—like AI content generation—wi
 
 These queries are conveniently defined and persisted alongside your other content under the `🤖 Cute / DataQuery` section of your Contentful space.
 
-If it's the first time you're configuring a data query, you will need to define a `cuteDataQuery` content type in your Contentful space as per the attached screenshot below:
+If it's the first time you're configuring a data query, you will need to define a `cuteDataQuery` content type in your Contentful space which is comprised of a key, title, query, jsonSelector and variablePrefix. See the attached screenshot below:
 
 ![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteDataQuery-model.png)
 
-A data query entry will be comprised of a key, title, query, jsonSelector and variablePrefix. See the attached screenshot below for an example.
+### Example 1
+
+Our example below will query the `diplomaCourse` content type and return all entries.
 
 ![contentful cuteDataQuery entry screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cuteDataQuery-entry.png)
 
@@ -432,6 +434,18 @@ You can validate your GraphQL query using Contentful's built-in [GraphiQL](https
 Alternatively, you could use a tool like [Postman's](https://www.postman.com/) GraphQL request feature.
 
 ![contentful GraphiQL app screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/postman-GraphQL.png)
+
+### Example 2
+
+Our second example shows a slightly more complicated configuration where we query a content type which is an aggregate of the `branchLocation` and `diplomaCourse` content types. Pay specific attention to the GraphQL syntax used to include the additional data objects.
+
+The `where` clause of the GraphQL query is empty and as a result all entries from the set will be returned.
+
+![contentful cuteDataQuery entry screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cuteDataQuery-entry2.png)
+
+Testing the query in Contentful's GraphiQL app yields the expected result:
+
+![contentful GraphiQL app screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-GraphiQL2.png)
 
 # Joining data in Cute
 
@@ -453,7 +467,9 @@ If you're using the feature for the first time, you'll need to define a `cuteCon
 
 ![contentful cuteContentJoin model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentJoin-model.png)
 
-Next we'll configure our content aggregate. We'll use our existing `diplomaCourse` content type and combine that with a new `branchLocation` content type in order to create an aggregated content view of `viewCourseByLocation`.
+### Example
+
+We'll start by configuring our content aggregate. We'll use our existing `diplomaCourse` content type and combine that with a new `branchLocation` content type in order to create an aggregated content view of `viewCourseByLocation`.
 
 See the attached screenshot below. The `targetContentType` refers to our new aggregated content type. For source 1 our content type is `branchLocation` and we're selecting all entries `*`. For source 2 our content type is `diplomaCourse` and we're selecting only `MATHEMATICS`. 
 
@@ -520,7 +536,7 @@ OPTIONS:
                                       GenerateBatch or ListBatches)
 ```
 
-### Example
+### Example 1
 
 Let's extend our earlier example of an educational institution by adding a content type `diplomaCourse` with a key, title and motivation. We'll use ***cute's*** content generation feature to generate a motivation on why it's a good idea to study a specific subject to advance your career.
 
@@ -540,6 +556,28 @@ You'll notice from the output that the `Diploma Course | All` query returns 3 en
 And having a look at the `Mathematics`, `Fine Art` and `Economics` entries under the `diplomaCourse` content type confirms that the `motivation` field have been populated with the ChatGPT response for each respective entry. The screenshot below shows the `Economics` entry.
 
 ![cute content generate screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-diplomacourse-economics-entry.png)
+
+### Example 2
+
+For our second example, we'll work with the `viewCourseByLocation` content type we created [here](#example-2). This content type is an aggregate of `branchLocation` and `diplomaCourse` and we'll reference both those content types in our prompt.
+
+As with example 1 above, we'll [start by configuring](#example-2) a `cuteDataQuery` entry that we'll reference in our `cuteContentGenerate` entry.
+
+Let's add a `cuteContentGenerate` entry called `Course By Location | Motivation` in our Contentful space as per the attached screenshot below. We'll configure a `systemMessage` and `prompt` as per the highlighted areas and link the entry to our `Diploma Course | All` entry we configured in `cuteDataQuery` in [this section](#configuring-data-queries-in-cute) previously.
+
+Note that in our `prompt` we're referencing properties from the aggregate data objects rather than the root object.
+
+![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentGenerate-entry2.png)
+
+Let's run the `cute content generate -k CourseByLocation.Motivation` command and have a look at the terminal output:
+
+You'll notice from the output that the `Course By Location | All` query returns 2 entries, Madrid and London, and the ChatGPT responses are displayed for each prompt.
+
+![cute content generate screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-generate2.png)
+
+And having a look at the `United Kingdom | London | 1001 | Mathematics` and `Spain | Madrid | 2001 | Mathematics` entries under the `viewCourseByLocation` content type confirms that the `motivation` field have been populated with the ChatGPT response for each respective entry. The screenshot below shows the `Spain | Madrid | 2001 | Mathematics` entry.
+
+![cute content generate screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-viewCourseByLocation-madrid-entry.png)
 
 # Command Structure for v2.0
 
