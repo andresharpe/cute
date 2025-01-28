@@ -43,6 +43,7 @@
 - [Commands: Manage Content Types using `type`](#commands-manage-content-types-using-type)
   - [`scaffold` strong JavaScript or .NET Types](#scaffold-strong-javascript-or-net-types)
 - [Configuring ***cute*** in Contentful](#configuring-cute-in-contentful)
+  - [Scaffold ***cute*** Content using `content testdata`](#scaffold-cute-content-using-content-testdata)
   - [Configuring `cuteContentJoin`](#configuring-cutecontentjoin)
   - [Configuring `cuteContentSyncApi`](#configuring-cutecontentsyncapi)
   - [Configuring `cuteContentGenerate`](#configuring-cutecontentgenerate)
@@ -53,6 +54,8 @@
 - [Contributing to Cute](#contributing-to-cute)
 
 <!-- /TOC -->
+</details>
+</br>
 
 # Introduction
 
@@ -82,11 +85,11 @@ Start by ensuring you have the required version of the [.NET SDK installed](http
 > 💡 Depending on your operating system, you can also use package managers like [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/), [apt-get](https://linux.die.net/man/8/apt-get) and [Homebrew](https://brew.sh/) to manage your installation from the shell.
 
 Install the ***cute*** CLI tool by running the command listed below:
-```
+```powershell
 dotnet tool install --global cute
 ```
 Alternatively, if you already have ***cute*** installed but would like to update to the latest version you can simply run the command listed below:
-```shell
+```powershell
 dotnet tool update --global cute
 ```
 Confirm your installation typing `cute` and you should see a display similar to the screenshot below listing the installed version and help:
@@ -102,7 +105,7 @@ You are ready to go, let's get started! 🚀
 ## Getting `help`
 
 You can easily access help for ***cute*** and its various command options by entering the relevant command, followed by `-h` or `--help` in the command shell:
-```
+```powershell
 cute --help
 ```
 ![cute help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/help.png)
@@ -112,7 +115,7 @@ cute --help
 ## Configure your ***cute*** session using `login`
 Start your ***cute*** session by running the login command. This will configure your Contentful session profile using the selected space, environment and API keys.
 You can also enter your AI and Translation service credentials here. 
-```
+```powershell
 cute login
 ```
 
@@ -122,7 +125,7 @@ cute login
 
 ## Display your Contentful Space `info`
 Display a comprehensive overview of your Contentful session information including space, environment, content types and locales. Info related to CLI display settings is also shown. 
-``` 
+```powershell 
 cute info
 ```
 ![cute info screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/info.png)
@@ -136,9 +139,9 @@ The `cute content` and its respective command options represents the real workho
 ![cute content --help screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/content-help.png)
 
 ## `download` Content
-Content can easily be downloaded from your Contentful space in one of several popular formats including Excel, comma separated (CSV), tab separated (TSV), JSON and YAML. If no format is specified, the downloaded file with default to the Excel format.
+Content can easily be downloaded from your Contentful space in one of several popular formats including Excel, comma separated (CSV), tab separated (TSV), JSON and YAML. If no format is specified, the downloaded file will default to the Excel format.
 
-```
+```powershell
 cute content download --content-type <contentType> 
 cute content download --content-type <contentType> --format [excel|csv|tsv|json|yaml]
 ```
@@ -148,7 +151,7 @@ Issuing any `content download` command will yield a result similar to the displa
 
 Typing `cute content download --help` will list all currently available options and usage.
 
-```
+```powershell
 USAGE:
     cute content download [OPTIONS]
 
@@ -173,7 +176,7 @@ You can upload content from a local file to your Contentful space. The local fil
 
 Typing `cute content upload --help` will show the full usage and options.
 
-```
+```powershell
 USAGE:
     cute content upload [OPTIONS]
 
@@ -195,7 +198,7 @@ OPTIONS:
 
 Let's start by having a look at the command options and usage. Typing `cute content join --help` will show the full usage and options.
 
-```
+```powershell
 USAGE:
     cute content join [OPTIONS]
 
@@ -233,7 +236,7 @@ And if we look at one of the entries we can see that it concatenates the key and
 
 You can synchronize your Contentful content with external APIs by using the `cute content sync-api` command option.
 
-```
+```powershell
 USAGE:
     cute content sync-api [OPTIONS]
 
@@ -387,7 +390,7 @@ A `cuteContentGenerate` entry has an id, a system message, a prompt, points to a
 |cuteDataQueryEntry|A link to the associated data query in `🤖 Cute / DataQuery`. See [this section](#configuring-data-queries-in-cute) for a detailed overview of creating `cuteDataQuery` entries.|
 |promptOutputContentField|The target field of the content entry where the generated response is stored.|
 
-```
+```powershell
 DESCRIPTION:
 Generate content using a Large Language Model (LLM).
 
@@ -412,7 +415,7 @@ We'll add a `cuteContentGenerate` entry called `Diploma Course | Motivation` in 
 
 Let's run the content generate command and have a look at the results.
 
-```
+```powershell
 cute content generate -k DiplomaCourse.Motivation
 ```
 You'll notice from the output that the `Diploma Course | All` query returns 3 entries, Economics, Fine Art and Mathematics, and the ChatGPT responses are displayed for each prompt.
@@ -453,7 +456,7 @@ You can translate your content into languages of your choice using various popul
 
 Typing `cute content translate --help` will show the full usage and options.
 
-```
+```powershell
 USAGE:
     cute content translate [OPTIONS]
 
@@ -484,7 +487,7 @@ If no translation service is specified, Azure Translation Service will be used.
 
 I work in the admissions department for a technical college with students from all over the globe. I'd like to translate the opening and closing paragraph of our acceptance letter for French, Russian, Georgian and Spanish.
 
-```
+```powershell
 cute content translate -c dataAcceptanceLetter --field paragraphOpening, paragraphClosing --locale fr,ru,ka,es
 ```
 This command will get all the dataAcceptanceLetter entries and will translate opening and closing paragraph fields to locales fr (French), ru (Russian), ka (Georgian) and es (Spanish) where applicable.
@@ -501,7 +504,7 @@ This command will get all the dataAcceptanceLetter entries and will translate op
 
 Typing `cute server scheduler --help` will show the full usage and options.
 
-```
+```powershell
 USAGE:
     cute server scheduler [OPTIONS]
 
@@ -525,7 +528,7 @@ We'll configure it to invoke the `dataUser` entry we created in the `cuteContent
 
 All that remains is to run the command. We'll invoke it to listen on port 2345.
 
-```shell
+```powershell
 cute server scheduler --port 2345
 ```
 ![cute server scheduler terminal ready](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-server-scheduler.png)
@@ -548,7 +551,7 @@ Running ***cute*** in `server webhooks` mode is a convenient way to process any 
 
 Typing `cute server webhooks --help` will show the full usage and options.
 
-```
+```powershell
 USAGE:
     cute server webhooks [OPTIONS]
 
@@ -591,7 +594,7 @@ Contentful also has documentation on configuring and implementing webhooks [here
 
 ***cute*** supports structural subtyping through the `type scaffold` command option. You can export TypeScript (TS) or .NET (CS) interface declarations, or a simple Excel file with individual worksheets detailing your content model. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
 
-```
+```powershell
 USAGE:
     cute type scaffold [OPTIONS]
 
@@ -609,7 +612,40 @@ OPTIONS:
 
 ***cute*** has a number of native content types that it uses internally to configure and enable a number of the bulk operation (`cuteContentSyncApi` and `cuteContentJoin`), AI options (`cuteDataQuery` and `cuteContentGenerate`), Server options (`cuteSchedule`) and other (`cuteLanguage`).
 
-It might be a good idea to organize these content types under a separate view folder in Contentful. It's certainly not mandatory, but it might aid in overall organization of your data, presentation and native***cute***content types.
+## Scaffold ***cute*** Content using `content testdata`
+
+***cute*** offers a useful command that will do all the heavy lifting for you related to creating all native content types required by ***cute*** for all its advanced features.
+
+Typing `cute content testdata --help` will show the full usage and options.
+
+```powershell
+USAGE:
+    cute server webhooks [OPTIONS]
+
+OPTIONS:
+    -h, --help                  Prints help information
+    -s, --space-id <ID>         The Contentful space identifier
+    -e, --environment-id <ID>   The Contentful environment identifier
+        --force                 Specifies whether warning prompts should be bypassed
+    -n, --number                The number of user entries to generate. (default=1000)
+```
+
+Let's execute the command and review the results.
+
+> 💡 Remember to ensure your ***cute*** session is configured correctly. It might be a good idea to run `cute logout` followed by `cute login` prior to running this command to reset your session configuration and credentials.
+
+```powershell
+cute content testdata
+```
+The terminal output confirms that the cute content types have been generated, along with 10 entries for the `testUser` content type, as seen in the screenshot below:
+
+![cute content testdata output](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-testdata.png)
+
+Clicking the *Content model* tab in our Contentful space reveals that all of the required ***cute*** content types have been scaffolded. In addition there are a few test data content types to get you started. Feel free to delete those should you not require them.
+
+![cute content types generated](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cute-native-content-types.png)
+
+It might be a good idea to organize these content types under a separate view folder in Contentful. It's certainly not mandatory, but it might aid in overall organization of your data, presentation and native ***cute*** content types.
 
 ![configuring cute within Contentful](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cute-views.png)
 
