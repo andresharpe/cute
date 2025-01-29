@@ -2,7 +2,9 @@
 
 <br /><div align="center"><a href="https://github.com/andresharpe/cute"><img src="https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-logo.png" alt="Logo" width="500"></a></div>
 
-<p align="center">A Contentful Update Tool & Extractor</p>
+<br /><div align="center"><a href="https://github.com/andresharpe/cute"><img src="https://raw.githubusercontent.com/andresharpe/cute/feature/readme-update-v2/docs/images/cute-logo-v2.png" alt="Logo" width="500"></a></div>
+
+<h3 align="center">A Contentful Update Tool & Extractor</h3>
 
 <div align="center"><a href="https://github.com/andresharpe/cute/tree/master/source">View the Source Code</a> · <a href="https://www.nuget.org/packages/cute">Download @ Nuget</a></div><br />
 
@@ -10,7 +12,6 @@
 ### Table of Content
 <details>
 <summary>Expand/Collapse</summary>
-
 <!-- TOC -->
 
 - [Introduction](#introduction)
@@ -54,8 +55,8 @@
 - [Contributing to Cute](#contributing-to-cute)
 
 <!-- /TOC -->
+<!-- /TOC -->
 </details>
-</br>
 
 # Introduction
 
