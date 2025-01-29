@@ -49,7 +49,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             fieldsToTranslate = fieldsToTranslate.Where(f => settings.Fields.Contains(f.Id)).ToList();
         }
 
-        var targetLocales = (await ContentfulConnection.GetLocalesAsync()).Where(k => k.Code != defaultLocale.Code).ToList();
+        var contentLocales = await ContentfulConnection.GetLocalesAsync();
+        var allContentLocales = new ContentLocales(contentLocales.Select(c => c.Code).ToArray(), defaultLocale.Code);
+
+        var targetLocales = (contentLocales).Where(k => k.Code != defaultLocale.Code).ToList();
         if(settings.Locales?.Length > 0)
         {
             targetLocales = targetLocales.Where(k => settings.Locales.Contains(k.Code)).ToList();
@@ -113,8 +116,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     var taskTranslate = ctx.AddTask($"{Emoji.Known.Robot}  Translating (0 symbols translated)");
 
                     var targetLocaleCodes = targetLocales.Select(targetLocales => targetLocales.Code).ToArray();
-                    var contentLocales = new ContentLocales(targetLocaleCodes, defaultLocale.Code);
-                    var serializer = new EntrySerializer(contentType, contentLocales);
+                    var serializer = new EntrySerializer(contentType, allContentLocales);
 
                     var queryBuilder = new EntryQuery.Builder()
                     .WithContentType(settings.ContentTypeId)
@@ -208,7 +210,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     taskTranslate.StopTask();
                 });            
 
-            var contentLocales = new ContentLocales(targetLocales.Select(t => t.Code).ToArray(), defaultLocale.Code);
             if (needToPublish)
             {
                 await PerformBulkOperations(
