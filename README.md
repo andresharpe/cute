@@ -60,17 +60,19 @@
 
 ## What is ***cute***?
 
-***cute*** is a cross-platform CLI tool that brings several advanced features and capabilities including bulk operations, AI generation and translation to working with your content hosted on [Contentful](https://www.contentful.com).
+***cute*** is a cross-platform CLI tool that brings several advanced features and capabilities including bulk operations, web server mode, AI generation and language translation to working with your content hosted on [Contentful](https://www.contentful.com).
 
 <br /><div align="center"><img src="https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-overview-graphic.png" alt="cute help screenshot" width="70%"><br /></div>
 
 ## Key Features
 
-- Bulk processing capabilities lets you download, modify and upload data in most popular formats including Comma delimited files (CSV), Tab delimited files (TSV), MS-Excel workbooks (XLSX), Javascript Object Notation (JSON) and YAML.
-- Input data can be sourced and synced from many external sources including flat files, databases, webAPIs, your Contentful space or other popular sources like [WikiData](https://www.wikidata.org/).
-- Content can be translated or even generated from scratch using popular technologies like [OpenAI](https://openai.com/) and [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator).
-- Deploy ***cute*** as a Web Server with [OpenTelemetry](https://opentelemetry.io/) compliant logging and a service terminal to reflect health, configuration and scheduled tasks.
-- Support for structural subtyping through the `typegen` command option which exports TypeScript (TS) interface declarations. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
+- *Download*, modify and *upload* data to your Contentful space in popular formats like Comma delimited files (CSV), Tab delimited files (TSV), MS-Excel workbooks (XLSX), Javascript Object Notation (JSON) and YAML.
+- Perform *Bulk operations* on your content with support for publish/unpublish, edit, search & replace and delete actions.
+- Input data can be sourced and synced from many external sources including flat files, databases, webAPIs, your Contentful space and other popular sources like [WikiData](https://www.wikidata.org/).
+- *Generate content* from scratch using [OpenAI's](https://openai.com/api/) GPT and reasoning models with comprehensive prompt configuration support.
+- Support for *content translation* using popular AI translation services like [Google Translation UI](https://cloud.google.com/translate), [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator), [DeepL](https://www.deepl.com/) and [OpenAI](https://openai.com/).
+- Deploy ***cute*** as a *Web Server* in `scheduler` or `webhooks` mode with [OpenTelemetry](https://opentelemetry.io/) logging and a service terminal to reflect health, configuration and scheduled tasks.
+- Support for *structural subtyping* through the `typegen` command option which exports TypeScript (TS) interface declarations. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
 - ***cute*** auto-magically "learns" your Contentful space and generates required configuration nodes to enable process automation.
 - Interact with ***Douglas***, cute's very own AI assistant that will answer questions about your content, or even help formulate queries to interact with your content.
 

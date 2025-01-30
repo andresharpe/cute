@@ -24,11 +24,11 @@
 		<RepositoryType>git</RepositoryType>
 		<PackageIcon>cute.png</PackageIcon>
 		<PackageTags>cli;contentful;csv;excel;tsv;yaml;json;openai;chatgpt;ai;javascript</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageReadmeFile>NUGET.md</PackageReadmeFile>
 	</PropertyGroup>
 	<ItemGroup>
 		<None Include="..\..\docs\images\cute.png" Pack="true" PackagePath="\" />
-		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\..\NUGET.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="8.0.8" />
