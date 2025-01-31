@@ -72,7 +72,6 @@
 - Support for *content translation* using popular AI translation services like [Google Translation UI](https://cloud.google.com/translate), [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator), [DeepL](https://www.deepl.com/) and [OpenAI](https://openai.com/).
 - Deploy ***cute*** as a *Web Server* in `scheduler` or `webhooks` mode with [OpenTelemetry](https://opentelemetry.io/) logging and a service terminal to reflect health, configuration and scheduled tasks.
 - Support for *structural subtyping* through the `typegen` command option which exports TypeScript (TS) interface declarations. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
-- ***cute*** auto-magically "learns" your Contentful space and generates required configuration nodes to enable process automation.
 - Interact with ***Douglas***, cute's very own AI assistant that will answer questions about your content, or even help formulate queries to interact with your content.
 
 > 💡 [Contentful](https://www.contentful.com) is a content infrastructure platform that lets you create, manage and distribute content to any platform. 
