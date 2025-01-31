@@ -201,7 +201,15 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         {
                             var cloudEntry = await ContentfulConnection.GetManagementEntryAsync(entryId);
                             var deserializedEntry = serializer.DeserializeEntry(flatEntry);
-                            cloudEntry.Fields = deserializedEntry.Fields;
+
+                            foreach (var field in fieldsToTranslate)
+                            {
+                                foreach (var localeCode in targetLocaleCodes)
+                                {
+                                    cloudEntry.Fields[field.Id][localeCode] = deserializedEntry.Fields[field.Id]![localeCode];
+                                }
+                            }
+
                             needToPublish = true;
                             await ContentfulConnection.CreateOrUpdateEntryAsync(cloudEntry, entry.SystemProperties.Version);
                         }
