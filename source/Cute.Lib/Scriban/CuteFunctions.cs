@@ -199,6 +199,7 @@ public class CuteFunctions : ScriptObject
         {
             lock (_nearEntriesCache)
             {
+                var defaultLocaleCode = ContentfulConnection.GetDefaultLocaleAsync().Result.Code;
                 var contentEntriesLoader = ContentfulConnection.GetManagementEntries<Entry<JObject>>(
                         new EntryQuery.Builder()
                             .WithContentType(contentType)
@@ -206,8 +207,8 @@ public class CuteFunctions : ScriptObject
                             .Build()
                     )
                     .ToBlockingEnumerable()
-                    .Where(e => e.Entry.Fields[locationField]?["en"] != null)
-                    .Select(e => e.Entry.Fields[locationField]?["en"]!.ToObject<Location>()!)
+                    .Where(e => e.Entry.Fields[locationField]?[defaultLocaleCode] != null)
+                    .Select(e => e.Entry.Fields[locationField]?[defaultLocaleCode]!.ToObject<Location>()!)
                     .ToList();
 
                 _nearEntriesCache.TryAdd(cacheKey, contentEntriesLoader);
@@ -235,9 +236,11 @@ public class CuteFunctions : ScriptObject
             .Select(s => s.Trim())
             .Select(s => contentEntries.ContainsKey(s) ? s : defaultValue);
 
+        var defaultLocaleCode = ContentfulConnection.GetDefaultLocaleAsync().Result.Code;
+
         var resultValues = returnField.Equals("$id", StringComparison.OrdinalIgnoreCase)
             ? lookupValues.Select(s => contentEntries[s].SystemProperties.Id)
-            : lookupValues.Select(s => contentEntries[s].Fields[returnField]?["en"]!.Value<string>());
+            : lookupValues.Select(s => contentEntries[s].Fields[returnField]?[defaultLocaleCode]!.Value<string>());
 
         var retval = string.Join(',', resultValues.OrderBy(s => s));
 
@@ -250,6 +253,7 @@ public class CuteFunctions : ScriptObject
         {
             lock (_lookupEntriesCache)
             {
+                var defaultLocaleCode = ContentfulConnection.GetDefaultLocaleAsync().Result.Code;
                 var contentEntriesLoader = ContentfulConnection.GetManagementEntries<Entry<JObject>>(
                         new EntryQuery.Builder()
                             .WithContentType(contentType)
@@ -257,8 +261,8 @@ public class CuteFunctions : ScriptObject
                             .Build()
                     )
                     .ToBlockingEnumerable()
-                    .Where(e => e.Entry.Fields[matchField]?["en"] != null)
-                    .ToDictionary(e => e.Entry.Fields[matchField]?["en"]!.Value<string>()!, e => e.Entry, StringComparer.InvariantCultureIgnoreCase);
+                    .Where(e => e.Entry.Fields[matchField]?[defaultLocaleCode]?.Value<string>() != null)
+                    .ToDictionary(e => e.Entry.Fields[matchField]?[defaultLocaleCode]!.Value<string>()!, e => e.Entry, StringComparer.InvariantCultureIgnoreCase);
 
                 _lookupEntriesCache.TryAdd(cacheKey, contentEntriesLoader);
             }
