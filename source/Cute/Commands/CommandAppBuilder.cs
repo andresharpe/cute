@@ -80,16 +80,16 @@ public class CommandAppBuilder
             commandConfig.Settings.HelpProviderStyles = GetHelpProviderstyle();
 
             commandConfig.AddCommand<LoginCommand>("login")
-                .WithDescription("Run this command first to configure your Contentful profile along with AI and translation services.");
+                .WithDescription("Run this command first to configure your Contentful profile along with AI and Translation Services.");
 
             commandConfig.AddCommand<LogoutCommand>("logout")
-                .WithDescription("Log out of Contentful.");
+                .WithDescription("Log out of Contentful and clear your session credentials.");
 
             commandConfig.AddCommand<InfoCommand>("info")
                 .WithDescription("Display information about a Contentful space.");
 
             commandConfig.AddCommand<ChatCommand>("chat")
-                .WithDescription("Make the robots do the work! Interact with your space using AI.");
+                .WithDescription("Make the robots do the work! Interact with your space using cute's AI assistant.");
 
             /*
             commandConfig.AddBranch("profile", branchConfig =>
@@ -196,7 +196,7 @@ public class CommandAppBuilder
                 branchConfig.SetDescription("Tools to evaluate the quality of generated content using the LLM and translation engine.");
 
                 branchConfig.AddCommand<EvalContentGeneratorCommand>("content-generator")
-                    .WithDescription("Use deepeval to measure the quality of content generation.");
+                    .WithDescription("Use DeepEval to measure the quality of content generation.");
 
                 branchConfig.AddCommand<EvalContentTranslatorCommand>("content-translator")
                     .WithDescription("Measure the quality of the translation engine output.");
@@ -207,7 +207,7 @@ public class CommandAppBuilder
 
             commandConfig.AddBranch("server", branchConfig =>
             {
-                branchConfig.SetDescription("Run cute in server mode.");
+                branchConfig.SetDescription("Run cute in server mode supporting scheduled tasks and webhooks.");
 
                 branchConfig.AddCommand<ServerSchedulerCommand>("scheduler")
                     .WithDescription("Schedule and run cuteContentSyncApi entries.");
@@ -217,7 +217,7 @@ public class CommandAppBuilder
             });
 
             commandConfig.AddCommand<VersionCommand>("version")
-                .WithDescription("Display the current installed version of the CLI.");
+                .WithDescription("Display the current installed version of the cute CLI.");
 
             configurator?.Invoke(commandConfig);
         });

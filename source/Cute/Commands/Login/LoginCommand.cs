@@ -27,7 +27,7 @@ public sealed class LoginCommand(IConsoleWriter console, IPersistedTokenCache to
         public string? OpenAiEndpoint { get; set; } = null!;
 
         [CommandOption("-k|--openai-token <TOKEN>")]
-        [Description("The Azure OpenAI Api key.")]
+        [Description("The Azure OpenAI API key.")]
         public string? OpenAiApiKey { get; set; } = null!;
 
         [CommandOption("-n|--openai-deployment-name <NAME>")]

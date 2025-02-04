@@ -31,7 +31,7 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
         public InputFileFormat? Format { get; set; }
 
         [CommandOption("-m|--match-field <NAME>")]
-        [Description("The optional name of the field to match in addition to the entry id.")]
+        [Description("The optional name of the field to match in addition to the entry ID.")]
         public string? MatchField { get; set; } = null!;
 
         [CommandOption("-a|--apply")]

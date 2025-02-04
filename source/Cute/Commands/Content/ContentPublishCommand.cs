@@ -22,7 +22,7 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
     public class Settings : LoggedInSettings
     {
         [CommandOption("-c|--content-type-id <ID>")]
-        [Description("The Contentful content type id.")]
+        [Description("The Contentful content type ID.")]
         public string ContentTypeId { get; set; } = default!;
     }
 
