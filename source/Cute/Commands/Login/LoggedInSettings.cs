@@ -7,11 +7,11 @@ namespace Cute.Commands.Login;
 public class LoggedInSettings : CommonSettings
 {
     [CommandOption("--management-token <TOKEN>")]
-    [Description("Your Contentful management API token. See [italic LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]")]
+    [Description("Your Contentful Management API (CMA) token. See [italic LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]")]
     public string? ManagementToken { get; set; }
 
     [CommandOption("--delivery-token <TOKEN>")]
-    [Description("Your Contentful Content Delivery API token. See [italic LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]")]
+    [Description("Your Contentful Content Delivery API (CDA) token. See [italic LightSkyBlue3]https://www.contentful.com/developers/docs/references/authentication/[/]")]
     public string? ContentDeliveryToken { get; set; }
 
     [CommandOption("--preview-token <TOKEN>")]

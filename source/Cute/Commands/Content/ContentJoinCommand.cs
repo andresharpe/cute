@@ -22,7 +22,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
     public class Settings : LoggedInSettings
     {
         [CommandOption("-k|--key")]
-        [Description("The id of the Contentful join entry to generate content for.")]
+        [Description("The key of the 'cuteContentJoin' entry.")]
         public string JoinId { get; set; } = default!;
 
         [CommandOption("-i|--entry-id")]
