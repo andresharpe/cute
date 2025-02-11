@@ -34,11 +34,11 @@
   - [`translate` Content](#translate-content)
     - [Criteria for translating an entry](#criteria-for-translating-an-entry)
     - [Working with multiple AI Translators](#working-with-multiple-ai-translators)
-    - [Example](#example-2)
+    - [Example 1](#example-1-1)
 - [Commands: Running ***cute*** as a `server`](#commands-running-cute-as-a-server)
   - [Run ***cute*** as a `scheduler` server](#run-cute-as-a-scheduler-server)
   - [Run ***cute*** as a `webhooks` server](#run-cute-as-a-webhooks-server)
-    - [Example](#example-3)
+    - [Example](#example-2)
 - [Commands: Manage Content Types using `type`](#commands-manage-content-types-using-type)
   - [`scaffold` strong JavaScript or .NET Types](#scaffold-strong-javascript-or-net-types)
 - [Configuring ***cute*** in Contentful](#configuring-cute-in-contentful)
@@ -46,12 +46,14 @@
   - [Configuring `cuteContentJoin`](#configuring-cutecontentjoin)
   - [Configuring `cuteContentSyncApi`](#configuring-cutecontentsyncapi)
   - [Configuring `cuteContentGenerate`](#configuring-cutecontentgenerate)
+  - [Configuring `cuteLanguage` and `cuteContentTypeTranslation`](#configuring-cutelanguage-and-cutecontenttypetranslation)
   - [Configuring `cuteDataQuery`](#configuring-cutedataquery)
-    - [Example 1](#example-1-1)
+    - [Example 1](#example-1-2)
     - [Example 2](#example-2-1)
 - [Command Structure for v2.0](#command-structure-for-v20)
 - [Contributing to Cute](#contributing-to-cute)
 
+<!-- /TOC -->
 <!-- /TOC -->
 </details>
 
@@ -69,7 +71,7 @@
 - Perform *Bulk operations* on your content with support for publish/unpublish, edit, search & replace and delete actions.
 - Input data can be sourced and synced from many external sources including flat files, databases, webAPIs, your Contentful space and other popular sources like [WikiData](https://www.wikidata.org/).
 - *Generate content* from scratch using [OpenAI's](https://openai.com/api/) GPT and reasoning models with comprehensive prompt configuration support.
-- Support for *content translation* using popular AI translation services like [Google Translation UI](https://cloud.google.com/translate), [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator), [DeepL](https://www.deepl.com/) and [OpenAI](https://openai.com/).
+- Support for *content translation* using popular AI translation services like [Google Translation AI](https://cloud.google.com/translate), [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator), [DeepL](https://www.deepl.com/) and [OpenAI](https://openai.com/).
 - Deploy ***cute*** as a *Web Server* in `scheduler` or `webhooks` mode with [OpenTelemetry](https://opentelemetry.io/) logging and a service terminal to reflect health, configuration and scheduled tasks.
 - Support for *structural subtyping* through the `typegen` command option which exports TypeScript (TS) interface declarations. This feature is especially useful to keep your JavaScript or .NET projects in sync with your content types.
 - Interact with ***Douglas***, cute's very own AI assistant that will answer questions about your content, or even help formulate queries to interact with your content.
@@ -427,7 +429,7 @@ And having a look at the `Mathematics`, `Fine Art` and `Economics` entries under
 
 ### Example 2
 
-For our second example, we'll work with the `viewCourseByLocation` content type we created [here](#example-2). This content type is an aggregate of `branchLocation` and `diplomaCourse` and we'll reference both those content types in our prompt.
+For our second example, we'll work with the `viewCourseByLocation` content type we created [here](#content-aggregates-using-join). This content type is an aggregate of `branchLocation` and `diplomaCourse` and we'll reference both those content types in our prompt.
 
 As with example 1 above, we'll [start by configuring](#example-2) a `cuteDataQuery` entry that we'll reference in our `cuteContentGenerate` entry.
 
@@ -451,7 +453,7 @@ And having a look at the `United Kingdom | London | 1001 | Mathematics` and `Spa
 
 ## `translate` Content
 
-You can translate your content into languages of your choice using various popular AI translation services including Azure, DeepL, Google Translation and ChatGPT.
+You can translate your content into languages of your choice using various popular AI translation services including [Azure AI Translator](https://azure.microsoft.com/en-us/products/ai-services/ai-translator), [DeepL](https://www.deepl.com/), [Google Translation AI](https://cloud.google.com/translate) and [OpenAI](https://openai.com/).
 
 Typing `cute content translate --help` will show the full usage and options.
 
@@ -462,10 +464,10 @@ USAGE:
 OPTIONS:
     -h, --help                  Prints help information
     -c, --content-type-id <ID>  The Contentful content type id
-    -f, --field                 The field(s) which will be translated. If not specified, all localized fields will be translated
     -l, --locale <CODE>         The locale code (eg. 'en') linked to the relevant language. If unspecified, all localized fields and languages will be translated
     -k, --key                   The key of a single entry to be translated
-    -a, --apply                 Apply and publish all the calculated changes. The default behaviour is to only list the detected changes
+    -f, --field                 The field(s) which will be translated. If not specified, all localized fields will be translated
+        --custom-model <CODE>   Specifies whether a custom translation model or glossary should be used
 ```
 
 ### Criteria for translating an entry
@@ -478,18 +480,38 @@ OPTIONS:
 
 ***cute*** let's you work with one or several AI translation services, depending on your requirement. You're not limited to a single translation service for all your languages. You can choose the translation service that yields the best result for all or any of the languages you are translating content to.
 
-Within your Contentful model, locate the `cuteLanguageTranslation` section. Here you add `language` entries and assign `Azure`, `Google`, `DeepL` or `GPT4o` to the `translationService` field.
+To enable ***cute***'s translation features you'll need the `cuteLanguage` and `cuteContentTypeTranslation` content types defined within your space. See [this section](#configuring-cutelanguage-and-cutecontenttypetranslation) if these required ***cute*** content types are not yet defined within your space.
+
+Configuring a translation service per language is simple undertaking. Edit (or add) your language of choice in the `cuteLanguage` content type and set the `translationService` field to `Azure`, `Google`, `Deepl` or `GPT4o`, based on your preference.
+
+The `translationContext` field hosts advanced translation options. Typically, for `GPT4o` you can use this field to set a system message to provide additional context to the default translation prompt. For the other translation services this field is used to store the text ID for a custom translation model or glossary.
+
+Optionally, in the `cuteContentTypeTranslation` content type, you can add additional OpenAI prompt configuration per translated content type. We'll explain this further in the examples below.
 
 If no translation service is specified, Azure Translation Service will be used.
 
-### Example
+### Example 1
 
-I work in the admissions department for a technical college with students from all over the globe. I'd like to translate the opening and closing paragraph of our acceptance letter for French, Russian, Georgian and Spanish.
+We're going to translate the content of the `viewCourseByLocation.motivation` field which we generated [in this section](#example-2) into French.
+
+Start by [adding a locale](https://www.contentful.com/help/localization/manage-locales/) for French to your Contentful space and [enabling localization](https://www.contentful.com/help/localization/enable-locales-for-fields/) of the `motivation` field in the `viewCourseByLocation` content type.
+
+Next we'll add a French entry to `cuteLanguage` and configure the `translationService` field as per the screenshot below. Optionally you can add a system message for `GPT4o` to the `translationContext` field.
+
+![cuteLanguage entry configuration screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteLanguage-entry.png)
+
+We're ready to translate the content of the `motivation-en` field and populate the target `motivation-fr` field. Note that you can specify selected fields and/or locales using the `--field` and `--locale` command options, but if you omit these ***cute*** will process all localized fields for all locales.
 
 ```powershell
-cute content translate -c dataAcceptanceLetter --field paragraphOpening, paragraphClosing --locale fr,ru,ka,es
+cute content translate -c viewCourseByLocation
 ```
-This command will get all the dataAcceptanceLetter entries and will translate opening and closing paragraph fields to locales fr (French), ru (Russian), ka (Georgian) and es (Spanish) where applicable.
+***cute*** reads and processes our two `viewCourseByLocation` entries as per the screenshot below.
+
+![cute content translate using gpt4o screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-translate-gpt.png)
+
+Reviewing the entries in `viewCourseByLocation` reveals that the `motivation-fr` field for both entries now contain translated content.
+
+![contentful translation using gpt4o screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-translation-using-gpt4o-entry.png)
 
 [Back to Index](#table-of-content)
 
@@ -609,7 +631,7 @@ OPTIONS:
 
 # Configuring ***cute*** in Contentful
 
-***cute*** has a number of native content types that it uses internally to configure and enable a number of the bulk operation (`cuteContentSyncApi` and `cuteContentJoin`), AI options (`cuteDataQuery` and `cuteContentGenerate`), Server options (`cuteSchedule`) and other (`cuteLanguage`).
+***cute*** has a number of native content types that it uses internally to configure and enable a number of its bulk operation features (`cuteContentSyncApi` and `cuteContentJoin`), AI options (`cuteDataQuery` and `cuteContentGenerate`), Translation services (`cuteLanguage` and `cuteContentTypeTranslation`) and Server options (`cuteSchedule`).
 
 ## Scaffold ***cute*** Content using `content testdata`
 
@@ -665,6 +687,16 @@ If you're using the `cute content sync-api` feature for the first time, you'll n
 If it's the first time you're using the content generation feature of ***cute*** you will need to define a `cuteContentGenerate` content type in your Contentful space as per the attached screenshot below:
 
 ![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentGenerate-model.png)
+
+## Configuring `cuteLanguage` and `cuteContentTypeTranslation`
+
+If it's the first time you're using the content translation features of ***cute*** you will require translation content types in your Contentful space. Firstly, define `cuteLanguage` as per the attached screenshots below:
+
+![contentful cuteLanguage model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteLanguage-model.png)
+
+Then define `cuteContentTypeTranslation` as per the screenshot below:
+
+![contentful cuteContentTypeTranslation model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentTypeTranslation-model.png)
 
 ## Configuring `cuteDataQuery`
 
