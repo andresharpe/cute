@@ -172,6 +172,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             await context.Response.WriteAsync($"<small>Status:</small><br><b>{status}</b><br>");
 
         await context.Response.WriteAsync($"<small>Next run:</small><br><b>{nextRun}</b><br>");
+        await context.Response.WriteAsync($"<small>ETA:</small><br><b>{(nextRunTime - DateTime.UtcNow).ToString(@"hh\:mm")}</b><br>");
         await context.Response.WriteAsync($"</td>");
         await context.Response.WriteAsync($"</tr>");
     }
@@ -439,7 +440,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             {
                 _console.WriteException(ex);
                 entry.LastRunStatus = $"error";
-                entry.LastRunErrorMessage = ex.Message;
+                entry.LastRunErrorMessage = $"Exception: {ex.Message} \nTrace: {ex.StackTrace}";
                 entry.LastRunFinished = DateTime.UtcNow;
             }
             finally
