@@ -221,12 +221,16 @@ public class CuteFunctions : ScriptObject
 
     private static readonly ConcurrentDictionary<string, Dictionary<string, Entry<JObject>>> _lookupEntriesCache = [];
 
-    public static string LookupList(string values, string contentType, string matchField, string returnField, string defaultValue)
+    public static string? LookupList(string values, string contentType, string matchField, string returnField, string? defaultValue = null)
     {
         var cacheKey = $"{contentType}|{matchField}";
 
         if (string.IsNullOrEmpty(values))
         {
+            if (string.IsNullOrEmpty(defaultValue))
+            {
+                return null;
+            }
             values = defaultValue;
         }
 
@@ -234,15 +238,22 @@ public class CuteFunctions : ScriptObject
 
         var lookupValues = values.Split(',')
             .Select(s => s.Trim())
-            .Select(s => contentEntries.ContainsKey(s) ? s : defaultValue);
+            .Select(s => contentEntries.ContainsKey(s) ? s : defaultValue)
+            .Where(s => !string.IsNullOrEmpty(s));
+
+        if(!lookupValues.Any())
+        {
+            return null;
+        }
 
         var defaultLocaleCode = ContentfulConnection.GetDefaultLocaleAsync().Result.Code;
+        var retval = string.Empty;
 
         var resultValues = returnField.Equals("$id", StringComparison.OrdinalIgnoreCase)
-            ? lookupValues.Select(s => contentEntries[s].SystemProperties.Id)
-            : lookupValues.Select(s => contentEntries[s].Fields[returnField]?[defaultLocaleCode]!.Value<string>());
+            ? lookupValues.Select(s => contentEntries[s!].SystemProperties.Id)
+            : lookupValues.Select(s => contentEntries[s!].Fields[returnField]?[defaultLocaleCode]!.Value<string>());
 
-        var retval = string.Join(',', resultValues.OrderBy(s => s));
+        retval = string.Join(',', resultValues.OrderBy(s => s));
 
         return retval;
     }
