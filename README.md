@@ -35,6 +35,7 @@
     - [Criteria for translating an entry](#criteria-for-translating-an-entry)
     - [Working with multiple AI Translators](#working-with-multiple-ai-translators)
     - [Example 1](#example-1-1)
+    - [Configuring Other Translation Services](#configuring-other-translation-services)
 - [Commands: Running ***cute*** as a `server`](#commands-running-cute-as-a-server)
   - [Run ***cute*** as a `scheduler` server](#run-cute-as-a-scheduler-server)
   - [Run ***cute*** as a `webhooks` server](#run-cute-as-a-webhooks-server)
@@ -512,6 +513,30 @@ cute content translate -c viewCourseByLocation
 Reviewing the entries in `viewCourseByLocation` reveals that the `motivation-fr` field for both entries now contain translated content.
 
 ![contentful translation using gpt4o screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-translation-using-gpt4o-entry.png)
+
+### Configuring Other Translation Services
+
+The examples above used OpenAI GPT to translate the required content, and since we used the same OpenAI credentials we supplied when we configured our session using `cute login`, no additional configuration was required. However, when using other dedicated translation services we'll need some specific configuration settings per service.
+
+> ☝ ***cute*** stores configuration information for translation and other services in a local `.env` file. This file ensures that ***cute*** supports autonomous configuration for each environment to which it is deployed. Ensure that this file is present in your application root folder. If not you can use a code editor of your choice to create a new file and save it with the `.env` file name.
+
+See the code snippet below as an example of required configuration information for the Azure, Google and DeepL translation services respectively.
+
+```prolog
+Cute__AzureTranslatorApiKey=<my_azure_apikey>
+Cute__AzureTranslatorEndpoint=<my_azure_endpoint>
+Cute__AzureTranslatorRegion=<my_azure_region>
+Cute__AzureTranslationCategory=<my_azure_category>
+
+Cute__GoogleApiKey=<my_google_apikey>
+
+Cute__DeeplApiKey=<my_deepl_apikey>
+```
+Replace everything between and including the `<` and `>` characters with your credentials and configuration settings relevant to your selected translation service.
+
+All that remains is to set the `translationService` value in `cuteLanguage` to your selected service, as per the screenshot below:
+
+![contentful translation other services screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteLanguage-translationService.png)
 
 [Back to Index](#table-of-content)
 
