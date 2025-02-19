@@ -71,7 +71,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public int LargePopulation { get; set; } = 10000;
 
         [CommandOption("-h|--huge-population")]
-        [Description("The city or town minimum population for large cities")]
+        [Description("The city or town minimum population for huge cities")]
         public int HugePopulation { get; set; } = 40000;
 
         [CommandOption("-a|--apply")]
