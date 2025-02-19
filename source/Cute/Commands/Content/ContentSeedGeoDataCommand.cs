@@ -67,11 +67,11 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public int SmallKilometerRadius { get; set; } = 2;
 
         [CommandOption("-n|--large-population")]
-        [Description("The city or town minimum population for large cities")]
+        [Description("The minimum population for a city or town to be considered large in scale")]
         public int LargePopulation { get; set; } = 10000;
 
         [CommandOption("-h|--huge-population")]
-        [Description("The city or town minimum population for large cities")]
+        [Description("The minimum population for a city or town to be considered huge in scale")]
         public int HugePopulation { get; set; } = 40000;
 
         [CommandOption("-a|--apply")]
