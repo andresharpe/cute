@@ -70,7 +70,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         [Description("The minimum population for a city or town to be considered large in scale")]
         public int LargePopulation { get; set; } = 10000;
 
-        [CommandOption("-h|--huge-population")]
+        [CommandOption("-u|--huge-population")]
         [Description("The minimum population for a city or town to be considered huge in scale")]
         public int HugePopulation { get; set; } = 40000;
 
