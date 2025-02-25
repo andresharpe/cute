@@ -1,4 +1,5 @@
 ﻿using Cute.Config;
+using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 using Cute.Lib.Exceptions;
 using Cute.Services.Translation.Interfaces;
 using Google.Cloud.Translation.V2;
@@ -40,12 +41,27 @@ namespace Cute.Services.Translation
             };
         }
 
-        public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes)
+        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        {
+            return await Translate(textToTranslate, fromLanguageCode, toLanguageCode);
+        }
+
+        public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        {
+            return await Translate(textToTranslate, fromLanguageCode, toLanguageCodes);
+        }
+
+        public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages)
         {
             throw new NotImplementedException();
         }
 
-        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation)
         {
             throw new NotImplementedException();
         }

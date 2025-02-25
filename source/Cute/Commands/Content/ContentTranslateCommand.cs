@@ -49,7 +49,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             fieldsToTranslate = fieldsToTranslate.Where(f => settings.Fields.Contains(f.Id)).ToList();
         }
 
-        var targetLocales = (await ContentfulConnection.GetLocalesAsync()).Where(k => k.Code != defaultLocale.Code).ToList();
+        var contentLocales = await ContentfulConnection.GetLocalesAsync();
+        var allContentLocales = new ContentLocales(contentLocales.Select(c => c.Code).ToArray(), defaultLocale.Code);
+
+        var targetLocales = (contentLocales).Where(k => k.Code != defaultLocale.Code).ToList();
         if(settings.Locales?.Length > 0)
         {
             targetLocales = targetLocales.Where(k => settings.Locales.Contains(k.Code)).ToList();
@@ -81,30 +84,25 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             .ToDictionary
             (
                 x => x.Iso2Code,
-                x => 
-                {
-                    if(Enum.TryParse<TranslationService>(x.TranslationService, out var translationService))
-                    {
-                        return translationService;
-                    }
-                    return TranslationService.Azure;
-                }
+                x => x
             );
+
+        var contentTypeTranslation = ContentfulConnection.GetPreviewEntryByKey<CuteContentTypeTranslation>(settings.ContentTypeId);
 
         if(!ConfirmWithPromptChallenge($"translate entries for {settings.ContentTypeId}"))
         {
             return -1;
         }
 
-        Func<ITranslator, string, string, string, Task<string?>> translate = settings.UseCustomModel ?
+        Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = settings.UseCustomModel ?
             async (translator, text, from, to) =>
             {
-                var translation = await translator.TranslateWithCustomModel(text, from, to);
+                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation);
                 return translation?.Text;
             } :
             async (translator, text, from, to) =>
             {
-                var translation = await translator.Translate(text, from, to);
+                var translation = await translator.Translate(text, from, to.Iso2Code);
                 return translation?.Text;
             };
 
@@ -118,8 +116,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     var taskTranslate = ctx.AddTask($"{Emoji.Known.Robot}  Translating (0 symbols translated)");
 
                     var targetLocaleCodes = targetLocales.Select(targetLocales => targetLocales.Code).ToArray();
-                    var contentLocales = new ContentLocales(targetLocaleCodes, defaultLocale.Code);
-                    var serializer = new EntrySerializer(contentType, contentLocales);
+                    var serializer = new EntrySerializer(contentType, allContentLocales);
 
                     var queryBuilder = new EntryQuery.Builder()
                     .WithContentType(settings.ContentTypeId)
@@ -168,19 +165,32 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                             foreach (var targetLocale in targetLocales)
                             {
+                                if (!translationConfiguration.TryGetValue(targetLocale.Code, out var cuteLanguage))
+                                {
+                                    _console.WriteAlert($"No translation configuration found for locale {targetLocale.Code}");
+                                    continue;
+                                }
+
                                 var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
                                 if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null)
                                 {
                                     symbols += defaultLocaleFieldValue.Length;
                                     TranslationService tService;
-                                    if (!translationConfiguration.TryGetValue(targetLocale.Code, out tService))
+                                    if(!Enum.TryParse(cuteLanguage.TranslationService, out tService))
                                     {
-                                        tService = TranslationService.Azure;
+                                        tService = TranslationService.GPT4o;
                                     }
                                     var translator = _translateFactory.Create(tService);
-                                    flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, targetLocale.Code);
-                                    entryChanged = true;
-                                    taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
+                                    try
+                                    {
+                                        flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, cuteLanguage);
+                                        entryChanged = true;
+                                        taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _console.WriteAlert($"Error translating text from {defaultLocale.Code} to {targetLocale.Code} using {tService}. Error Message: {ex.Message}");
+                                    }
                                 }
                                 taskTranslate.Increment(1);
                             }
@@ -191,7 +201,15 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         {
                             var cloudEntry = await ContentfulConnection.GetManagementEntryAsync(entryId);
                             var deserializedEntry = serializer.DeserializeEntry(flatEntry);
-                            cloudEntry.Fields = deserializedEntry.Fields;
+
+                            foreach (var field in fieldsToTranslate)
+                            {
+                                foreach (var localeCode in targetLocaleCodes)
+                                {
+                                    cloudEntry.Fields[field.Id][localeCode] = deserializedEntry.Fields[field.Id]![localeCode];
+                                }
+                            }
+
                             needToPublish = true;
                             await ContentfulConnection.CreateOrUpdateEntryAsync(cloudEntry, entry.SystemProperties.Version);
                         }
@@ -200,7 +218,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     taskTranslate.StopTask();
                 });            
 
-            var contentLocales = new ContentLocales(targetLocales.Select(t => t.Code).ToArray(), defaultLocale.Code);
             if (needToPublish)
             {
                 await PerformBulkOperations(

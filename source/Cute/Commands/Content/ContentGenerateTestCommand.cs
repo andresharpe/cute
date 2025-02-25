@@ -31,7 +31,7 @@ public class ContentGenerateTestCommand(IConsoleWriter console, ILogger<ContentG
         public string Key { get; set; } = default!;
 
         [CommandOption("-f|--field-id")]
-        [Description("The field id to filter on.")]
+        [Description("The field ID to filter on.")]
         public string FieldId { get; set; } = default!;
 
         [CommandOption("-o|--comparison-operation")]

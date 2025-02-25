@@ -104,7 +104,7 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
     {
         webBuilder.WebHost.ConfigureKestrel(web =>
         {
-            web.ListenLocalhost(settings.Port);
+            web.ListenAnyIP(settings.Port);
         });
     }
 

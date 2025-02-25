@@ -87,7 +87,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         var bulkOperations = new List<IBulkAction>()
         {
-            new UpsertBulkAction(ContentfulConnection, _httpClient)
+            new UpsertBulkAction(ContentfulConnection, _httpClient, true)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithNewEntries(

@@ -24,7 +24,7 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
     public class Settings : ContentCommandSettings
     {
         [CommandOption("-f|--format <FORMAT>")]
-        [Description("The output format for the download operation (Excel/Csv/Tsv/Json/Yaml)")]
+        [Description("The output format for the download operation (Excel/CSV/TSV/JSON/YAML)")]
         public OutputFileFormat? Format { get; set; }
 
         [CommandOption("-p|--path <PATH>")]
