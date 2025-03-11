@@ -338,11 +338,11 @@ internal class EntryFieldSerializer
 
             if (stringValue.Contains(_arrayDelimeter))
             {
-                arr = stringValue.Split(_arrayDelimeter).Select(s => s.Trim()).OrderBy(s => s).ToArray();
+                arr = stringValue.Split(_arrayDelimeter).Select(s => s.Trim()).ToArray();
             }
             else if (stringValue.Contains(_arrayCfDelimeter))
             {
-                arr = stringValue.Split(_arrayCfDelimeter).Select(s => s.Trim()).OrderBy(s => s).ToArray();
+                arr = stringValue.Split(_arrayCfDelimeter).Select(s => s.Trim()).ToArray();
             }
             else
             {
