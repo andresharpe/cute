@@ -38,6 +38,10 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
         [CommandOption("-o|--operation")]
         [Description("Specify the generation operation to perform. (GenerateSingle, GenerateParallel, GenerateBatch or ListBatches)")]
         public GenerateOperation Operation { get; set; } = GenerateOperation.GenerateSingle;
+
+        [CommandOption("--target-entry-key")]
+        [Description("The key of the target entry to generate content for.")]
+        public string? searchKey { get; set; } = default!;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -99,7 +103,8 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
                     taskGenerate.MaxValue = steps;
                     taskGenerate.Value = step;
                     taskGenerate.Description = $"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Generating ({step}/{steps})[/]";
-                }
+                },
+                searchKey: settings.searchKey
             );
 
             taskGenerate.StopTask();

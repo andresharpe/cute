@@ -73,7 +73,8 @@ public class GenerateBulkAction(
         Action<int, int>? progressUpdater = null,
         bool testOnly = false,
         DataFilter? dataFilter = null,
-        string[]? modelNames = null)
+        string[]? modelNames = null,
+        string? searchKey = null)
     {
         var options = _azureOpenAiOptionsProvider.GetAzureOpenAIClientOptions();
 
@@ -112,7 +113,7 @@ public class GenerateBulkAction(
 
             var queryResult = new JArray();
             var totalRead = 0;
-            await foreach (var entry in GetQueryData(cuteContentGenerateEntry))
+            await foreach (var entry in GetQueryData(cuteContentGenerateEntry, searchKey))
             {
                 progressUpdater?.Invoke(queryResult.Count, ++totalRead);
 
@@ -1166,11 +1167,11 @@ public class GenerateBulkAction(
         return client.GetChatClient(deploymentName);
     }
 
-    private IAsyncEnumerable<JObject> GetQueryData(CuteContentGenerate cuteContentGenerateEntry)
+    private IAsyncEnumerable<JObject> GetQueryData(CuteContentGenerate cuteContentGenerateEntry, string? searchKey = null)
     {
         // Add the target field to the query if it doesn't exist...
         var query = GraphQLUtilities.EnsureFieldExistsOrAdd(cuteContentGenerateEntry.CuteDataQueryEntry.Query,
-            cuteContentGenerateEntry.PromptOutputContentField);
+            cuteContentGenerateEntry.PromptOutputContentField, searchKey);
 
         return _contentfulConnection.GraphQL.GetDataEnumerable(
             query,

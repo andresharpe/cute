@@ -8,9 +8,14 @@ namespace Cute.Lib.Contentful.GraphQL;
 
 public class GraphQLUtilities
 {
-    public static string EnsureFieldExistsOrAdd(string query, string field)
+    public static string EnsureFieldExistsOrAdd(string query, string field, string? searchKey = null)
     {
         var document = Parser.Parse(query);
+
+        if(!string.IsNullOrEmpty(searchKey))
+        {
+            AddKeySearch(document, "Collection", searchKey);
+        }
 
         var userField = FindSelectionSet(document, "Collection", "items")
             ?? throw new CliException("The query does not contain a 'Collection' field with an 'items' field.");
@@ -76,6 +81,46 @@ public class GraphQLUtilities
             }
         }
         return null;
+    }
+
+    private static void AddKeySearch(GraphQLDocument document, string parentFieldPostFix, string searchKey)
+    {
+        foreach (var definition in document.Definitions)
+        {
+            if (definition is GraphQLOperationDefinition operation)
+            {
+                foreach (var selection in operation.SelectionSet.Selections)
+                {
+                    if (selection is GraphQLField parent && parent.Name.StringValue.EndsWith(parentFieldPostFix))
+                    {
+                        bool hasWhere = false;
+                        foreach (var argument in parent.Arguments!.Items)
+                        {
+                            if (argument is GraphQLArgument arg && arg.Name.StringValue == "where")
+                            {
+                                if(arg.Value is GraphQLObjectValue values)
+                                {
+                                    values.Fields!.Add(new GraphQLObjectField(new GraphQLName("key"), new GraphQLStringValue(searchKey)));
+                                    hasWhere = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!hasWhere)
+                        {
+                            parent.Arguments.Items.Add(new GraphQLArgument(new GraphQLName("where"), new GraphQLObjectValue
+                            {
+                                Fields = new List<GraphQLObjectField>
+                                {
+                                    new GraphQLObjectField(new GraphQLName("key"), new GraphQLStringValue(searchKey))
+                                }
+                            }));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Function to check if a selection set has a specific field
