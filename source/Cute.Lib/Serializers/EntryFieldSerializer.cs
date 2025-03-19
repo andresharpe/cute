@@ -408,10 +408,10 @@ internal class EntryFieldSerializer
 
         if (_itemType.Type == "Link")
         {
-            return string.Join(_arrayDelimeter, list.Select(t => t["sys"]?["id"]?.ToString()).OrderBy(s => s));
+            return string.Join(_arrayDelimeter, list.Select(t => t["sys"]?["id"]?.ToString()));
         }
 
-        return string.Join(_arrayDelimeter, list.Select(o => o.ToString()).OrderBy(s => s));
+        return string.Join(_arrayDelimeter, list.Select(o => o.ToString()));
     }
 
     private static string? ToMarkDown(JToken? richText)
