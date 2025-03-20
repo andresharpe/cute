@@ -14,7 +14,7 @@ public sealed class LoginCommand(IConsoleWriter console, IPersistedTokenCache to
 {
     private const string _contentfulPatPrefix = "CFPAT-";
     private const int _contentfulPatLength = 49;
-    private const int _openAiPatLength = 32;
+    private const int _openAiPatMinimumLength = 10;
 
     private readonly IConsoleWriter _console = console;
     private readonly IPersistedTokenCache _tokenCache = tokenCache;
@@ -222,9 +222,10 @@ public sealed class LoginCommand(IConsoleWriter console, IPersistedTokenCache to
         return ValidationResult.Success();
     }
 
+    //TODO: Get back to this later. Check if length is no less than 10 characters for now.
     private ValidationResult ValidateOpenAiApiKey(string pat)
     {
-        if (pat.Length != _openAiPatLength) return ValidationResult.Error("Invalid access token.");
+        if (pat.Length < _openAiPatMinimumLength) return ValidationResult.Error("Invalid access token.");
 
         return ValidationResult.Success();
     }
