@@ -31,7 +31,7 @@ namespace Cute.Services.Translation
             return results.ToArray();
         }
 
-        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, Dictionary<string, string>? glossary = null)
         {
             var result = await _client.TranslateTextAsync(textToTranslate, toLanguageCode, fromLanguageCode);
             return new TranslationResponse
@@ -41,7 +41,7 @@ namespace Cute.Services.Translation
             };
         }
 
-        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
         {
             return await Translate(textToTranslate, fromLanguageCode, toLanguageCode);
         }
@@ -56,12 +56,12 @@ namespace Cute.Services.Translation
             throw new NotImplementedException();
         }
 
-        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage)
+        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, Dictionary<string, string>? glossary = null)
         {
             throw new NotImplementedException();
         }
 
-        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
         {
             throw new NotImplementedException();
         }

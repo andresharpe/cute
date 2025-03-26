@@ -4,6 +4,7 @@ using Cute.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
+using Cute.Lib.Contentful.CommandModels.TranslationGlossary;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Serializers;
@@ -37,6 +38,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("--custom-model <CODE>")]
         [Description("Specifies whether custom model translation should be used")]
         public bool UseCustomModel { get; set; } = false;
+
+        [CommandOption("--use-glossary <CODE>")]
+        [Description("Specifies whether custom glossary (cuteTranslationGlossary) should be used")]
+        public bool UseGlossary { get; set; } = false;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -87,6 +92,31 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 x => x
             );
 
+        Dictionary<string, Dictionary<string, string>>? glossary = null;
+
+        if (settings.UseGlossary)
+        {
+            var glossaryEnumerator = ContentfulConnection.GetManagementEntries<Entry<CuteTranslationGlossary>>("cuteTranslationGlossary");
+
+            glossary = targetLocales.ToDictionary(x => x.Code, x => new Dictionary<string, string>());
+
+            await foreach (var (entry, total) in glossaryEnumerator!)
+            {
+                if (!entry.Fields.Title.TryGetValue(defaultLocale.Code, out var key) || string.IsNullOrEmpty(key))
+                {
+                    continue;
+                }
+
+                foreach (var targetLocale in targetLocales)
+                {
+                    if (entry.Fields.Title.TryGetValue(targetLocale.Code, out var value) && !string.IsNullOrEmpty(value))
+                    {
+                        glossary[targetLocale.Code][key] = value;
+                    }
+                }
+            }
+        }
+
         var contentTypeTranslation = ContentfulConnection.GetPreviewEntryByKey<CuteContentTypeTranslation>(settings.ContentTypeId);
 
         if(!ConfirmWithPromptChallenge($"translate entries for {settings.ContentTypeId}"))
@@ -97,12 +127,12 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = settings.UseCustomModel ?
             async (translator, text, from, to) =>
             {
-                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation);
+                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
                 return translation?.Text;
             } :
             async (translator, text, from, to) =>
             {
-                var translation = await translator.Translate(text, from, to.Iso2Code);
+                var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
                 return translation?.Text;
             };
 
@@ -172,7 +202,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                 }
 
                                 var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
-                                if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null)
+                                if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null || string.IsNullOrEmpty(flatEntryTargetLocaleValue.ToString()))
                                 {
                                     symbols += defaultLocaleFieldValue.Length;
                                     TranslationService tService;
