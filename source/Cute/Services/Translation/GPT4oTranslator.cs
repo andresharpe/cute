@@ -40,16 +40,16 @@ namespace Cute.Services.Translation
             return await Translate(textToTranslate, fromLanguageCode, toLanguageCodes, null);
         }
 
-        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, Dictionary<string, string>? glossary = null)
         {
-            return await Translate(textToTranslate, fromLanguageCode, toLanguageCode, null);
+            return await Translate(textToTranslate, fromLanguageCode, toLanguageCode, null, glossary);
         }
 
-        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
         {
             TranslationResponse result = new TranslationResponse
             {
-                Text = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguageCode, null, cuteContentTypeTranslation?.TranslationContext),
+                Text = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguageCode, null, cuteContentTypeTranslation?.TranslationContext, glossary),
                 TargetLanguage = toLanguageCode
             };
 
@@ -80,23 +80,23 @@ namespace Cute.Services.Translation
             return results.ToArray();
         }
 
-        public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage)
+        public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, Dictionary<string, string>? glossary = null)
         {
             return await TranslateWithCustomModel(textToTranslate, fromLanguageCode, toLanguage, null); 
         }
 
-        public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation)
+        public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
         {
             TranslationResponse result = new TranslationResponse
             {
-                Text = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguage.Iso2Code, toLanguage.TranslationContext, cuteContentTypeTranslation?.TranslationContext),
+                Text = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguage.Iso2Code, toLanguage.TranslationContext, cuteContentTypeTranslation?.TranslationContext, glossary),
                 TargetLanguage = toLanguage.Iso2Code
             };
 
             return result;
         }
 
-        private async Task<string> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, string toLanguageCode, string? languagePrompt, string? contentTypePrompt)
+        private async Task<string> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, string toLanguageCode, string? languagePrompt, string? contentTypePrompt, Dictionary<string, string>? glossary)
         {
             List<ChatMessage> messages = [];
             var systemMessageText = $"{languagePrompt} {contentTypePrompt}";
@@ -106,6 +106,11 @@ namespace Cute.Services.Translation
             }
 
             messages.Add(new UserChatMessage($"Translate text from language {fromLanguageCode} to language {toLanguageCode}. Text: {textToTranslate}"));
+
+            if (glossary != null && glossary.Count > 0)
+            {
+                messages.Add(new UserChatMessage($"Consider the following glossary ({fromLanguageCode}:{toLanguageCode}) when translating:\n{string.Join('\n', glossary.Select(x => $"{x.Key} : {x.Value}"))}"));
+            }
 
             StringBuilder sb = new();
             await foreach (var part in _chatClient.CompleteChatStreamingAsync(messages, _chatCompletionOptions))

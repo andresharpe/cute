@@ -26,7 +26,7 @@ public class AzureTranslator : ITranslator
         _httpClient = httpClient;
     }
 
-    public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode)
+    public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, Dictionary<string, string>? glossary = null)
     {
         var result = await Translate(fromLanguageCode, [toLanguageCode], textToTranslate);
 
@@ -47,7 +47,7 @@ public class AzureTranslator : ITranslator
         }).ToArray();
     }
 
-    public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation)
+    public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
     {
         return await Translate(textToTranslate, fromLanguageCode, toLanguageCode);
     }
@@ -62,7 +62,7 @@ public class AzureTranslator : ITranslator
         throw new NotImplementedException();
     }
 
-    public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage)
+    public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, Dictionary<string, string>? glossary = null)
     {
         if (string.IsNullOrEmpty(toLanguage.TranslationContext))
         {
@@ -78,7 +78,7 @@ public class AzureTranslator : ITranslator
         }).FirstOrDefault();
     }
 
-    public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation)
+    public Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
     {
         throw new NotImplementedException();
     }
