@@ -236,6 +236,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                             {
                                 foreach (var localeCode in targetLocaleCodes)
                                 {
+                                    if (cloudEntry.Fields[field.Id] is null)
+                                    {
+                                        cloudEntry.Fields[field.Id] = new JObject();
+                                    }
                                     cloudEntry.Fields[field.Id][localeCode] = deserializedEntry.Fields[field.Id]![localeCode];
                                 }
                             }
