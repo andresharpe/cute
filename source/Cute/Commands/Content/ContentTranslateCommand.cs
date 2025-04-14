@@ -139,6 +139,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         try
         {
             bool needToPublish = false;
+            Dictionary<string, List<string>> failedEntryIds = new Dictionary<string, List<string>>();
             await ProgressBars.Instance()
                 .AutoClear(false)
                 .StartAsync(async ctx =>
@@ -213,7 +214,23 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                     var translator = _translateFactory.Create(tService);
                                     try
                                     {
-                                        flatEntry[targetLocaleFieldName] = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, cuteLanguage);
+                                        var tryCount = 3;
+                                        string? translatedText = null;
+                                        while (tryCount > 0 && string.IsNullOrEmpty(translatedText))
+                                        {
+                                            tryCount--;
+                                            translatedText = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, cuteLanguage);
+                                        }
+                                        if (string.IsNullOrEmpty(translatedText))
+                                        {
+                                            if(!failedEntryIds.ContainsKey(entryId))
+                                            {
+                                                failedEntryIds[entryId] = new List<string>();
+                                            }
+
+                                            failedEntryIds[entryId].Add(targetLocaleFieldName);
+                                        }
+                                        flatEntry[targetLocaleFieldName] = translatedText;
                                         entryChanged = true;
                                         taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
                                     }
@@ -266,6 +283,11 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             else
             {
                 Console.WriteLine("There are no entries to translate.");
+            }
+
+            if(failedEntryIds.Count > 0)
+            {
+                throw new CliException($"Failed to translate following entries:\n{string.Join("\n", failedEntryIds.Select(x => $"{x.Key} ({string.Join(", ", x.Value)})"))}");
             }
 
             return 0;
