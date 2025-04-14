@@ -49,7 +49,8 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         MergeNewAdapterEntries();
 
-        CleanUpLocalizations(_withFlatEntries!);
+        //TODO: Revisit this and either make optional or remove.
+        //CleanUpLocalizations(_withFlatEntries!);
 
         count = Math.Max(1, _withFlatEntries?.Count ?? throw new CliException($"Unexpected null value."));
 
@@ -365,7 +366,9 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
             {
                 var newEntry = serializer.DeserializeEntry(localFlatEntry);
                 var cloudFlatEntry = serializer.SerializeEntry(cloudEntry);
-                CleanupFlatEntryLocalizations(cloudFlatEntry);
+
+                //TODO Revisit this and either make optional or remove.
+                //CleanupFlatEntryLocalizations(cloudFlatEntry);
 
                 if (ValuesDiffer(localFlatEntry, cloudFlatEntry, serializer, progressUpdater)
                     || ArrayElementCountsDiffer(cloudEntry.Fields, newEntry.Fields)) // this is sometimes necessary as the cloud may contain a single string in an array field that looks like an array (contains commas), but isn't

@@ -93,7 +93,7 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
 
         var bulkOperations = new List<IBulkAction>()
         {
-            new UpsertBulkAction(ContentfulConnection, _httpClient)
+            new UpsertBulkAction(ContentfulConnection, _httpClient, true)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithNewEntries(
