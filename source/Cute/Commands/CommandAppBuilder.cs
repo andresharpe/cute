@@ -161,6 +161,9 @@ public class CommandAppBuilder
                 branchConfig.AddCommand<ContentClearLocalizationCommand>("clear-fields")
                     .IsHidden()
                     .WithDescription("Clear localized fields for content type");
+
+                branchConfig.AddCommand<ContentSetDefaultValueCommand>("set-default")
+                    .WithDescription("Set default value for Contentful entries in bulk with an optional filter.");
             });
 
             commandConfig.AddBranch("type", branchConfig =>

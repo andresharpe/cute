@@ -206,12 +206,12 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
             optionTable.AddRow(
                 new Markup($"--{option}", Globals.StyleDim),
                 new Markup($"=", Globals.StyleDim),
-                new Markup($"{displayValue}", Globals.StyleNormal)
+                new Markup($"{displayValue?.ToString().EscapeMarkup()}", Globals.StyleNormal)
             );
             showTable = true;
         }
 
-        _console.Write(new Markup("  " + string.Join(' ', context.Arguments), Globals.StyleAlertAccent));
+        _console.Write(new Markup("  " + string.Join(' ', context.Arguments.Select(s => s.EscapeMarkup())), Globals.StyleAlertAccent));
 
         _console.WriteLine();
 
