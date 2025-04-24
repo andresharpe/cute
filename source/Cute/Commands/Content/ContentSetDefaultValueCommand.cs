@@ -38,11 +38,11 @@ public class ContentSetDefaultValueCommand(IConsoleWriter console, ILogger<Conte
         public string Locale { get; set; } = default!;
 
         [CommandOption("-f|--field")]
-        [Description("The field to update.")]
+        [Description("The fields to update.")]
         public string[] Fields { get; set; } = null!;
 
         [CommandOption("-r|--replace")]
-        [Description("The value to update it with. Can contain an expression.")]
+        [Description("The values to update it with. Can contain an expression.")]
         public string[] Values { get; set; } = null!;
 
         [CommandOption("--filter-field")]
@@ -133,7 +133,7 @@ public class ContentSetDefaultValueCommand(IConsoleWriter console, ILogger<Conte
             },
             k => k.Id);
 
-        var serializer = new EntrySerializer(contentType, new ContentLocales([locale.Code], (await ContentfulConnection.GetDefaultLocaleAsync()).Code));
+        var serializer = new EntrySerializer(contentType, contentLocales);
 
         List<IDictionary<string, object?>> flatEntries = new List<IDictionary<string, object?>>();
 
