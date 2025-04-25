@@ -6,6 +6,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Scriban.Runtime;
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Text;
 
 namespace Cute.Lib.Scriban;
 
@@ -286,5 +288,27 @@ public class CuteFunctions : ScriptObject
     public static int ToInt(string value)
     {
         return Convert.ToInt32(value);
+    }
+
+    public static string NormalizeString(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return input;
+
+        // Decompose to form like: Ō => O + ˉ
+        var normalized = input.Normalize(NormalizationForm.FormD);
+
+        // Remove all non-spacing marks (diacritics)
+        var sb = new StringBuilder();
+        foreach (var c in normalized)
+        {
+            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 }
