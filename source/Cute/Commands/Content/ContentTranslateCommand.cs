@@ -16,6 +16,7 @@ using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
+using System.Management;
 
 namespace Cute.Commands.Content;
 
@@ -127,13 +128,29 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = settings.UseCustomModel ?
             async (translator, text, from, to) =>
             {
-                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
-                return translation?.Text;
+                try
+                {
+                    var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
+                    return translation?.Text;
+                }
+                catch (Exception ex)
+                {
+                    _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
+                    return null;
+                }
             } :
             async (translator, text, from, to) =>
             {
-                var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
-                return translation?.Text;
+                try
+                {
+                    var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
+                    return translation?.Text;
+                }
+                catch (Exception ex)
+                {
+                    _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
+                    return null;
+                }
             };
 
         try
@@ -178,6 +195,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                         var defaultLocaleFieldNames = flatEntry.Keys.Where(k => k.Contains($".{defaultLocale.Code}")).ToArray();
 
+                        Dictionary<string, Task<(string?, bool)>> taskMap = new Dictionary<string, Task<(string?, bool)>>();
+
                         foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
                         {
                             if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith($"{f.Id}.")))
@@ -211,37 +230,74 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                     {
                                         tService = TranslationService.GPT4o;
                                     }
+
                                     var translator = _translateFactory.Create(tService);
-                                    try
+
+                                    Task<(string?, bool)> translateWrapper() => Task.Run(async () =>
                                     {
-                                        var tryCount = 3;
-                                        string? translatedText = null;
-                                        while (tryCount > 0 && string.IsNullOrEmpty(translatedText))
+                                        try
                                         {
-                                            tryCount--;
+                                            var tryCount = 3;
+                                            string? translatedText = null;
                                             translatedText = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, cuteLanguage);
-                                        }
-                                        if (string.IsNullOrEmpty(translatedText))
-                                        {
-                                            if(!failedEntryIds.ContainsKey(entryId))
+
+                                            while (tryCount > 0 && string.IsNullOrEmpty(translatedText))
                                             {
-                                                failedEntryIds[entryId] = new List<string>();
+                                                tryCount--;
                                             }
 
-                                            failedEntryIds[entryId].Add(targetLocaleFieldName);
+                                            return (translatedText, true);
                                         }
-                                        flatEntry[targetLocaleFieldName] = translatedText;
-                                        entryChanged = true;
-                                        taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _console.WriteAlert($"Error translating text from {defaultLocale.Code} to {targetLocale.Code} using {tService}. Error Message: {ex.Message}");
-                                    }
+                                        catch (Exception ex)
+                                        {
+                                            _console.WriteAlert($"Error translating text from {defaultLocale.Code} to {targetLocale.Code} using {tService}. Error Message: {ex.Message}");
+                                            return (string.Empty, false);
+                                        }
+                                    });
+
+                                    taskMap.Add(targetLocaleFieldName, translateWrapper());
+
+                                    //if (string.IsNullOrEmpty(translatedText))
+                                    //{
+                                    //    if(!failedEntryIds.ContainsKey(entryId))
+                                    //    {
+                                    //        failedEntryIds[entryId] = new List<string>();
+                                    //    }
+
+                                    //    failedEntryIds[entryId].Add(targetLocaleFieldName);
+                                    //}
+                                    //flatEntry[targetLocaleFieldName] = translatedText;
+                                    //entryChanged = true;
+                                    //taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
                                 }
                                 taskTranslate.Increment(1);
                             }
                             
+                            Task.WaitAll(taskMap.Values.ToArray());
+
+                            foreach (var item in taskMap)
+                            {
+                                var (translatedText, success) = item.Value.Result;
+                                if (success)
+                                {
+                                    if(string.IsNullOrEmpty(translatedText))
+                                    {
+                                        if (!failedEntryIds.ContainsKey(entryId))
+                                        {
+                                            failedEntryIds[entryId] = new List<string>();
+                                        }
+
+                                        failedEntryIds[entryId].Add(item.Key);
+                                    }
+                                    else
+                                    {
+                                        flatEntry[item.Key] = translatedText;
+                                        entryChanged = true;
+                                        taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
+                                    }
+                                }
+                            }
+
                         }
 
                         if (entryChanged)
@@ -297,5 +353,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             _console.WriteException(ex);
             return 1;
         }
+
     }
 }
