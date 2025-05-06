@@ -76,7 +76,18 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         }
     }
 
-    private static readonly string[] AllowedCommands = { "cute content generate", "cute content sync-api", "cute content seed-geo", "cute content join", "cute content edit", "cute content replace", "cute content translate" };
+    private static readonly string[] AllowedCommands =
+    {
+        "cute content generate",
+        "cute content sync-api",
+        "cute content seed-geo",
+        "cute content join",
+        "cute content edit",
+        "cute content replace",
+        "cute content translate",
+        "cute content set-default",
+        "cute content publish"
+    };
 
     private Settings? _settings;
 
