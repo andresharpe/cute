@@ -25,6 +25,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 {
     private readonly TranslateFactory _translateFactory = translateFactory;
     private readonly HttpClient _httpClient = httpClient;
+    private Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = default!;
 
     public class Settings : ContentCommandSettings
     {
@@ -125,36 +126,39 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             return -1;
         }
 
-        Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = settings.UseCustomModel ?
-            async (translator, text, from, to) =>
+        translate = settings.UseCustomModel ?
+        async (translator, text, from, to) =>
+        {
+            try
             {
-                try
-                {
-                    var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
-                    return translation?.Text;
-                }
-                catch (Exception ex)
-                {
-                    _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
-                    return null;
-                }
-            } :
-            async (translator, text, from, to) =>
+                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
+                return translation?.Text;
+            }
+            catch (Exception ex)
             {
-                try
-                {
-                    var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
-                    return translation?.Text;
-                }
-                catch (Exception ex)
-                {
-                    _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
-                    return null;
-                }
-            };
+                _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
+                return null;
+            }
+        }
+        :
+        async (translator, text, from, to) =>
+        {
+            try
+            {
+                var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
+                return translation?.Text;
+            }
+            catch (Exception ex)
+            {
+                _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
+                return null;
+            }
+        };
 
         try
         {
+            // Create a semaphore to limit concurrent translations
+            var throttler = new SemaphoreSlim(10); // Limit to 10 concurrent translations
             bool needToPublish = false;
             Dictionary<string, List<string>> failedEntryIds = new Dictionary<string, List<string>>();
             await ProgressBars.Instance()
@@ -195,7 +199,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                         var defaultLocaleFieldNames = flatEntry.Keys.Where(k => k.Contains($".{defaultLocale.Code}")).ToArray();
 
-                        Dictionary<string, Task<(string?, bool)>> taskMap = new Dictionary<string, Task<(string?, bool)>>();
+                        // Create a collection of tasks
+                        var translationTasks = new List<Task<(string targetField, string? translatedText, bool success)>>();
 
                         foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
                         {
@@ -230,74 +235,37 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                     {
                                         tService = TranslationService.GPT4o;
                                     }
-
-                                    var translator = _translateFactory.Create(tService);
-
-                                    Task<(string?, bool)> translateWrapper() => Task.Run(async () =>
-                                    {
-                                        try
-                                        {
-                                            var tryCount = 3;
-                                            string? translatedText = null;
-                                            translatedText = await translate(translator, defaultLocaleFieldValue, defaultLocale.Code, cuteLanguage);
-
-                                            while (tryCount > 0 && string.IsNullOrEmpty(translatedText))
-                                            {
-                                                tryCount--;
-                                            }
-
-                                            return (translatedText, true);
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            _console.WriteAlert($"Error translating text from {defaultLocale.Code} to {targetLocale.Code} using {tService}. Error Message: {ex.Message}");
-                                            return (string.Empty, false);
-                                        }
-                                    });
-
-                                    taskMap.Add(targetLocaleFieldName, translateWrapper());
-
-                                    //if (string.IsNullOrEmpty(translatedText))
-                                    //{
-                                    //    if(!failedEntryIds.ContainsKey(entryId))
-                                    //    {
-                                    //        failedEntryIds[entryId] = new List<string>();
-                                    //    }
-
-                                    //    failedEntryIds[entryId].Add(targetLocaleFieldName);
-                                    //}
-                                    //flatEntry[targetLocaleFieldName] = translatedText;
-                                    //entryChanged = true;
-                                    //taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
+                                    translationTasks.Add(TranslateFieldAsync(
+                                        defaultLocaleFieldValue,
+                                        defaultLocale.Code,
+                                        cuteLanguage,
+                                        targetLocaleFieldName,
+                                        tService,
+                                        throttler));
                                 }
                                 taskTranslate.Increment(1);
                             }
-                            
-                            Task.WaitAll(taskMap.Values.ToArray());
+                        }
 
-                            foreach (var item in taskMap)
+                        // Await all tasks to complete
+                        var results = await Task.WhenAll(translationTasks);
+
+                        // Process results
+                        foreach (var (targetField, translatedText, success) in results)
+                        {
+                            if (success && !string.IsNullOrEmpty(translatedText))
                             {
-                                var (translatedText, success) = item.Value.Result;
-                                if (success)
-                                {
-                                    if(string.IsNullOrEmpty(translatedText))
-                                    {
-                                        if (!failedEntryIds.ContainsKey(entryId))
-                                        {
-                                            failedEntryIds[entryId] = new List<string>();
-                                        }
-
-                                        failedEntryIds[entryId].Add(item.Key);
-                                    }
-                                    else
-                                    {
-                                        flatEntry[item.Key] = translatedText;
-                                        entryChanged = true;
-                                        taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
-                                    }
-                                }
+                                flatEntry[targetField] = translatedText;
+                                entryChanged = true;
+                                taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
                             }
+                            else
+                            {
+                                if (!failedEntryIds.ContainsKey(entryId))
+                                    failedEntryIds[entryId] = new List<string>();
 
+                                failedEntryIds[entryId].Add(targetField);
+                            }
                         }
 
                         if (entryChanged)
@@ -354,5 +322,53 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             return 1;
         }
 
+    }
+
+    private async Task<(string targetField, string? translatedText, bool success)> TranslateFieldAsync(
+    string text,
+    string sourceLocale,
+    CuteLanguage targetLanguage,
+    string targetField,
+    TranslationService tService,
+    SemaphoreSlim throttler)
+    {
+        await throttler.WaitAsync(); // Wait for a slot to be available
+
+        try
+        {
+            var translator = _translateFactory.Create(tService);
+            string? translatedText = null;
+            int retryCount = 3;
+
+            while (retryCount > 0)
+            {
+                try
+                {
+                    translatedText = await translate(translator, text, sourceLocale, targetLanguage);
+                    if (!string.IsNullOrEmpty(translatedText))
+                        break;
+                }
+                catch (Exception ex)
+                {
+                    if (retryCount == 1) // Only log on final attempt
+                        _console.WriteAlert($"Error translating text: {ex.Message}");
+                }
+
+                retryCount--;
+                if (retryCount > 0)
+                    await Task.Delay(1000); // Wait before retry
+            }
+
+            return (targetField, translatedText, !string.IsNullOrEmpty(translatedText));
+        }
+        catch (Exception ex)
+        {
+            _console.WriteAlert($"Error translating text from {sourceLocale} to {targetLanguage.Iso2Code}. Error: {ex.Message}");
+            return (targetField, null, false);
+        }
+        finally
+        {
+            throttler.Release(); // Always release the throttler
+        }
     }
 }
