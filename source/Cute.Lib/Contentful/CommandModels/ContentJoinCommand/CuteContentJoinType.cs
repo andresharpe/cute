@@ -38,24 +38,14 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
                     .IsRequired()
                     .Build(),
 
-                    new FieldBuilder("sourceKeys1", FieldType.Array)
-                    .IsRequired()
-                    .Items(
-                        new SchemaBuilder(FieldType.Symbol)
-                            .Build()
-                    )
+                    new FieldBuilder("sourceQueryString1", FieldType.Symbol)
                     .Build(),
 
                     new FieldBuilder("sourceContentType2", FieldType.Symbol)
                     .IsRequired()
                     .Build(),
 
-                    new FieldBuilder("sourceKeys2", FieldType.Array)
-                    .IsRequired()
-                    .Items(
-                        new SchemaBuilder(FieldType.Symbol)
-                            .Build()
-                    )
+                    new FieldBuilder("sourceQueryString1", FieldType.Symbol)
                     .Build(),
 
                 ]);
