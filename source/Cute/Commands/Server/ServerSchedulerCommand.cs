@@ -151,10 +151,35 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         await context.Response.WriteAsync($"</table>");
 
-        await context.Response.WriteAsync($"<form action='/reload' method='POST' enctype='multipart/form-data'>");
-        await context.Response.WriteAsync($"<input type='hidden' name='command' value='reload'>");
-        await context.Response.WriteAsync($"<button type='submit' style='width:100%'>Reload schedule from Contentful</button>");
-        await context.Response.WriteAsync($"</form>");
+        await context.Response.WriteAsync($@"
+            <button onclick=""reloadSchedule()"" style='width:100%'>Reload schedule from Contentful</button>
+            <div id='reload-status'></div>
+            <script>
+                async function reloadSchedule() {{
+                    const statusDiv = document.getElementById('reload-status');
+                    statusDiv.textContent = 'Reloading...';
+
+                    try {{
+                        const response = await fetch('/reload', {{
+                            method: 'POST',
+                            headers: {{
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            }},
+                            body: new URLSearchParams({{ command: 'reload' }})
+                        }});
+
+                        if (response.ok) {{
+                            statusDiv.textContent = 'Schedule reloaded!';
+                            location.reload();
+                        }} else {{
+                            statusDiv.textContent = 'Failed to reload. Status: ' + response.status;
+                        }}
+                    }} catch (err) {{
+                        statusDiv.textContent = 'Error: ' + err;
+                    }}
+                }}
+            </script>
+        ");
     }
 
     private static async Task RenderHomePageTableLines(HttpContext context, ScheduledEntry entry, DateTime nextRunTime)
@@ -378,7 +403,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         _scheduler.Start();
 
-        context.Response.Redirect("/");
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.WriteAsync("Reload successful!");
     }
 
     private async Task ProcessAndUpdateSchedule(ScheduledEntry entry)
