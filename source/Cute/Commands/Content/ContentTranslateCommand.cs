@@ -39,9 +39,9 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [Description("Specifies whether custom glossary (cuteTranslationGlossary) should be used")]
         public bool UseGlossary { get; set; } = false;
 
-        [CommandOption("-p <CODE>")]
-        [Description("Specifies whether to publish modified entries")]
-        public bool Publish { get; set; } = false;
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
 
         [CommandOption("--filter-field")]
         [Description("The field to update.")]
@@ -296,7 +296,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 return 0;
             }
 
-            if (settings.Publish)
+            if (!settings.NoPublish)
             {
                 await PerformBulkOperations(
                     [
