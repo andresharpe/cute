@@ -99,6 +99,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private static readonly ConcurrentDictionary<Guid, ScheduledEntry> _scheduledEntries = [];
 
+    private readonly string? _baseUrl = appSettings.GetSettings().ContainsKey("Cute__SchedulerBaseUrl") ? appSettings.GetSettings()["Cute__SchedulerBaseUrl"] : default!;
+
     private static ScheduledEntry? GetScheduleByKey(string id) =>
         _scheduledEntries.Values.FirstOrDefault(s => s.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
 
@@ -150,8 +152,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         }
 
         await context.Response.WriteAsync($"</table>");
-
-        await context.Response.WriteAsync($"<form action='/reload' method='POST' enctype='multipart/form-data'>");
+        await context.Response.WriteAsync($"<form action='{_baseUrl}/reload' method='POST' enctype='multipart/form-data'>");
         await context.Response.WriteAsync($"<input type='hidden' name='command' value='reload'>");
         await context.Response.WriteAsync($"<button type='submit' style='width:100%'>Reload schedule from Contentful</button>");
         await context.Response.WriteAsync($"</form>");
@@ -378,7 +379,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         _scheduler.Start();
 
-        context.Response.Redirect("/");
+        context.Response.Redirect($"{_baseUrl}/");
     }
 
     private async Task ProcessAndUpdateSchedule(ScheduledEntry entry)
