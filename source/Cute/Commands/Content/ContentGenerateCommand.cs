@@ -42,6 +42,10 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
         [CommandOption("--target-entry-key")]
         [Description("The key of the target entry to generate content for.")]
         public string? searchKey { get; set; } = default!;
+
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -121,6 +125,7 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
                         .WithContentType(targetContentType)
                         .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                         .WithVerbosity(settings.Verbosity)
+                        .WithApplyChanges(!settings.NoPublish)
             ]
         );
 

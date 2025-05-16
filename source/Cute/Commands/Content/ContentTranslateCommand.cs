@@ -39,10 +39,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [Description("Specifies whether custom glossary (cuteTranslationGlossary) should be used")]
         public bool UseGlossary { get; set; } = false;
 
-        [CommandOption("--no-publish")]
-        [Description("Specifies whether to skip publish for modified entries")]
-        public bool NoPublish { get; set; } = false;
-
         [CommandOption("--filter-field")]
         [Description("The field to update.")]
         public string filterField { get; set; } = null!;
@@ -296,17 +292,15 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 return 0;
             }
 
-            if (!settings.NoPublish)
-            {
-                await PerformBulkOperations(
-                    [
-                        new PublishBulkAction(ContentfulConnection, _httpClient)
-                            .WithContentType(contentType)
-                            .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
-                            .WithVerbosity(settings.Verbosity),
-                    ]
-                );
-            }
+            await PerformBulkOperations(
+                [
+                    new PublishBulkAction(ContentfulConnection, _httpClient)
+                        .WithContentType(contentType)
+                        .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
+                        .WithVerbosity(settings.Verbosity)
+                        .WithApplyChanges(settings.NoPublish),
+                ]
+            );
 
             if(failedEntryIds.Count > 0)
             {

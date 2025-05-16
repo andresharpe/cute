@@ -28,6 +28,14 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
         [CommandOption("-i|--entry-id")]
         [Description("Id of source 2 entry to join content for.")]
         public string? Source2EntryId { get; set; } = null;
+
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
+
+        [CommandOption("-a|--apply")]
+        [Description("Apply and publish all the required edits.")]
+        public bool Apply { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -61,14 +69,12 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
         }
 
         // Load Entries
-        await PerformBulkOperations(
-            [
-                new UpsertBulkAction(ContentfulConnection, _httpClient)
+        await PerformBulkOperations([
+            new UpsertBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(targetContentType)
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithMatchField("key")
-                    .WithNewEntries(
-                        new JoinEntriesAdapter(
+                    .WithNewEntries(new JoinEntriesAdapter(
                             joinEntry,
                             ContentfulConnection,
                             await ContentfulConnection.GetContentLocalesAsync(),
@@ -76,16 +82,15 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
                             source2ContentType,
                             targetContentType,
                             settings.Source2EntryId
-                        )
-                    )
-                    .WithVerbosity(settings.Verbosity),
-
-                new PublishBulkAction(ContentfulConnection, _httpClient)
+                        ))
+                    .WithVerbosity(settings.Verbosity)
+                    .WithApplyChanges(settings.Apply),
+            new PublishBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(targetContentType)
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
-            ]
-        );
+                    .WithApplyChanges(!settings.NoPublish)
+        ]);
 
         return 0;
     }

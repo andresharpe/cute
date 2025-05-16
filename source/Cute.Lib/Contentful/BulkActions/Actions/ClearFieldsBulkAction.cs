@@ -17,7 +17,14 @@ namespace Cute.Lib.Contentful.BulkActions.Actions
         public override async Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
         {
             await GetAllEntriesForComparison(progressUpdaters?[0]);
-            await UpsertRequiredEntries(_withUpdatedFlatEntries!, progressUpdaters?[1]);
+            if (_applyChanges)
+            {
+                await UpsertRequiredEntries(_withUpdatedFlatEntries!, progressUpdaters?[1]);
+            }
+            else
+            {
+                NotifyUserInterface($"No changes applied. Use -a|--apply to apply changes.", progressUpdaters?[4]);
+            }
         }
 
         private async Task GetAllEntriesForComparison(Action<BulkActionProgressEvent>? progressUpdater)

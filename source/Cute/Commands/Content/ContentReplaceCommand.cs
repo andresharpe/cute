@@ -45,6 +45,10 @@ public class ContentReplaceCommand(IConsoleWriter console, ILogger<ContentReplac
         [CommandOption("-a|--apply")]
         [Description("Apply and publish all the required edits. The default behaviour is to only list the detected changes.")]
         public bool Apply { get; set; } = false;
+
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -102,14 +106,12 @@ public class ContentReplaceCommand(IConsoleWriter console, ILogger<ContentReplac
         }
 
         var contentLocales = await ContentfulConnection.GetContentLocalesAsync();
-
-        var bulkOperations = new List<IBulkAction>()
-        {
+        
+        await PerformBulkOperations([
             new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
-                .WithNewEntries(
-                    new FindAndReplaceFieldsInputAdapter(
+                .WithNewEntries(new FindAndReplaceFieldsInputAdapter(
                         settings.Locale,
                         contentLocales,
                         settings.Fields,
@@ -119,20 +121,13 @@ public class ContentReplaceCommand(IConsoleWriter console, ILogger<ContentReplac
                         ContentfulConnection
                     ))
                 .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity)
-        };
-
-        if (settings.Apply)
-        {
-            bulkOperations.Add(
-                new PublishBulkAction(ContentfulConnection, _httpClient)
+                .WithVerbosity(settings.Verbosity),
+            new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)
-            );
-        }
-
-        await PerformBulkOperations(bulkOperations.ToArray());
+                .WithApplyChanges(!settings.NoPublish)
+        ]);
 
         return 0;
     }

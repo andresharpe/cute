@@ -1,28 +1,18 @@
-﻿using Contentful.Core.Models;
-using Cute.Commands.BaseCommands;
+﻿using Cute.Commands.BaseCommands;
 using Cute.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
-using Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
-using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
-using Cute.Lib.Serializers;
 using Cute.Services;
-using Cute.Services.Translation.Factories;
-using Cute.Services.Translation.Interfaces;
-using Cute.UiComponents;
-using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Management;
 
 namespace Cute.Commands.Content;
 
 public class ContentClearLocalizationCommand(IConsoleWriter console, ILogger<ContentTranslateCommand> logger,
-    AppSettings appSettings, TranslateFactory translateFactory, HttpClient httpClient) : BaseLoggedInCommand<ContentClearLocalizationCommand.Settings>(console, logger, appSettings)
+    AppSettings appSettings, HttpClient httpClient) : BaseLoggedInCommand<ContentClearLocalizationCommand.Settings>(console, logger, appSettings)
 {
-    private readonly TranslateFactory _translateFactory = translateFactory;
     private readonly HttpClient _httpClient = httpClient;
 
     public class Settings : ContentCommandSettings
@@ -34,6 +24,10 @@ public class ContentClearLocalizationCommand(IConsoleWriter console, ILogger<Con
         [CommandOption("-f|--field <CODE>")]
         [Description("List of fields to clear.")]
         public string[] Fields { get; set; } = default!;
+
+        [CommandOption("-a|--apply")]
+        [Description("Apply and publish all the required edits. The default behaviour is to only list the detected changes.")]
+        public bool Apply { get; set; } = false;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -82,18 +76,18 @@ public class ContentClearLocalizationCommand(IConsoleWriter console, ILogger<Con
 
         var contentLocales = new ContentLocales(targetLocales.Select(locale => locale.Code).ToArray(), defaultLocale.Code);
 
-        await PerformBulkOperations(
-            [
-                new ClearFieldsBulkAction(ContentfulConnection, _httpClient, fieldsToTranslate.Select(f => f.Name).ToList(), settings.Key)
+        await PerformBulkOperations([
+            new ClearFieldsBulkAction(ContentfulConnection, _httpClient, fieldsToTranslate.Select(f => f.Name).ToList(), settings.Key)
+                        .WithContentType(contentType)
+                        .WithContentLocales(contentLocales)
+                        .WithVerbosity(settings.Verbosity)
+                        .WithApplyChanges(settings.Apply),
+            new PublishBulkAction(ContentfulConnection, _httpClient)
                             .WithContentType(contentType)
                             .WithContentLocales(contentLocales)
-                            .WithVerbosity(settings.Verbosity),
-                new PublishBulkAction(ContentfulConnection, _httpClient)
-                            .WithContentType(contentType)
-                            .WithContentLocales(contentLocales)
-                            .WithVerbosity(settings.Verbosity),
-            ]
-        );
+                            .WithVerbosity(settings.Verbosity)
+                            .WithApplyChanges(!settings.NoPublish)
+        ]);
 
         return 0;
     }
