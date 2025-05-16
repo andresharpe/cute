@@ -7,6 +7,7 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Contentful.CommandModels.ContentSyncApi;
 using Cute.Lib.Exceptions;
+using Cute.Lib.InputAdapters;
 using Cute.Lib.InputAdapters.Http;
 using Cute.Lib.InputAdapters.Http.Models;
 using Cute.Services;
@@ -39,6 +40,10 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
         [CommandOption("-u|--use-filecache")]
         [Description("Whether or not to cache responses to a local file cache for subsequent calls.")]
         public bool UseFileCache { get; set; } = false;
+
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -85,13 +90,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
             return -1;
         }
 
-        var bulkOperations = new List<IBulkAction>()
-        {
-            new UpsertBulkAction(ContentfulConnection, _httpClient, true)
-                .WithContentType(contentType)
-                .WithContentLocales(contentLocales)
-                .WithNewEntries(
-                    new HttpInputAdapter(
+        IInputAdapter inputAdapter = new HttpInputAdapter(
                         adapter,
                         ContentfulConnection,
                         contentLocales,
@@ -99,24 +98,22 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
                         await ContentfulConnection.GetContentTypesAsync(),
                         _httpClient
                     )
-                    .WithHttpResponseFileCache(settings.UseFileCache ?  _httpResponseCache : null )
-                )
-                .WithMatchField(adapter.ContentKeyField)
-                .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity)
-        };
+                    .WithHttpResponseFileCache(settings.UseFileCache ? _httpResponseCache : null);
 
-        if (settings.Apply)
-        {
-            bulkOperations.Add(
-                new PublishBulkAction(ContentfulConnection, _httpClient)
+        await PerformBulkOperations([
+            new UpsertBulkAction(ContentfulConnection, _httpClient, true)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
-                .WithVerbosity(settings.Verbosity)
-            );
-        }
-
-        await PerformBulkOperations(bulkOperations.ToArray(), apiSyncEntry.Key);
+                .WithNewEntries(inputAdapter)
+                .WithMatchField(adapter.ContentKeyField)
+                .WithApplyChanges(settings.Apply)
+                .WithVerbosity(settings.Verbosity),
+            new PublishBulkAction(ContentfulConnection, _httpClient)
+            .WithContentType(contentType)
+            .WithContentLocales(contentLocales)
+            .WithVerbosity(settings.Verbosity)
+            .WithApplyChanges(!settings.NoPublish)
+        ], apiSyncEntry.Key);
 
         return 0;
     }

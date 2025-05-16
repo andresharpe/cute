@@ -6,7 +6,6 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
-using Cute.Lib.InputAdapters.EntryAdapters;
 using Cute.Lib.Scriban;
 using Cute.Lib.Serializers;
 using Cute.Services;
@@ -56,6 +55,10 @@ public class ContentSetDefaultValueCommand(IConsoleWriter console, ILogger<Conte
         [CommandOption("-a|--apply")]
         [Description("Apply and publish all the required edits. The default behaviour is to only list the detected changes.")]
         public bool Apply { get; set; } = false;
+
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -183,27 +186,19 @@ public class ContentSetDefaultValueCommand(IConsoleWriter console, ILogger<Conte
             return 0;
         }
 
-        var bulkOperations = new List<IBulkAction>()
-        {
+        await PerformBulkOperations([
             new UpsertBulkAction(ContentfulConnection, _httpClient)
-                .WithContentType(contentType)
-                .WithContentLocales(contentLocales)
-                .WithNewEntries(flatEntries.Select(k => serializer.DeserializeEntry(k)).ToList())
-                .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity)
-        };
-
-        if (settings.Apply)
-        {
-            bulkOperations.Add(
-                new PublishBulkAction(ContentfulConnection, _httpClient)
-                .WithContentType(contentType)
-                .WithContentLocales(contentLocales)
-                .WithVerbosity(settings.Verbosity)
-            );
-        }
-
-        await PerformBulkOperations(bulkOperations.ToArray());
+            .WithContentType(contentType)
+            .WithContentLocales(contentLocales)
+            .WithNewEntries(flatEntries.Select(k => serializer.DeserializeEntry(k)).ToList())
+            .WithApplyChanges(settings.Apply)
+            .WithVerbosity(settings.Verbosity),
+            new PublishBulkAction(ContentfulConnection, _httpClient)
+            .WithContentType(contentType)
+            .WithContentLocales(contentLocales)
+            .WithVerbosity(settings.Verbosity)
+            .WithApplyChanges(!settings.NoPublish)
+        ]);
 
         return 0;
     }

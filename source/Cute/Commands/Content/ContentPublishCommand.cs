@@ -24,6 +24,10 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
         [CommandOption("-c|--content-type-id <ID>")]
         [Description("The Contentful content type ID.")]
         public string ContentTypeId { get; set; } = default!;
+
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -49,6 +53,7 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
                     .WithContentType(contentType)
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
+                    .WithApplyChanges(!settings.NoPublish)
             ]
         );
 

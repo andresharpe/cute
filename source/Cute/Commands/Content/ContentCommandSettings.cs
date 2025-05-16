@@ -13,4 +13,8 @@ public abstract class ContentCommandSettings : LoggedInSettings
     [CommandOption("-l|--locale <CODE>")]
     [Description("The locale code (eg. 'en') to apply the command to. Default is all.")]
     public string[] Locales { get; set; } = default!;
+
+    [CommandOption("--no-publish")]
+    [Description("Specifies whether to skip publish for modified entries")]
+    public bool NoPublish { get; set; } = false;
 }
