@@ -86,6 +86,10 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         [Description("Update google places Id where missing?")]
         [DefaultValue(true)]
         public bool UpdateGooglePlacesId { get; set; } = true;
+
+        [CommandOption("--no-publish")]
+        [Description("Specifies whether to skip publish for modified entries")]
+        public bool NoPublish { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -116,42 +120,37 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         RemoveSingleLeafHeirarchies();
 
-        if (settings.Apply)
+        if(_newEntryRecords.Count == 0)
         {
-            if(_newEntryRecords.Count == 0)
-            {
-                _console.WriteNormal("No new entries to upload.");
-                return 0;
-            }
-
-            var prefix = settings.ContentTypePrefix;
-            var contentTypeId = await ResolveContentTypeId($"{prefix}Geo") ?? throw new CliException($"Content type '{prefix}Geo' not found.");
-            var contentType = await GetContentTypeOrThrowError(contentTypeId);
-            var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
-            var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
-
-            if (!ConfirmWithPromptChallenge($"upload the extracted data to {contentTypeId}"))
-            {
-                return -1;
-            }
-
-            await PerformBulkOperations([
-
-                new UpsertBulkAction(ContentfulConnection, _httpClient)
-                    .WithContentType(contentType)
-                    .WithContentLocales(contentLocales)
-                    .WithNewEntries(_newEntryRecords, "Simplemaps.com")
-                    .WithMatchField(nameof(GeoFormat.Key).ToCamelCase())
-                    .WithApplyChanges(true)
-                    .WithVerbosity(settings.Verbosity),
-
-                new PublishBulkAction(ContentfulConnection, _httpClient)
-                    .WithContentType(contentType)
-                    .WithContentLocales(contentLocales)
-                    .WithVerbosity(settings.Verbosity)
-
-            ]);
+            _console.WriteNormal("No new entries to upload.");
+            return 0;
         }
+
+        var prefix = settings.ContentTypePrefix;
+        var contentTypeId = await ResolveContentTypeId($"{prefix}Geo") ?? throw new CliException($"Content type '{prefix}Geo' not found.");
+        var contentType = await GetContentTypeOrThrowError(contentTypeId);
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+        var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
+
+        if (!ConfirmWithPromptChallenge($"upload the extracted data to {contentTypeId}"))
+        {
+            return -1;
+        }
+
+        await PerformBulkOperations([
+            new UpsertBulkAction(ContentfulConnection, _httpClient)
+                .WithContentType(contentType)
+                .WithContentLocales(contentLocales)
+                .WithNewEntries(_newEntryRecords, "Simplemaps.com")
+                .WithMatchField(nameof(GeoFormat.Key).ToCamelCase())
+                .WithApplyChanges(true)
+                .WithVerbosity(settings.Verbosity),
+            new PublishBulkAction(ContentfulConnection, _httpClient)
+                .WithContentType(contentType)
+                .WithContentLocales(contentLocales)
+                .WithVerbosity(settings.Verbosity)
+                .WithApplyChanges(!settings.NoPublish)
+        ]);
 
         return 0;
     }
@@ -417,7 +416,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                     {
                         existingEntry.Count++;
 
-                        if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId))
+                        if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId) && existingEntry.DataCountryEntry is not null)
                         {
                             continue;
                         }
@@ -441,7 +440,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         Density = record.Density,
                         TimeZoneStandardOffset = tzStandardOffset,
                         TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
-                        GooglePlacesId = existingEntry?.GooglePlacesId ?? await GetGooglePlacesId($"{record.CityName}, {record.AdminName}, {record.CountryName}")
+                        GooglePlacesId = existingEntry?.GooglePlacesId ?? await GetGooglePlacesId($"{record.CityName}, {record.AdminName}, {record.CountryName}"),
+                        DataCountryEntry = countryToGeoId[record.CountryIso2],
                     };
 
                     _newRecords.Add(newRecord);
@@ -502,6 +502,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             Population = countryInfo.Population,
             GeoType = "country",
             GooglePlacesId = existingEntry?.GooglePlacesId ?? countryInfo.GooglePlacesId,
+            DataCountryEntry = countryInfo,
         };
 
         if (existingEntry is null)
@@ -540,7 +541,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         if (adminCodeToGeoId.TryGetValue(adminCode, out GeoFormat? existingEntry))
         {
             existingEntry.Count++;
-            if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId))
+            if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId) && existingEntry.DataCountryEntry is not null)
             {
                 return existingEntry.Key;
             }
@@ -678,6 +679,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public string WikidataQid { get; set; } = default!;
         public string? GooglePlacesId { get; set; } = default!;
         public int Count { get; set; } = 0;
+        public GeoFormat DataCountryEntry { get; set; } = default!;
     }
 
     public class GeoInfoCompact

@@ -35,7 +35,14 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         await CompareAndMergeEntries(progressUpdaters?[3]);
 
-        await UpsertRequiredEntries(_withUpdatedFlatEntries!, progressUpdaters?[4]);
+        if (_applyChanges)
+        {
+            await UpsertRequiredEntries(_withUpdatedFlatEntries!, progressUpdaters?[4]);
+        }
+        else
+        {
+            NotifyUserInterface($"No changes applied. Use -a|--apply to apply changes.", progressUpdaters?[4]);
+        }
     }
 
     private async Task GetNewAdapterEntries(Action<BulkActionProgressEvent>? progressUpdaterCount, Action<BulkActionProgressEvent>? progressUpdaterRead)

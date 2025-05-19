@@ -137,15 +137,13 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
             ]
         );
 
-        if (settings.Publish)
-        {
-            bulkActions.Add(
-                new PublishBulkAction(ContentfulConnection, _httpClient)
-                    .WithContentType(contentTypeNew)
-                    .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
-                    .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
-            );
-        }
+        bulkActions.Add(
+            new PublishBulkAction(ContentfulConnection, _httpClient)
+                .WithContentType(contentTypeNew)
+                .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
+                .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
+                .WithApplyChanges(settings.Publish)
+        );
 
         await PerformBulkOperations(bulkActions.ToArray());
 

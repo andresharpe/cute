@@ -68,12 +68,14 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
                     .WithNewEntries(testDataAdapter)
-                    .WithVerbosity(settings.Verbosity),
+                    .WithVerbosity(settings.Verbosity)
+                    .WithApplyChanges(true),
 
                 new PublishBulkAction(ContentfulConnection, httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(contentLocales)
                     .WithVerbosity(settings.Verbosity)
+                    .WithApplyChanges(true)
 
             ]
         );

@@ -46,36 +46,11 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
             .FirstOrDefault()
             ?? throw new CliException($"No reference field for content type '{_cuteContentJoin.SourceContentType2}' found in '{_cuteContentJoin.TargetContentType}'");
 
-        var source1Keys = _cuteContentJoin.SourceKeys1.Select(k => k?.Trim()).ToHashSet();
-        var source1AllKeys = source1Keys.Any(k => k == "*");
-        var source2Keys = _cuteContentJoin.SourceKeys2.Select(k => k?.Trim()).ToHashSet();
-        var source2AllKeys = source2Keys.Any(k => k == "*");
-
-        Action<QueryBuilder<object>> source1Filter = b =>
-        {
-            if (!source1AllKeys)
-            {
-                b.FieldIncludes("fields.key", source1Keys);
-            }
-        };
-
-        Action<QueryBuilder<object>> source2Filter = b =>
-        {
-            if (!source2AllKeys)
-            {
-                b.FieldIncludes("fields.key", source2Keys);
-            }
-            if (_source2EntryId != null)
-            {
-                b.FieldEquals("sys.id", _source2EntryId);
-            }
-        };
-
         var entries1 =
             _contentfulConnection.GetManagementEntries<Entry<JObject>>(
                 new EntryQuery.Builder()
                     .WithContentType(_sourceContentType1)
-                    .WithQueryConfig(source1Filter)
+                    .WithQueryString(_cuteContentJoin.SourceQueryString1 ?? string.Empty)
                     .Build()
             )
             .ToBlockingEnumerable()
@@ -86,7 +61,7 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
         var entries2 = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
                 new EntryQuery.Builder()
                     .WithContentType(_sourceContentType2.SystemProperties.Id)
-                    .WithQueryConfig(source2Filter)
+                    .WithQueryString(_cuteContentJoin.SourceQueryString2 ?? string.Empty)
                     .Build()
             )
             .ToBlockingEnumerable()

@@ -29,10 +29,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
     public class Settings : ContentCommandSettings
     {
-        [CommandOption("-k|--key")]
-        [Description("The key of the entry to translate.")]
-        public string Key { get; set; } = default!;
-
         [CommandOption("-f|--field <CODE>")]
         [Description("List of fields to translate.")]
         public string[] Fields { get; set; } = default!;
@@ -44,6 +40,14 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("--use-glossary <CODE>")]
         [Description("Specifies whether custom glossary (cuteTranslationGlossary) should be used")]
         public bool UseGlossary { get; set; } = false;
+
+        [CommandOption("--filter-field")]
+        [Description("The field to update.")]
+        public string filterField { get; set; } = null!;
+
+        [CommandOption("--filter-field-value")]
+        [Description("The value to update it with. Can contain an expression.")]
+        public string filterFieldValue { get; set; } = null!;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -83,6 +87,19 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         if(invalidFields?.Count > 0)
         {
             _console.WriteAlert($"Following fields do not exist: {string.Join(',', invalidFields.Select(f => $"'{f}'"))}");
+        }
+
+        string queryString = string.Empty;
+        if (!string.IsNullOrEmpty(settings.filterField))
+        {
+            if (string.IsNullOrEmpty(settings.filterFieldValue))
+            {
+                throw new CliException($"The filter field value is required when using the filter field.");
+            }
+            else
+            {
+                queryString = $"fields.{settings.filterField}={settings.filterFieldValue}";
+            }
         }
 
         var translationConfiguration = ContentfulConnection.GetPreviewEntries<CuteLanguage>()
@@ -176,9 +193,9 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     .WithLocale("*")
                     .WithIncludeLevels(0);
 
-                    if (!string.IsNullOrEmpty(settings.Key))
+                    if (!string.IsNullOrEmpty(queryString))
                     {
-                        queryBuilder.WithQueryString($"fields.key={settings.Key}");
+                        queryBuilder.WithQueryString(queryString);
                     }
                     
                     taskTranslate.MaxValue = 1;
@@ -293,21 +310,21 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     taskTranslate.StopTask();
                 });            
 
-            if (needToPublish)
-            {
-                await PerformBulkOperations(
-                    [
-                        new PublishBulkAction(ContentfulConnection, _httpClient)
-                            .WithContentType(contentType)
-                            .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
-                            .WithVerbosity(settings.Verbosity),
-                    ]
-                );
-            }
-            else
+            if (!needToPublish)
             {
                 Console.WriteLine("There are no entries to translate.");
+                return 0;
             }
+
+            await PerformBulkOperations(
+                [
+                    new PublishBulkAction(ContentfulConnection, _httpClient)
+                        .WithContentType(contentType)
+                        .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
+                        .WithVerbosity(settings.Verbosity)
+                        .WithApplyChanges(settings.NoPublish),
+                ]
+            );
 
             if(failedEntryIds.Count > 0)
             {

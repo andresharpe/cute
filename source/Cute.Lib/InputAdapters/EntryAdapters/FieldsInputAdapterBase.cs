@@ -145,13 +145,6 @@ public abstract class FieldsInputAdapterBase(string sourceName, string locale, C
             preview: true
         );
 
-        //var enumerable = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
-        //    new EntryQuery.Builder()
-        //        .WithContentType(_contentType)
-        //        .WithIncludeLevels(2)
-        //        .Build()
-        //    );
-
         await foreach (var entry in enumerable)
         {
             _flatEntry = entry;

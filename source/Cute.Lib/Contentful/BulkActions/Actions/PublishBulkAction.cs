@@ -13,6 +13,13 @@ public class PublishBulkAction(ContentfulConnection contentfulConnection, HttpCl
     {
         await GetWithEntries(progressUpdaters?[0]);
 
-        await PublishWithEntries(progressUpdaters?[1]);
+        if (_applyChanges)
+        {
+            await PublishWithEntries(progressUpdaters?[1]);
+        }
+        else
+        {
+            NotifyUserInterface($"Skipping publish step. Omit --no-publish to skip this step.", progressUpdaters?[1]);
+        }
     }
 }
