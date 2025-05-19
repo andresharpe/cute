@@ -48,6 +48,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("--filter-field-value")]
         [Description("The value to update it with. Can contain an expression.")]
         public string filterFieldValue { get; set; } = null!;
+
+        [CommandOption("--max-concurrency")]
+        [Description("Indicates how many concurrent calls can be made to a translation service for a single entry. Default is 10")]
+        public int maxConcurrency { get; set; } = 10;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -175,7 +179,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         try
         {
             // Create a semaphore to limit concurrent translations
-            var throttler = new SemaphoreSlim(10); // Limit to 10 concurrent translations
+            var throttler = new SemaphoreSlim(settings.maxConcurrency);
             bool needToPublish = false;
             Dictionary<string, List<string>> failedEntryIds = new Dictionary<string, List<string>>();
             await ProgressBars.Instance()
