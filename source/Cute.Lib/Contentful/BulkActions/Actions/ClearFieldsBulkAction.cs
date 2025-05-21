@@ -23,7 +23,7 @@ namespace Cute.Lib.Contentful.BulkActions.Actions
             }
             else
             {
-                NotifyUserInterface($"No changes applied. Use -a|--apply to apply changes.", progressUpdaters?[4]);
+                NotifyUserInterface($"No changes applied. Use -a|--apply to apply changes.", progressUpdaters?[1]);
             }
         }
 
