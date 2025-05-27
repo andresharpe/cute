@@ -380,6 +380,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
                 if (ValuesDiffer(localFlatEntry, cloudFlatEntry, serializer, progressUpdater)
                     || ArrayElementCountsDiffer(cloudEntry.Fields, newEntry.Fields)) // this is sometimes necessary as the cloud may contain a single string in an array field that looks like an array (contains commas), but isn't
                 {
+                    EnsureFallbacks(cloudFlatEntry);
                     _withUpdatedFlatEntries.Add(serializer.DeserializeEntry(cloudFlatEntry));
 
                     mismatchedValues++;
@@ -396,6 +397,23 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         var count = Math.Max(1, _withUpdatedFlatEntries.Count);
 
         progressUpdater?.Invoke(new(count, count, $"Compared local entries with Contentful: {newLocalEntries} new, {mismatchedValues} changed, {matchedEntries} matched.", null));
+    }
+
+    // Remove empty and null values from the flat entry to ensure contentful localization fallbacks are applied correctly.
+    private void EnsureFallbacks(IDictionary<string, object?> flatEntry)
+    {
+        foreach (var (key, value) in flatEntry)
+        {
+            if (!key.Contains(".") || key.EndsWith($".{_contentLocales!.DefaultLocale}"))
+            {
+                continue;
+            }
+
+            if (value is null)
+            {
+                flatEntry.Remove(key);
+            }
+        }
     }
 
     private bool ValuesDiffer(
