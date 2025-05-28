@@ -408,7 +408,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
                     // end - decide whether to skip or include row
 
-                    var adminCode = await WriteStateOrProvinveEntryIfMissing(record, countryToGeoId, adminCodeToGeoId);
+                    var adminCode = await WriteStateOrProvinveEntryIfMissing(record, countryToGeoId, adminCodeToGeoId, countryCodeToInfo);
 
                     var (tzStandardOffset, tzDaylightSavingOffset) = record.Timezone.ToTimeZoneOffsets();
 
@@ -441,7 +441,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         TimeZoneStandardOffset = tzStandardOffset,
                         TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
                         GooglePlacesId = existingEntry?.GooglePlacesId ?? await GetGooglePlacesId($"{record.CityName}, {record.AdminName}, {record.CountryName}"),
-                        DataCountryEntry = countryToGeoId[record.CountryIso2],
+                        DataCountryEntry = countryCodeToInfo[record.CountryIso2],
                     };
 
                     _newRecords.Add(newRecord);
@@ -522,7 +522,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
     }
 
     private async Task<string> WriteStateOrProvinveEntryIfMissing(SimplemapsGeoInput record,
-        Dictionary<string, GeoFormat> countryToToGeoId, Dictionary<string, GeoFormat> adminCodeToGeoId)
+        Dictionary<string, GeoFormat> countryToToGeoId, Dictionary<string, GeoFormat> adminCodeToGeoId,
+        Dictionary<string, GeoFormat> countryInfoList)
     {
         if (record.AdminType.StartsWith("London borough"))
         {
@@ -547,6 +548,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             }
         }
 
+        var countryInfo = countryInfoList[record.CountryIso2];
+
         var newRecord = new GeoFormat()
         {
             Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
@@ -558,6 +561,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             GeoSubType = record.AdminType,
             LatLon = existingEntry?.LatLon ?? new() { Lat = record.Lat, Lon = record.Lon },
             GooglePlacesId = existingEntry?.GooglePlacesId,
+            DataCountryEntry = countryInfo
         };
 
         if (existingEntry is null)
