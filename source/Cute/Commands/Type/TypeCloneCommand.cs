@@ -117,16 +117,14 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
                 .WithConcurrentTaskLimit(settings.EntriesPerBatch)
                 .WithPublishChunkSize(100)
                 .WithMillisecondsBetweenCalls(120)
-        };
-
-        bulkActions.Add(
+                .WithApplyChanges(true),
             new PublishBulkAction(ContentfulConnection, _httpClient)
             .WithContentType(sourceContentType)
             .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
             .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
             .WithConcurrentTaskLimit(settings.EntriesPerBatch)
             .WithApplyChanges(settings.Publish)
-        );
+        };
 
         await PerformBulkOperations(bulkActions.ToArray());
 
