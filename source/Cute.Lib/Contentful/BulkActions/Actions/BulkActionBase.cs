@@ -147,6 +147,19 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
         return this;
     }
 
+    public BulkActionBase WithNewEntries(List<IDictionary<string, object?>> withNewEntries, string? sourceName = null)
+    {
+        _ = _contentType ?? throw new CliException("'WithContentType' and 'WithContentLocales' must be called before 'WithNewEntries'");
+
+        _ = _contentLocales ?? throw new CliException("'WithContentType' and 'WithContentLocales' must be called before 'WithNewEntries'");
+
+        _withNewEntriesAdapter = new FlatEntryListInputAdapter(withNewEntries, sourceName);
+
+        _withUpdatedFlatEntries = null;
+
+        return this;
+    }
+
     public BulkActionBase WithNewEntries(IInputAdapter inputAdapter)
     {
         _withNewEntriesAdapter = inputAdapter;
@@ -368,6 +381,12 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
         bulkResponse.EnsureSuccessStatusCode();
 
         var responseText = await bulkResponse.Content.ReadAsStringAsync();
+
+        var response = JsonConvert.DeserializeObject<BulkActionResponse>(responseText);
+        if (response?.Sys?.Status == "failed")
+        {
+
+        }
 
         return JsonConvert.DeserializeObject<BulkActionResponse>(responseText)
             ?? throw new CliException("Could not read the bulk action response.");

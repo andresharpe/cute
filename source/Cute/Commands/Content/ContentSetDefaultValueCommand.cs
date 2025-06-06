@@ -190,7 +190,7 @@ public class ContentSetDefaultValueCommand(IConsoleWriter console, ILogger<Conte
             new UpsertBulkAction(ContentfulConnection, _httpClient)
             .WithContentType(contentType)
             .WithContentLocales(contentLocales)
-            .WithNewEntries(flatEntries.Select(k => serializer.DeserializeEntry(k)).ToList())
+            .WithNewEntries(flatEntries)
             .WithApplyChanges(settings.Apply)
             .WithVerbosity(settings.Verbosity),
             new PublishBulkAction(ContentfulConnection, _httpClient)
