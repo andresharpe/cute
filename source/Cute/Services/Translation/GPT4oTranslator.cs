@@ -107,10 +107,10 @@ namespace Cute.Services.Translation
 
             if (glossary != null && glossary.Count > 0)
             {
-                messages.Add(new UserChatMessage($"Consider the following glossary ({fromLanguageCode}:{toLanguageCode}) when translating:\n{string.Join('\n', glossary.Select(x => $"{x.Key} : {x.Value}"))}"));
+                messages.Add(new SystemChatMessage($"Consider the following glossary ({fromLanguageCode}:{toLanguageCode}) when translating:\n{string.Join('\n', glossary.Select(x => $"{x.Key} : {x.Value}"))}"));
             }
 
-            messages.Add(new UserChatMessage($"Translate text from language {fromLanguageCode} to language {toLanguageCode}. Text: {textToTranslate}."));
+            messages.Add(new UserChatMessage($"Translate text from language {fromLanguageCode} to language {toLanguageCode}. Text: {textToTranslate}"));
 
             StringBuilder sb = new();
             await foreach (var part in _chatClient.CompleteChatStreamingAsync(messages, _chatCompletionOptions))
