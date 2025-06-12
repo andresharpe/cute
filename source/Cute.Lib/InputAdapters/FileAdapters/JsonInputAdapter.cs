@@ -18,7 +18,7 @@ internal class JsonInputAdapter : InputAdapterBase
     private readonly JsonTextReader _jsonTextReader;
 
     private int _recordNum = 0;
-    private int _records = 0;
+    private int _recordCount = 0;
 
     public JsonInputAdapter(string contentName, string? fileName) : base(fileName ?? contentName + ".json")
     {
@@ -38,7 +38,7 @@ internal class JsonInputAdapter : InputAdapterBase
                     {
                         if (jsonTextReader.TokenType == JsonToken.StartObject)
                         {
-                            _records++;
+                            _recordCount++;
                             jsonTextReader.Skip();
                         }
                     }
@@ -85,7 +85,7 @@ internal class JsonInputAdapter : InputAdapterBase
 
     public override Task<int> GetRecordCountAsync()
     {
-        return Task.FromResult(_records);
+        return Task.FromResult(_recordCount);
     }
 
     public override void Dispose()
