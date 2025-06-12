@@ -19,6 +19,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{15E6A00B-B
 		.dockerignore = .dockerignore
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
+		BUTTERCUP.md = BUTTERCUP.md
 		GitVersion.yml = GitVersion.yml
 		LICENSE.txt = LICENSE.txt
 		README.md = README.md
@@ -27,6 +28,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5D83CD65-2277-4EE0-83B8-656C33BBEF21}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cute.Unit.Tests", "tests\Cute.Unit.Tests\Cute.Unit.Tests.csproj", "{344DA652-334B-4513-8554-55594B508A4A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Buttercup.Core", "source\Buttercup.Core\Buttercup.Core.csproj", "{8AA09544-2BE1-4A45-89C8-E088F2D46DBF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -50,6 +53,10 @@ Global
 		{344DA652-334B-4513-8554-55594B508A4A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{344DA652-334B-4513-8554-55594B508A4A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{344DA652-334B-4513-8554-55594B508A4A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8AA09544-2BE1-4A45-89C8-E088F2D46DBF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8AA09544-2BE1-4A45-89C8-E088F2D46DBF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8AA09544-2BE1-4A45-89C8-E088F2D46DBF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8AA09544-2BE1-4A45-89C8-E088F2D46DBF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -59,6 +66,7 @@ Global
 		{FD9C605B-BD40-437E-B27E-3BBFCB9726EA} = {EE8518CE-60E5-439C-B7CE-9191260998C8}
 		{A55BBF14-8A1F-49FA-8B5A-A478694F42E1} = {EE8518CE-60E5-439C-B7CE-9191260998C8}
 		{344DA652-334B-4513-8554-55594B508A4A} = {5D83CD65-2277-4EE0-83B8-656C33BBEF21}
+		{8AA09544-2BE1-4A45-89C8-E088F2D46DBF} = {EE8518CE-60E5-439C-B7CE-9191260998C8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5EF73163-BCCC-4780-8D8D-8A24529EACA5}

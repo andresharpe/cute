@@ -1,5 +1,8 @@
-﻿using Contentful.Core.Errors;
+﻿using Buttercup.Core.Services;
+using Buttercup.Core.Services.Implementation;
+using Contentful.Core.Errors;
 using Cute.Commands.App;
+using Cute.Commands.Buttercup;
 using Cute.Commands.Chat;
 using Cute.Commands.Content;
 using Cute.Commands.Eval;
@@ -15,15 +18,13 @@ using Cute.Lib.AiModels;
 using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
-using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.SiteGen;
 using Cute.Services;
 using Cute.Services.Translation;
 using Cute.Services.Translation.Factories;
-using Cute.Services.Translation.Interfaces;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Spectre.Console;
@@ -194,6 +195,14 @@ public class CommandAppBuilder
                  .WithDescription("Generate an app or website based on user configuration settings in Contentful.");
             });
 
+            commandConfig.AddBranch("buttercup", branchConfig =>
+            {
+                branchConfig.SetDescription("Generate an offline copy of your Contentful space with data and compatible API.");
+
+                branchConfig.AddCommand<ButtercupSyncSchemaCommand>("sync-schema")
+                 .WithDescription("Synchronize the schema between your Contentful space and your Butttercup server and database.");
+            });
+
             commandConfig.AddBranch("eval", branchConfig =>
             {
                 branchConfig.SetDescription("Tools to evaluate the quality of generated content using the LLM and translation engine.");
@@ -249,6 +258,29 @@ public class CommandAppBuilder
         services.AddTransient<HttpResponseFileCache>();
         services.AddTransient<SiteGenerator>();
         services.AddTransient<GenerateBulkAction>();
+
+        services.AddDbContext<ButtercupDbContext>(options =>
+        {
+            // Configure based on the database provider
+            var dbProvider = _appSettings.DatabaseProvider;
+            var connectionString = _appSettings.DatabaseConnectionString;
+
+            if (dbProvider.Equals("sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                options.UseSqlite(connectionString);
+            }
+            else if (dbProvider.Equals("postgres", StringComparison.OrdinalIgnoreCase))
+            {
+                options.UseNpgsql(connectionString);
+            }
+            else
+            {
+                throw new ArgumentException($"Unsupported database provider: {dbProvider}");
+            }
+        });
+        services.AddSingleton<IDatabaseSettings>(_appSettings);
+        services.AddTransient<IDatabaseService, DatabaseService>();
+
         services.AddHttpClient();
 
         services.AddLogging(builder => builder.ClearProviders().AddSerilog());

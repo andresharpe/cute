@@ -1,4 +1,5 @@
-﻿using Contentful.Core.Configuration;
+﻿using Buttercup.Core.Services.Implementation;
+using Contentful.Core.Configuration;
 using Cute.Constants;
 using Cute.Lib.AiModels;
 using Cute.Lib.AzureOpenAi;
@@ -9,7 +10,7 @@ using System.Runtime.Serialization;
 
 namespace Cute.Config;
 
-public class AppSettings : IContentfulOptionsProvider, IAzureOpenAiOptionsProvider
+public class AppSettings : IContentfulOptionsProvider, IAzureOpenAiOptionsProvider, IDatabaseSettings
 {
     public string ContentfulDefaultSpace { get; set; } = default!;
     public string ContentfulDefaultEnvironment { get; set; } = default!;
@@ -24,6 +25,8 @@ public class AppSettings : IContentfulOptionsProvider, IAzureOpenAiOptionsProvid
     public string AzureTranslatorApiKey { get; set; } = default!;
     public string AzureTranslatorEndpoint { get; set; } = default!;
     public string AzureTranslatorRegion { get; set; } = default!;
+    public string DatabaseProvider { get; set; } = default!;
+    public string DatabaseConnectionString { get; set; } = default!;
 
     [OnDeserialized]
     internal void GetFromEnvironment(StreamingContext context)
