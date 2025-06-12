@@ -8,6 +8,8 @@ public static class ObjectExtensions
     {
         if (value is DateTime dt) return dt;
 
+        if (value is DateTimeOffset dto) return dto.DateTime; // convert these to DateTime
+
         if (value is string dtString) return Convert.ToDateTime(dtString, CultureInfo.InvariantCulture);
 
         return Convert.ToDateTime(value);
