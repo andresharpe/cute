@@ -8,8 +8,11 @@ using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Contentful.CommandModels.ContentSyncApi;
 using Cute.Lib.Exceptions;
 using Cute.Lib.InputAdapters;
+using Cute.Lib.InputAdapters.Base.Models;
 using Cute.Lib.InputAdapters.Http;
 using Cute.Lib.InputAdapters.Http.Models;
+using Cute.Lib.InputAdapters.Sql;
+using Cute.Lib.InputAdapters.Sql.Model;
 using Cute.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -58,6 +61,8 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
+        IInputAdapter inputAdapter;
+
         var contentSyncApiType = CuteContentSyncApiContentType.Instance();
 
         if (await CreateContentTypeIfNotExist(contentSyncApiType))
@@ -78,8 +83,36 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
-        var adapter = yamlDeserializer.Deserialize<HttpDataAdapterConfig>(apiSyncEntry.Yaml)
-            ?? throw new CliException($"Invalid data in '{contentSyncApiTypeId}.{"yaml"}' for key '{settings.Key}'.");
+        DataAdapterConfigBase adapter;
+
+        if (apiSyncEntry.Provider == "Sql")
+        {
+            adapter = yamlDeserializer.Deserialize<SqlDataAdapterConfig>(apiSyncEntry.Yaml)
+                ?? throw new CliException($"Invalid data in '{contentSyncApiTypeId}.{"yaml"}' for key '{settings.Key}'.");
+
+            inputAdapter = new SqlInputAdapter(
+                            (SqlDataAdapterConfig)adapter,
+                            ContentfulConnection,
+                            contentLocales,
+                            AppSettings.GetSettings(),
+                            await ContentfulConnection.GetContentTypesAsync()
+                        );
+        }
+        else
+        {
+            adapter = yamlDeserializer.Deserialize<HttpDataAdapterConfig>(apiSyncEntry.Yaml)
+                ?? throw new CliException($"Invalid data in '{contentSyncApiTypeId}.{"yaml"}' for key '{settings.Key}'.");
+
+            inputAdapter = new HttpInputAdapter(
+                            (HttpDataAdapterConfig)adapter,
+                            ContentfulConnection,
+                            contentLocales,
+                            AppSettings.GetSettings(),
+                            await ContentfulConnection.GetContentTypesAsync(),
+                            _httpClient
+                        )
+                        .WithHttpResponseFileCache(settings.UseFileCache ? _httpResponseCache : null);
+        }
 
         adapter.Id = settings.Key;
 
@@ -89,16 +122,6 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
         {
             return -1;
         }
-
-        IInputAdapter inputAdapter = new HttpInputAdapter(
-                        adapter,
-                        ContentfulConnection,
-                        contentLocales,
-                        AppSettings.GetSettings(),
-                        await ContentfulConnection.GetContentTypesAsync(),
-                        _httpClient
-                    )
-                    .WithHttpResponseFileCache(settings.UseFileCache ? _httpResponseCache : null);
 
         await PerformBulkOperations([
             new UpsertBulkAction(ContentfulConnection, _httpClient, true)
