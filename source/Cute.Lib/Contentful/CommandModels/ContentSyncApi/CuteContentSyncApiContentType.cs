@@ -32,6 +32,9 @@ public class CuteContentSyncApiContentType
              new FieldBuilder("yaml", FieldType.Text)
                     .Build(),
 
+             new FieldBuilder("sourceType", FieldType.Symbol)
+                    .Build(),
+
             ]);
 
         _contentType = contentTypeBuilder.Build();

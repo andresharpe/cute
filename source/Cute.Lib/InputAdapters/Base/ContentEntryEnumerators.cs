@@ -2,9 +2,9 @@
 using Newtonsoft.Json.Linq;
 using System.Collections;
 
-namespace Cute.Lib.InputAdapters.Http;
+namespace Cute.Lib.InputAdapters.Base;
 
-internal class ContentEntryEnumerators : IEnumerable<IAsyncEnumerable<(Entry<JObject>, int)>>
+public class ContentEntryEnumerators : IEnumerable<IAsyncEnumerable<(Entry<JObject>, int)>>
 {
     private readonly List<IAsyncEnumerable<(Entry<JObject>, int)>> _values = new(5);
 

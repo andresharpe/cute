@@ -3,15 +3,13 @@ using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
+using Cute.Lib.InputAdapters.Base;
 using Cute.Lib.InputAdapters.Http.Models;
 using Cute.Lib.InputAdapters.MemoryAdapters;
-using Cute.Lib.Scriban;
 using Cute.Lib.Serializers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Scriban;
-using Scriban.Runtime;
-using Scriban.Syntax;
 using System.IO.Hashing;
 using System.Text;
 
@@ -24,21 +22,11 @@ public class HttpInputAdapter(
     IReadOnlyDictionary<string, string?> envSettings,
     IEnumerable<ContentType> contentTypes,
     HttpClient httpClient)
-    : InputAdapterBase(adapter.EndPoint)
+    : MappedInputAdapterBase(adapter.EndPoint, adapter, contentfulConnection, contentLocales, envSettings, contentTypes)
 {
     private readonly HttpDataAdapterConfig _adapter = adapter;
 
-    private readonly ContentLocales _contentLocales = contentLocales;
-
     private readonly HttpClient _httpClient = httpClient;
-
-    private readonly ScriptObject _scriptObject = CreateScriptObject(contentfulConnection, envSettings);
-
-    private readonly Dictionary<Template, Template> _compiledTemplates = adapter.CompileMappingTemplates();
-
-    private readonly Dictionary<string, Template> _compiledPreTemplates = adapter.CompilePreMappingTemplates();
-
-    private readonly ContentEntryEnumerators? _entryEnumerators = GetEntryEnumerators(adapter.EnumerateForContentTypes, contentfulConnection, contentTypes);
 
     private HttpResponseFileCache? _httpResponseFileCache;
 
@@ -49,38 +37,11 @@ public class HttpInputAdapter(
         return this;
     }
 
-    private ContentType _contentType = default!;
-
-    private List<Dictionary<string, string>> _results = default!;
-
-    private EntrySerializer _serializer = default!;
-
-    private int _currentRecordIndex = -1;
-
-    public override async Task<IDictionary<string, object?>?> GetRecordAsync()
-    {
-        if (_currentRecordIndex == -1)
-        {
-            await GetRecordCountAsync();
-        }
-
-        if (_currentRecordIndex >= _results.Count)
-        {
-            return null;
-        }
-
-        var result = _serializer.CreateNewFlatEntry(_results[_currentRecordIndex]);
-
-        _currentRecordIndex++;
-
-        return result;
-    }
-
     public override async Task<int> GetRecordCountAsync()
     {
         if (_results is not null && _results.Count > 0) return _results.Count;
 
-        _contentType = contentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == _adapter.ContentType)
+        _contentType = _contentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == _adapter.ContentType)
             ?? throw new CliException($"Content type '{_adapter.ContentType}' does not exist.");
 
         _serializer = new EntrySerializer(_contentType, _contentLocales);
@@ -271,7 +232,7 @@ public class HttpInputAdapter(
             _httpClient.DefaultRequestHeaders.Add(_adapter.ContinuationTokenHeader, token);
         }
 
-        return [.. returnValue.OrderBy(e => e[_adapter.ContentKeyField])];
+        return [..returnValue.OrderBy(e => e[_adapter.ContentKeyField])];
     }
 
     private async Task<HttpResponseCacheEntry?> GetResponseFromEndpointOrCache(
@@ -375,129 +336,5 @@ public class HttpInputAdapter(
             arr.Add(obj);
         }
         return arr;
-    }
-
-    private Dictionary<string, string> CompileValuesWithEnvironment(Dictionary<string, string> headers)
-    {
-        var templates = headers.ToDictionary(m => m.Key, m => Template.Parse(m.Value));
-
-        var errors = new List<string>();
-
-        foreach (var (header, template) in templates)
-        {
-            if (template.HasErrors)
-            {
-                errors.Add($"Error(s) in mapping for header '{header}'.{template.Messages.Select(m => $"\n...{m.Message}")} ");
-            }
-        }
-
-        if (errors.Count != 0) throw new CliException(string.Join('\n', errors));
-
-        try
-        {
-            var newRecord = templates.ToDictionary(t => t.Key, t => t.Value.Render(_scriptObject));
-
-            return newRecord;
-        }
-        catch (ScriptRuntimeException e)
-        {
-            throw new CliException(e.Message, e);
-        }
-    }
-
-    private List<Dictionary<string, string>> MapResultValues(JArray rootArray)
-    {
-        try
-        {
-            var batchValue = rootArray.Cast<JObject>()
-                .Select(o =>
-                {
-                    _scriptObject.SetValue("row", o, true);
-                    var vars = _compiledPreTemplates.ToDictionary(t => t.Key, t => t.Value.Render(_scriptObject));
-                    _scriptObject.SetValue("var", vars, true);
-                    var newRecord = _compiledTemplates.ToDictionary(t => t.Key.Render(_scriptObject), t => t.Value.Render(_scriptObject));
-                    _scriptObject.Remove("var");
-                    _scriptObject.Remove("row");
-                    return newRecord;
-                })
-                .ToList();
-
-            return batchValue;
-        }
-        catch (ScriptRuntimeException e)
-        {
-            throw new CliException(e.Message, e);
-        }
-    }
-
-    private JArray FilterResultValues(JArray inputValues)
-    {
-        try
-        {
-            var filterTemplate = Template.Parse(_adapter.FilterExpression);
-
-            var filteredReturnValues = new JArray(
-                inputValues
-                .Where(o =>
-                {
-                    _scriptObject.SetValue("row", o, true);
-                    var vars = _compiledPreTemplates.ToDictionary(t => t.Key, t => t.Value.Render(_scriptObject));
-                    _scriptObject.SetValue("var", vars, true);
-                    var strValue = filterTemplate.Render(_scriptObject);
-                    var returnValue = filterTemplate.Render(_scriptObject).Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
-                    _scriptObject.Remove("var");
-                    _scriptObject.Remove("row");
-                    return returnValue;
-                })
-            );
-
-            return filteredReturnValues;
-        }
-        catch (ScriptRuntimeException e)
-        {
-            throw new CliException(e.Message, e);
-        }
-    }
-
-    private static ScriptObject CreateScriptObject(ContentfulConnection contentfulConnection, IReadOnlyDictionary<string, string?> envSettings)
-    {
-        ScriptObject? scriptObject = [];
-
-        CuteFunctions.ContentfulConnection = contentfulConnection;
-
-        scriptObject.SetValue("cute", new CuteFunctions(), true);
-
-        scriptObject.SetValue("config", envSettings, true);
-
-        return scriptObject;
-    }
-
-    private static ContentEntryEnumerators? GetEntryEnumerators(
-        List<ContentEntryDefinition>? entryDefinitions,
-        ContentfulConnection contentfulConnection,
-        IEnumerable<ContentType> contentTypes)
-    {
-        if (entryDefinitions is null) return null;
-
-        if (entryDefinitions.Count == 0) return null;
-
-        var contentEntryEnumerators = new ContentEntryEnumerators();
-        foreach (var entryDefinition in entryDefinitions)
-        {
-            var contentType = contentTypes.FirstOrDefault(ct => ct.SystemProperties.Id == entryDefinition.ContentType)
-                ?? throw new CliException($"Content type '{entryDefinition.ContentType}' does not exist.");
-
-            var enumerator = contentfulConnection.GetManagementEntries<Entry<JObject>>(
-                    new EntryQuery.Builder()
-                        .WithContentType(entryDefinition.ContentType)
-                        .WithOrderByField(contentType.DisplayField)
-                        .WithQueryString(entryDefinition.QueryParameters)
-                        .Build()
-                );
-
-            contentEntryEnumerators.Add(enumerator);
-        }
-
-        return contentEntryEnumerators;
     }
 }
