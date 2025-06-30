@@ -1,9 +1,10 @@
 ﻿using Cute.Lib.InputAdapters.Base.Models;
 
-namespace Cute.Lib.InputAdapters.Sql.Model
+namespace Cute.Lib.InputAdapters.DB.Model
 {
-    public class SqlDataAdapterConfig : DataAdapterConfigBase
+    public class DBDataAdapterConfig : DataAdapterConfigBase
     {
+        public string provider { get; set; } = default!;
         public string connectionString { get; set; } = default!;
         public string query { get; set; } = default!;
     }

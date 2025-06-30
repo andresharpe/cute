@@ -2,17 +2,21 @@
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.InputAdapters.Base;
-using Cute.Lib.InputAdapters.Sql.Model;
+using Cute.Lib.InputAdapters.DB.Model;
 using Cute.Lib.Serializers;
 using Dapper;
 using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
+using MySql.Data.MySqlClient;
 using Newtonsoft.Json.Linq;
+using Npgsql;
 using Scriban;
+using System.Data.Common;
 
-namespace Cute.Lib.InputAdapters.Sql
+namespace Cute.Lib.InputAdapters.DB
 {
-    public class SqlInputAdapter(
-        SqlDataAdapterConfig adapter,
+    public class DBInputAdapter(
+        DBDataAdapterConfig adapter,
         ContentfulConnection contentfulConnection,
         ContentLocales contentLocales,
         IReadOnlyDictionary<string, string?> envSettings,
@@ -36,17 +40,17 @@ namespace Cute.Lib.InputAdapters.Sql
             var query = queryDict["query"];
 
             _results = new List<Dictionary<string, string>>();
-            using var connection = new SqlConnection(connectionString);
+            using var connection = GetDbConnection(connectionString);
             await connection.OpenAsync();
 
-            _results.AddRange(MakeSqlCall(connection));
+            _results.AddRange(MakeDBCall(connection));
 
             _currentRecordIndex = 0;
 
             return _results.Count;
         }
 
-        private List<Dictionary<string, string>> MakeSqlCall(SqlConnection connection)
+        private List<Dictionary<string, string>> MakeDBCall(DbConnection connection)
         {
             var skipTotal = 0;
             var returnValue = new List<Dictionary<string, string>>();
@@ -64,7 +68,7 @@ namespace Cute.Lib.InputAdapters.Sql
                 var query = queryDict["query"];
 
                 var hasRows = false;
-                foreach (var row in connection.Query(query))
+                foreach (var row in connection.Query(query, buffered: false))
                 {
                     hasRows = true;
                     returnValue.AddRange(MapResultValues(JArray.FromObject(new[] { JObject.FromObject(row) })));
@@ -80,13 +84,13 @@ namespace Cute.Lib.InputAdapters.Sql
             return returnValue;
         }
 
-        private async Task<List<Dictionary<string, string>>> MakeSqlCallsForEnumerators(SqlConnection connection, int level = 0, List<Dictionary<string, string>> returnVal = null!)
+        private async Task<List<Dictionary<string, string>>> MakeDBCallsForEnumerators(SqlConnection connection, int level = 0, List<Dictionary<string, string>> returnVal = null!)
         {
             if (_entryEnumerators is null) throw new CliException("No entry enumerators defined.");
 
             if (level > _entryEnumerators.Length - 1)
             {
-                returnVal.AddRange(MakeSqlCall(connection) ?? []);
+                returnVal.AddRange(MakeDBCall(connection) ?? []);
 
                 return returnVal;
             }
@@ -117,7 +121,7 @@ namespace Cute.Lib.InputAdapters.Sql
                 {
                     ActionNotifier?.Invoke($"{padding}Processing '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
 
-                    _ = await MakeSqlCallsForEnumerators(connection, level + 1, returnVal);
+                    _ = await MakeDBCallsForEnumerators(connection, level + 1, returnVal);
                 }
                 else
                 {
@@ -128,6 +132,25 @@ namespace Cute.Lib.InputAdapters.Sql
             }
 
             return returnVal;
+        }
+
+        private DbConnection GetDbConnection(string connectionString)
+        {
+            var provider = adapter.provider.ToLowerInvariant();
+            switch (provider)
+                {
+                case "sqlserver":
+                    return new SqlConnection(connectionString);
+                case "mysql":
+                    return new MySqlConnection(connectionString);
+                case "postgresql":
+                    return new NpgsqlConnection(connectionString);
+                case "sqlite":
+                    return new SqliteConnection(connectionString);
+                // Add other providers as needed
+                default:
+                    throw new CliException($"Provider '{adapter.provider}' is not supported.");
+            }
         }
     }
 }
