@@ -16,7 +16,6 @@ using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
-using System.Management;
 
 namespace Cute.Commands.Content;
 
@@ -43,15 +42,19 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
         [CommandOption("--filter-field")]
         [Description("The field to update.")]
-        public string filterField { get; set; } = null!;
+        public string FilterField { get; set; } = null!;
 
         [CommandOption("--filter-field-value")]
         [Description("The value to update it with. Can contain an expression.")]
-        public string filterFieldValue { get; set; } = null!;
+        public string FilterFieldValue { get; set; } = null!;
 
         [CommandOption("--max-concurrency")]
         [Description("Indicates how many concurrent calls can be made to a translation service for a single entry. Default is 10")]
-        public int maxConcurrency { get; set; } = 10;
+        public int MaxConcurrency { get; set; } = 10;
+
+        [CommandOption("--fallback-service")]
+        [Description("Fallback translation service (Azure, Google, Deepl, GPT4o), in case configured one doesn't return a value. Will translate without a custom model and glossary")]
+        public TranslationService? FallbackService { get; set; } = null;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -94,15 +97,15 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         }
 
         string queryString = string.Empty;
-        if (!string.IsNullOrEmpty(settings.filterField))
+        if (!string.IsNullOrEmpty(settings.FilterField))
         {
-            if (string.IsNullOrEmpty(settings.filterFieldValue))
+            if (string.IsNullOrEmpty(settings.FilterFieldValue))
             {
                 throw new CliException($"The filter field value is required when using the filter field.");
             }
             else
             {
-                queryString = $"fields.{settings.filterField}={settings.filterFieldValue}";
+                queryString = $"fields.{settings.FilterField}={settings.FilterFieldValue}";
             }
         }
 
@@ -179,7 +182,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         try
         {
             // Create a semaphore to limit concurrent translations
-            var throttler = new SemaphoreSlim(settings.maxConcurrency);
+            var throttler = new SemaphoreSlim(settings.MaxConcurrency);
             bool needToPublish = false;
             Dictionary<string, List<string>> failedEntryIds = new Dictionary<string, List<string>>();
             await ProgressBars.Instance()
@@ -262,6 +265,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                         cuteLanguage,
                                         targetLocaleFieldName,
                                         tService,
+                                        settings.FallbackService,
                                         throttler));
                                 }
                                 taskTranslate.Increment(1);
@@ -351,6 +355,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
     CuteLanguage targetLanguage,
     string targetField,
     TranslationService tService,
+    TranslationService? fallbackService,
     SemaphoreSlim throttler)
     {
         await throttler.WaitAsync(); // Wait for a slot to be available
@@ -378,6 +383,21 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 retryCount--;
                 if (retryCount > 0)
                     await Task.Delay(1000); // Wait before retry
+            }
+
+            if(string.IsNullOrEmpty(translatedText) && fallbackService != null && tService != fallbackService)
+            {
+                translator = _translateFactory.Create(fallbackService.Value);
+                try
+                {
+                    var translation = await translator.Translate(text, sourceLocale, targetLanguage.Iso2Code);
+                    translatedText = translation?.Text;
+                }
+                catch (Exception ex)
+                {
+                    _console.WriteAlert($"Error translating text from {sourceLocale} to {targetLanguage.Iso2Code} using {translator.GetType().Name}. Error Message: {ex.Message}");
+                    translatedText = null;
+                }
             }
 
             return (targetField, translatedText, !string.IsNullOrEmpty(translatedText));
