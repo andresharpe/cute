@@ -75,7 +75,7 @@ namespace Cute.Lib.InputAdapters.DB
                     ActionNotifier?.Invoke($"...returned {returnValue.Count} entries...");
                 }
 
-                if (!hasRows)
+                if (adapter.Pagination is null || !hasRows)
                 {
                     break;
                 }
