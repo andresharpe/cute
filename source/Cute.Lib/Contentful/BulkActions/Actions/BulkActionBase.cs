@@ -382,12 +382,6 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         var responseText = await bulkResponse.Content.ReadAsStringAsync();
 
-        var response = JsonConvert.DeserializeObject<BulkActionResponse>(responseText);
-        if (response?.Sys?.Status == "failed")
-        {
-
-        }
-
         return JsonConvert.DeserializeObject<BulkActionResponse>(responseText)
             ?? throw new CliException("Could not read the bulk action response.");
     }

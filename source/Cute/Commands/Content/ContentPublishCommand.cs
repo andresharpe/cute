@@ -26,8 +26,16 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
         public string ContentTypeId { get; set; } = default!;
 
         [CommandOption("--no-publish")]
-        [Description("Specifies whether to skip publish for modified entries")]
+        [Description("Specifies whether to skip publish for modified entries.")]
         public bool NoPublish { get; set; } = false;
+
+        [CommandOption("--chunk-size")]
+        [Description("Specifies published entries chunk size. Default is 100.")]
+        public int ChunkSize { get; set; } = 100;
+
+        [CommandOption("--max-call-limit")]
+        [Description("Specifies maximum limit of chunks sent at a time. Default is 5.")]
+        public int MaxCallLimit { get; set; } = 5;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -54,6 +62,8 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
                     .WithApplyChanges(!settings.NoPublish)
+                    .WithPublishChunkSize(settings.ChunkSize)
+                    .WithBulkActionCallLimit(settings.MaxCallLimit)
             ]
         );
 
