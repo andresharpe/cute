@@ -409,7 +409,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
                 continue;
             }
 
-            if (value is null)
+            if (string.IsNullOrEmpty(value?.ToString()))
             {
                 flatEntry.Remove(key);
             }
