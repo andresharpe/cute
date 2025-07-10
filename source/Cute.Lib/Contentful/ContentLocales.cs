@@ -8,8 +8,6 @@ public class ContentLocales
 
     public ContentLocales(string[] locales, string defaultLocale)
     {
-        defaultLocale = defaultLocale.ToLower();
-
         DefaultLocale = defaultLocale;
 
         Locales = locales

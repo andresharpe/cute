@@ -51,7 +51,7 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
     {
         settings.Locale ??= _contentfulConnection.GetDefaultLocaleAsync().Result.Code;
 
-        settings.Locale = settings.Locale.ToLower();
+        settings.Locale = settings.Locale;
 
         if (settings.Fields.Length != settings.Values.Length)
         {

@@ -65,7 +65,7 @@ public class ContentSetDefaultValueCommand(IConsoleWriter console, ILogger<Conte
     {
         settings.Locale ??= _contentfulConnection.GetDefaultLocaleAsync().Result.Code;
 
-        settings.Locale = settings.Locale.ToLower();
+        settings.Locale = settings.Locale;
 
         if (settings.Fields.Length != settings.Values.Length)
         {
