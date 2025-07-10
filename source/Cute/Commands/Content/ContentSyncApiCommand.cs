@@ -85,7 +85,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
         DataAdapterConfigBase adapter;
 
-        switch (apiSyncEntry.SourceType.ToLowerInvariant())
+        switch (apiSyncEntry.SourceType?.ToLowerInvariant())
         {
             case "database":
                 adapter = yamlDeserializer.Deserialize<DBDataAdapterConfig>(apiSyncEntry.Yaml)
