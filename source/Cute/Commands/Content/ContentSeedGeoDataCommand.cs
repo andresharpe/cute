@@ -743,7 +743,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
             if (newRecord.GeoType == "state-or-province")
             {
-                if (adminCodeToGeoId[newRecord.Sys.Id].Count > 1)
+                if (adminCodeToGeoId[newRecord.Sys.Id].Count > 1 || newRecord.DataCountryEntry?.Key == "US")
                 {
                     var provinceEntry = new Entry<JObject>
                     {
