@@ -1,5 +1,6 @@
 ﻿using CsvHelper;
 using CsvHelper.Configuration;
+using Cute.Lib.OutputAdapters;
 using System.Globalization;
 
 namespace Cute.Lib.InputAdapters.FileAdapters;
@@ -60,7 +61,7 @@ internal class CsvInputAdapter : InputAdapterBase
             }
             i++;
         }
-
+        result.Remove(OutputAdapterBase.StateColumnName);
         return Task.FromResult<IDictionary<string, object?>?>(result);
     }
 

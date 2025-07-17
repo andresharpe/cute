@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using Cute.Lib.OutputAdapters;
+using Newtonsoft.Json;
 
 namespace Cute.Lib.InputAdapters.FileAdapters;
 
@@ -76,6 +77,7 @@ internal class JsonInputAdapter : InputAdapterBase
             {
                 _recordNum++;
                 var result = _serializer.Deserialize<Dictionary<string, object?>>(_jsonTextReader);
+                result?.Remove(OutputAdapterBase.StateColumnName);
                 return result;
             }
         }

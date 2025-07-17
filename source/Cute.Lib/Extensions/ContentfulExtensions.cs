@@ -1,4 +1,5 @@
 ﻿using Contentful.Core.Models;
+using Cute.Lib.Enums;
 using FuzzySharp;
 
 namespace Cute.Lib.Extensions;
@@ -32,5 +33,14 @@ public static class ContentfulExtensions
                 Fuzz.PartialRatio(input, f.Id)
             )
             .First().Id;
+    }
+
+    public static EntryState? GetEntryState(this SystemProperties sys)
+    {
+        if (sys.ArchivedVersion != null) return EntryState.Archived;
+        if (sys.PublishedVersion != null && sys.Version == sys.PublishedVersion + 1) return EntryState.Published;
+        if (sys.PublishedVersion != null && sys.Version >= sys.PublishedVersion + 2) return EntryState.Changed;
+        if (sys.PublishedVersion == null || sys.PublishedVersion == 0) return EntryState.Draft;
+        return null;
     }
 }

@@ -1,5 +1,6 @@
 ﻿using ClosedXML.Excel;
 using Cute.Lib.Exceptions;
+using Cute.Lib.OutputAdapters;
 
 namespace Cute.Lib.InputAdapters.FileAdapters;
 
@@ -36,7 +37,11 @@ internal class ExcelInputAdapter : InputAdapterBase
         var col = 1;
         while (!_sheet.Cell(row, col).Value.IsBlank)
         {
-            _columns.Add(_sheet.Cell(row, col).GetString());
+            var columnName = _sheet.Cell(row, col).GetString();
+            if (columnName != OutputAdapterBase.StateColumnName)
+            {
+                _columns.Add(columnName);
+            }
             col++;
         }
     }
