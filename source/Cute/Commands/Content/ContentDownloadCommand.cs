@@ -5,6 +5,7 @@ using Cute.Constants;
 using Cute.Lib.Contentful;
 using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
+using Cute.Lib.Extensions;
 using Cute.Lib.OutputAdapters;
 using Cute.Lib.Serializers;
 using Cute.Services;
@@ -101,7 +102,7 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
                     {
                         taskExtract.MaxValue = total;
                     }
-                    outputAdapter.AddRow(serializer.SerializeEntry(entry));
+                    outputAdapter.AddRow(serializer.SerializeEntry(entry), entry.SystemProperties.GetEntryState());
                     taskExtract.Increment(1);
                 }
 

@@ -1,10 +1,13 @@
-﻿using Cute.Lib.Exceptions;
+﻿using Cute.Lib.Enums;
+using Cute.Lib.Exceptions;
 
 namespace Cute.Lib.OutputAdapters;
 
 internal abstract class OutputAdapterBase : IOutputAdapter
 {
     private readonly string _fileName;
+
+    public static readonly string StateColumnName = "sys.State";
 
     public string FileSource => new FileInfo(_fileName).FullName;
 
@@ -25,7 +28,7 @@ internal abstract class OutputAdapterBase : IOutputAdapter
 
     public abstract void AddHeadings(IEnumerable<string> headings);
 
-    public abstract void AddRow(IDictionary<string, object?> row);
+    public abstract void AddRow(IDictionary<string, object?> row, EntryState? state);
 
     public abstract void Save();
 }

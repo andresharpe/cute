@@ -1,4 +1,5 @@
 ﻿using ClosedXML.Excel;
+using Cute.Lib.Enums;
 
 namespace Cute.Lib.OutputAdapters;
 
@@ -29,9 +30,10 @@ internal class ExcelOutputAdapter : OutputAdapterBase
         {
             AddHeading(col);
         }
+        AddHeading(StateColumnName);
     }
 
-    public override void AddRow(IDictionary<string, object?> row)
+    public override void AddRow(IDictionary<string, object?> row, EntryState? state)
     {
         var xlCol = 1;
         var xlRow = _xlRow;
@@ -44,6 +46,15 @@ internal class ExcelOutputAdapter : OutputAdapterBase
             }
             xlCol++;
         }
+        _sheet.Cell(xlRow, xlCol).Value = state?.ToString();
+        _sheet.Cell(xlRow, xlCol).Style.Fill.BackgroundColor = state switch
+        {
+            EntryState.Draft => XLColor.LightGray,
+            EntryState.Published => XLColor.LightGreen,
+            EntryState.Changed => XLColor.LightBlue,
+            EntryState.Archived => XLColor.LightPink,
+            _ => XLColor.White
+        };
         _xlRow++;
     }
 

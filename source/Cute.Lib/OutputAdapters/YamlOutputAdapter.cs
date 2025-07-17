@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using Cute.Lib.Enums;
+using System.Text;
 using YamlDotNet.Serialization;
 
 namespace Cute.Lib.OutputAdapters;
@@ -27,8 +28,9 @@ internal class YamlOutputAdapter : OutputAdapterBase, IOutputAdapter
         // do nothing
     }
 
-    public override void AddRow(IDictionary<string, object?> row)
+    public override void AddRow(IDictionary<string, object?> row, EntryState? state)
     {
+        row.Add(StateColumnName, state?.ToString());
         var sb = new StringBuilder(_yaml.Serialize(row));
         sb.Replace("\n", "\n  ");
         sb.Length -= 2;

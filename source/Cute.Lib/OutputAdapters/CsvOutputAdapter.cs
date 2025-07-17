@@ -1,5 +1,6 @@
 ﻿using CsvHelper;
 using CsvHelper.Configuration;
+using Cute.Lib.Enums;
 using System.Globalization;
 
 namespace Cute.Lib.OutputAdapters;
@@ -29,15 +30,17 @@ internal class CsvOutputAdapter : OutputAdapterBase, IOutputAdapter
         {
             _csv.WriteField(col);
         }
+        _csv.WriteField(StateColumnName);
         _csv.NextRecord();
     }
 
-    public override void AddRow(IDictionary<string, object?> row)
+    public override void AddRow(IDictionary<string, object?> row, EntryState? state)
     {
         foreach (var (_, value) in row)
         {
             _csv.WriteField(value);
         }
+        _csv.WriteField(state?.ToString());
         _csv.NextRecord();
     }
 

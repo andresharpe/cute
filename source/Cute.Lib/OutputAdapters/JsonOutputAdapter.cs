@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using Cute.Lib.Enums;
+using Newtonsoft.Json;
 
 namespace Cute.Lib.OutputAdapters;
 
@@ -29,13 +30,13 @@ internal class JsonOutputAdapter : OutputAdapterBase, IOutputAdapter
         // nothing to do here
     }
 
-    public override void AddRow(IDictionary<string, object?> row)
+    public override void AddRow(IDictionary<string, object?> row, EntryState? state)
     {
         if (_count > 0)
         {
             _json.WriteRaw(",\n");
         }
-
+        row.Add(StateColumnName, state?.ToString());
         // Currently pretty-fied - although we can proably control this too with a param for more compact output
         _json.WriteRaw(JsonConvert.SerializeObject(row, Formatting.Indented));
 

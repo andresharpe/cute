@@ -1,4 +1,6 @@
-﻿namespace Cute.Lib.OutputAdapters;
+﻿using Cute.Lib.Enums;
+
+namespace Cute.Lib.OutputAdapters;
 
 public interface IOutputAdapter : IDisposable
 {
@@ -6,7 +8,7 @@ public interface IOutputAdapter : IDisposable
 
     void AddHeadings(IEnumerable<string> headings);
 
-    void AddRow(IDictionary<string, object?> row);
+    void AddRow(IDictionary<string, object?> row, EntryState? state);
 
     void Save();
 }

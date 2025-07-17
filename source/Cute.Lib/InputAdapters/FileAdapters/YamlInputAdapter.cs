@@ -1,4 +1,5 @@
-﻿using YamlDotNet.Serialization;
+﻿using Cute.Lib.OutputAdapters;
+using YamlDotNet.Serialization;
 
 namespace Cute.Lib.InputAdapters.FileAdapters;
 
@@ -20,7 +21,9 @@ internal class YamlInputAdapter : InputAdapterBase
     {
         if (_recordNum < await GetRecordCountAsync())
         {
-            return _data?.Items[_recordNum++];
+            var record = _data?.Items[_recordNum++];
+            record?.Remove(OutputAdapterBase.StateColumnName);
+            return record;
         }
 
         return null;
