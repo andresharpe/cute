@@ -39,6 +39,8 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 
     private bool _force = false;
 
+    private IEnumerable<string> _contextIds = [];
+
     public AppSettings AppSettings => _appSettings;
     public ContentfulConnection ContentfulConnection => _contentfulConnection;
 
@@ -452,10 +454,11 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                      };
                  }
 
-                 await executors[i]
+                 _contextIds = await executors[i]
                      .WithContentfulConnection(_contentfulConnection)
                      .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
                      .WithVerbosity(_settings.Verbosity)
+                     .WithContextIds(_contextIds)
                      .ExecuteAsync(progressBarActions);
 
                  ctx.Refresh();
@@ -489,10 +492,11 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                 };
             }
 
-            await executors[i]
+            _contextIds = await executors[i]
                 .WithContentfulConnection(_contentfulConnection)
                 .WithDisplayAction(m => _logger.LogDebug("{displayMessage}", m.ToString()))
                 .WithVerbosity(_settings.Verbosity)
+                .WithContextIds(_contextIds)
                 .ExecuteAsync(progressUpdaters);
         }
     }

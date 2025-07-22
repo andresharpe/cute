@@ -7,7 +7,7 @@ namespace Cute.Lib.Contentful.BulkActions.Actions
     {
         IList<ActionProgressIndicator> ActionProgressIndicators();
 
-        Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null);
+        Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null);
 
         BulkActionBase WithApplyChanges(bool applyChanges);
 

@@ -12,13 +12,15 @@ public class DeleteBulkAction(ContentfulConnection contentfulConnection, HttpCli
         new() { Intent = "Deleting entries..." },
     ];
 
-    public override async Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
+    public override async Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
     {
         await GetWithEntries(progressUpdaters?[0]);
 
         await UnPublishWithEntries(progressUpdaters?[1]);
 
         await DeleteWithEntries(progressUpdaters?[2]);
+
+        return _withEntries!.Select(e => e.Sys.Id);
     }
 
     protected async Task DeleteWithEntries(Action<BulkActionProgressEvent>? progressUpdater)

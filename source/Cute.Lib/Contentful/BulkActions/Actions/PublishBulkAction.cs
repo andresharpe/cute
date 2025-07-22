@@ -9,7 +9,7 @@ public class PublishBulkAction(ContentfulConnection contentfulConnection, HttpCl
         new() { Intent = "Publishing entries..." },
     ];
 
-    public override async Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
+    public override async Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
     {
         await GetWithEntries(progressUpdaters?[0]);
 
@@ -21,5 +21,7 @@ public class PublishBulkAction(ContentfulConnection contentfulConnection, HttpCl
         {
             NotifyUserInterface($"Skipping publish step. Omit --no-publish to skip this step.", progressUpdaters?[1]);
         }
+
+        return _withEntries!.Select(e => e.Sys.Id);
     }
 }

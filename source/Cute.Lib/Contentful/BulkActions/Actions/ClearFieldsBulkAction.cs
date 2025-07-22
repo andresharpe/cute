@@ -14,7 +14,7 @@ namespace Cute.Lib.Contentful.BulkActions.Actions
             new() { Intent = "Upserting entries..." },
         ];
 
-        public override async Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
+        public override async Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
         {
             await GetAllEntriesForComparison(progressUpdaters?[0]);
             if (_applyChanges)
@@ -25,6 +25,8 @@ namespace Cute.Lib.Contentful.BulkActions.Actions
             {
                 NotifyUserInterface($"No changes applied. Use -a|--apply to apply changes.", progressUpdaters?[1]);
             }
+
+            return _withUpdatedFlatEntries!.Select(e => e.SystemProperties.Id);
         }
 
         private async Task GetAllEntriesForComparison(Action<BulkActionProgressEvent>? progressUpdater)

@@ -27,7 +27,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         new() { Intent = "Upserting entries..." },
     ];
 
-    public override async Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
+    public override async Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
     {
         await GetNewAdapterEntries(progressUpdaters?[0], progressUpdaters?[1]);
 
@@ -43,6 +43,8 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         {
             NotifyUserInterface($"No changes applied. Use -a|--apply to apply changes.", progressUpdaters?[4]);
         }
+
+        return _withUpdatedFlatEntries!.Select(e => e.SystemProperties.Id);
     }
 
     private async Task GetNewAdapterEntries(Action<BulkActionProgressEvent>? progressUpdaterCount, Action<BulkActionProgressEvent>? progressUpdaterRead)
