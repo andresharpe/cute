@@ -109,7 +109,7 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
                 .WithContentLocales(contentLocales)
                 .WithVerbosity(settings.Verbosity)
                 .WithApplyChanges(!settings.NoPublish)
-                .WithUseContext(settings.UseContext)
+                .WithUseSession(settings.UseSession)
         ]);
 
         return 0;

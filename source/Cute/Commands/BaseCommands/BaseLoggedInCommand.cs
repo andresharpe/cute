@@ -458,7 +458,7 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                      .WithContentfulConnection(_contentfulConnection)
                      .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
                      .WithVerbosity(_settings.Verbosity)
-                     .WithContextIds(_contextIds)
+                     .WithSessionEntryIds(_contextIds)
                      .ExecuteAsync(progressBarActions);
 
                  ctx.Refresh();
@@ -496,7 +496,7 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                 .WithContentfulConnection(_contentfulConnection)
                 .WithDisplayAction(m => _logger.LogDebug("{displayMessage}", m.ToString()))
                 .WithVerbosity(_settings.Verbosity)
-                .WithContextIds(_contextIds)
+                .WithSessionEntryIds(_contextIds)
                 .ExecuteAsync(progressUpdaters);
         }
     }

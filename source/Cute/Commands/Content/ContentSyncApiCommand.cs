@@ -47,6 +47,10 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
         [CommandOption("--no-publish")]
         [Description("Specifies whether to skip publish for modified entries")]
         public bool NoPublish { get; set; } = false;
+
+        [CommandOption("--use-session")]
+        [Description("Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones).")]
+        public bool UseSession { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -138,6 +142,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
             .WithContentLocales(contentLocales)
             .WithVerbosity(settings.Verbosity)
             .WithApplyChanges(!settings.NoPublish)
+            .WithUseSession(settings.UseSession)
         ], apiSyncEntry.Key);
 
         return 0;
