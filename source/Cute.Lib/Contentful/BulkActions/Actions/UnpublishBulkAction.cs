@@ -14,10 +14,12 @@ public class UnpublishBulkAction(ContentfulConnection contentfulConnection, Http
         new() { Intent = "Publishing..." },
     ];
 
-    public override async Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
+    public override async Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
     {
         await GetWithEntries(progressUpdaters?[0]);
 
         await UnPublishWithEntries(progressUpdaters?[1]);
+
+        return _withEntries!.Select(e => e.Sys.Id);
     }
 }

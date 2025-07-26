@@ -45,6 +45,10 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
         [CommandOption("--no-publish")]
         [Description("Specifies whether to skip publish for modified entries")]
         public bool NoPublish { get; set; } = false;
+
+        [CommandOption("--use-session")]
+        [Description("Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones).")]
+        public bool UseSession { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -115,6 +119,7 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
             .WithContentLocales(contentLocales)
             .WithVerbosity(settings.Verbosity)
             .WithApplyChanges(!settings.NoPublish)
+            .WithUseSession(settings.UseSession)
         ]);
 
         return 0;

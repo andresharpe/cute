@@ -36,6 +36,10 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
         [CommandOption("-a|--apply")]
         [Description("Apply and publish all the required edits.")]
         public bool Apply { get; set; } = false;
+
+        [CommandOption("--use-session")]
+        [Description("Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones).")]
+        public bool UseSession { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -90,6 +94,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
                     .WithApplyChanges(!settings.NoPublish)
+                    .WithUseSession(settings.UseSession)
         ]);
 
         return 0;

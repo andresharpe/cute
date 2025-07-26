@@ -105,10 +105,11 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
                 .WithApplyChanges(settings.Apply)
                 .WithVerbosity(settings.Verbosity),
             new PublishBulkAction(ContentfulConnection, _httpClient)
-            .WithContentType(contentType)
-            .WithContentLocales(contentLocales)
-            .WithVerbosity(settings.Verbosity)
-            .WithApplyChanges(!settings.NoPublish)
+                .WithContentType(contentType)
+                .WithContentLocales(contentLocales)
+                .WithVerbosity(settings.Verbosity)
+                .WithApplyChanges(!settings.NoPublish)
+                .WithUseSession(settings.UseSession)
         ]);
 
         return 0;

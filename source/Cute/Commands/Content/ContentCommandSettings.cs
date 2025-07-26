@@ -17,4 +17,8 @@ public abstract class ContentCommandSettings : LoggedInSettings
     [CommandOption("--no-publish")]
     [Description("Specifies whether to skip publish for modified entries")]
     public bool NoPublish { get; set; } = false;
+
+    [CommandOption("--use-session")]
+    [Description("Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones).")]
+    public bool UseSession { get; set; } = false;
 }

@@ -62,7 +62,7 @@ public class GenerateBulkAction(
             new() { Intent = "Generating content..." },
     ];
 
-    public override Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
+    public override Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
     {
         // Need to be refactored
         throw new NotImplementedException();

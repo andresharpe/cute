@@ -78,15 +78,16 @@ public class ContentClearLocalizationCommand(IConsoleWriter console, ILogger<Con
 
         await PerformBulkOperations([
             new ClearFieldsBulkAction(ContentfulConnection, _httpClient, fieldsToTranslate.Select(f => f.Name).ToList(), settings.Key)
-                        .WithContentType(contentType)
-                        .WithContentLocales(contentLocales)
-                        .WithVerbosity(settings.Verbosity)
-                        .WithApplyChanges(settings.Apply),
+                .WithContentType(contentType)
+                .WithContentLocales(contentLocales)
+                .WithVerbosity(settings.Verbosity)
+                .WithApplyChanges(settings.Apply),
             new PublishBulkAction(ContentfulConnection, _httpClient)
-                            .WithContentType(contentType)
-                            .WithContentLocales(contentLocales)
-                            .WithVerbosity(settings.Verbosity)
-                            .WithApplyChanges(!settings.NoPublish)
+                .WithContentType(contentType)
+                .WithContentLocales(contentLocales)
+                .WithVerbosity(settings.Verbosity)
+                .WithApplyChanges(!settings.NoPublish)
+                .WithUseSession(settings.UseSession)
         ]);
 
         return 0;

@@ -50,9 +50,13 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
     protected bool _applyChanges = false;
 
+    protected bool _useSession = false;
+
+    protected IEnumerable<string> _sessionEntryIds { get; set; } = default!;
+
     public abstract IList<ActionProgressIndicator> ActionProgressIndicators();
 
-    public abstract Task ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null);
+    public abstract Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null);
 
     public BulkActionBase WithContentfulConnection(ContentfulConnection contentfulConnection)
     {
@@ -131,6 +135,18 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
     public BulkActionBase WithApplyChanges(bool applyChanges)
     {
         _applyChanges = applyChanges;
+        return this;
+    }
+
+    public BulkActionBase WithUseSession(bool useContext)
+    {
+        _useSession = useContext;
+        return this;
+    }
+
+    public BulkActionBase WithSessionEntryIds(IEnumerable<string> sessionEntryIds)
+    {
+        _sessionEntryIds = sessionEntryIds;
         return this;
     }
 
@@ -411,6 +427,11 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
         var entries = _withEntries.Where(entry => !entry.Sys.IsPublished() || entry.Sys.IsChanged()).ToList();
 
         var count = Math.Max(1, entries.Count);
+
+        if (_useSession)
+        {
+            entries = entries.Where(item => _sessionEntryIds.Contains(item.Sys.Id)).ToList();
+        }
 
         progressUpdater?.Invoke(new(0, count, $"Publishing {entries.Count} entries...", null));
 
