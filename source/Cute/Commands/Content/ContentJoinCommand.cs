@@ -1,4 +1,5 @@
-﻿using Cute.Commands.BaseCommands;
+﻿using Contentful.Core.Models;
+using Cute.Commands.BaseCommands;
 using Cute.Commands.Login;
 using Cute.Config;
 using Cute.Lib.Contentful;
@@ -65,6 +66,11 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 
         var source1ContentType = await GetContentTypeOrThrowError(joinEntry.SourceContentType1);
         var source2ContentType = await GetContentTypeOrThrowError(joinEntry.SourceContentType2);
+        ContentType? source3ContentType = null;
+        if (!string.IsNullOrEmpty(joinEntry.SourceContentType3))
+        {
+            source3ContentType = await GetContentTypeOrThrowError(joinEntry.SourceContentType3);
+        }
         var targetContentType = await GetContentTypeOrThrowError(joinEntry.TargetContentType);
 
         if (!ConfirmWithPromptChallenge($"{"JOIN"} {joinEntry.SourceContentType1} and {joinEntry.SourceContentType2} entries for '{joinEntry.TargetContentType}'"))
@@ -84,6 +90,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
                             await ContentfulConnection.GetContentLocalesAsync(),
                             source1ContentType,
                             source2ContentType,
+                            source3ContentType,
                             targetContentType,
                             settings.Source2EntryId
                         ))
