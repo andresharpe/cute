@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 namespace Cute.Lib.InputAdapters.EntryAdapters;
 
 public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConnection contentfulConnection,
-    ContentLocales contentLocales, ContentType sourceContentType1, ContentType sourceContentType2, ContentType targetContentType, string? source2EntryId)
+    ContentLocales contentLocales, ContentType sourceContentType1, ContentType sourceContentType2, ContentType? sourceContentType3, ContentType targetContentType, string? source2EntryId)
     : InputAdapterBase(nameof(JoinEntriesAdapter))
 {
     private List<Dictionary<string, object?>> _results = default!;
@@ -25,6 +25,7 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
     private readonly ContentLocales _contentLocales = contentLocales;
     private readonly ContentType _sourceContentType1 = sourceContentType1;
     private readonly ContentType _sourceContentType2 = sourceContentType2;
+    private readonly ContentType? _sourceContentType3 = sourceContentType3;
     private readonly ContentType _targetContentType = targetContentType;
     private readonly string? _source2EntryId = source2EntryId;
 
@@ -36,6 +37,8 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
             return _results.Count;
         }
 
+        List<Field> targetFieldsList = [];
+
         var targetField1 = _targetContentType.Fields
             .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(_cuteContentJoin.SourceContentType1)))
             .FirstOrDefault()
@@ -45,6 +48,10 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
             .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(_cuteContentJoin.SourceContentType2)))
             .FirstOrDefault()
             ?? throw new CliException($"No reference field for content type '{_cuteContentJoin.SourceContentType2}' found in '{_cuteContentJoin.TargetContentType}'");
+
+        targetFieldsList.AddRange(targetField1, targetField2);
+
+        List<List<Entry<JObject>>> entriesList = [];
 
         var entries1 =
             _contentfulConnection.GetManagementEntries<Entry<JObject>>(
@@ -69,6 +76,30 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
             //.Where(e => source2AllKeys || source2Keys.Contains(e.Fields["key"]?.Value<string>()))
             .ToList();
 
+        entriesList.AddRange(entries1, entries2);
+
+        if (_sourceContentType3 != null)
+        {
+            var targetField3 = _targetContentType.Fields
+                .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(_cuteContentJoin.SourceContentType3)))
+                .FirstOrDefault()
+                ?? throw new CliException($"No reference field for content type '{_cuteContentJoin.SourceContentType3}' found in '{_cuteContentJoin.TargetContentType}'");
+
+            var entries3 = _contentfulConnection.GetManagementEntries<Entry<JObject>>(
+                    new EntryQuery.Builder()
+                        .WithContentType(_sourceContentType3.SystemProperties.Id)
+                        .WithQueryString(_cuteContentJoin.SourceQueryString3 ?? string.Empty)
+                        .Build()
+                )
+                .ToBlockingEnumerable()
+                .Select(e => e.Entry)
+                //.Where(e => source2AllKeys || source2Keys.Contains(e.Fields["key"]?.Value<string>()))
+                .ToList();
+
+            targetFieldsList.Add(targetField3);
+            entriesList.Add(entries3);
+        }
+
         await Task.Delay(0);
 
         var defaultLocale = _contentLocales.DefaultLocale;
@@ -77,27 +108,48 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
 
         _results = [];
 
-        var totalCount = entries1.Count * entries2.Count;
+        var totalCount = entriesList[0].Count;
 
-        foreach (var entry1 in entries1)
+        for (int i = 1; i < entriesList.Count; i++)
         {
-            foreach (var entry2 in entries2)
+            totalCount *= entriesList[i].Count;
+        }
+
+        void recursiveJoin(int depth, List<Entry<JObject>> currentEntries)
+        {
+            if (depth == entriesList.Count)
             {
-                var joinKey = $"{entry1.Fields.SelectToken($"key.{defaultLocale}")?.Value<string>()}.{entry2.Fields.SelectToken($"key.{defaultLocale}")?.Value<string>()}";
-                var joinTitle = $"{entry1.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()} | {entry2.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()}";
-                var joinName = $"{entry2.Fields.SelectToken($"name.{defaultLocale}")?.Value<string>()}";
+                var joinKey = string.Join(".", currentEntries.Select(e => e.Fields.SelectToken($"key.{defaultLocale}")?.Value<string>()));
+                var joinTitle = string.Join(" | ", currentEntries.Select(e => e.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()));//$"{entry1.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()} | {entry2.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()}";
+                var joinName = currentEntries.Last().Fields.SelectToken($"name.{defaultLocale}")?.Value<string>();
 
                 var newFlatEntry = targetSerializer.CreateNewFlatEntry();
                 newFlatEntry[$"key.{defaultLocale}"] = joinKey;
                 newFlatEntry[$"title.{defaultLocale}"] = joinTitle;
                 newFlatEntry[$"name.{defaultLocale}"] = joinName;
-                newFlatEntry[$"{targetField1.Id}.{defaultLocale}"] = entry1.SystemProperties.Id;
-                newFlatEntry[$"{targetField2.Id}.{defaultLocale}"] = entry2.SystemProperties.Id;
+
+                for (int i = 0; i < currentEntries.Count; i++)
+                {
+                    var fieldKey = $"{targetFieldsList[i].Id}.{defaultLocale}";
+                    var sysId = currentEntries[i].SystemProperties.Id;
+                    newFlatEntry[fieldKey] = sysId;
+                }
 
                 _results.Add(newFlatEntry);
                 CountProgressNotifier?.Invoke(_results.Count, totalCount, $"Generating joined entry {_results.Count}/{totalCount}");
             }
+            else
+            {
+                foreach (var entry in entriesList[depth])
+                {
+                    currentEntries.Add(entry);
+                    recursiveJoin(depth + 1, currentEntries);
+                    currentEntries.RemoveAt(currentEntries.Count - 1);
+                }
+            }
         }
+
+        recursiveJoin(0, []);
 
         return _results.Count;
     }

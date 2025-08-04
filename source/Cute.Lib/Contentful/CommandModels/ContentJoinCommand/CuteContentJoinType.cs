@@ -45,7 +45,14 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
                     .IsRequired()
                     .Build(),
 
-                    new FieldBuilder("sourceQueryString1", FieldType.Symbol)
+                    new FieldBuilder("sourceQueryString2", FieldType.Symbol)
+                    .Build(),
+
+                    new FieldBuilder("sourceContentType3", FieldType.Symbol)
+                    .IsRequired()
+                    .Build(),
+
+                    new FieldBuilder("sourceQueryString3", FieldType.Symbol)
                     .Build(),
 
                 ]);

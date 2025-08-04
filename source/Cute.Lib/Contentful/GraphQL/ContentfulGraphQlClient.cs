@@ -60,6 +60,7 @@ public class ContentfulGraphQlClient
             }
         };
 
+        var retryCount = 0;
         while (true)
         {
             var request = new HttpRequestMessage()
@@ -75,8 +76,17 @@ public class ContentfulGraphQlClient
                 () => _httpClient.SendAsync(request),
                 $"",
                 (m) => { }, // suppress this message
-                (e) => throw new CliException(e.ToString())
+                (e) => {
+                    throw new CliException(e.ToString());
+                }
             );
+
+            if(response.StatusCode == System.Net.HttpStatusCode.BadGateway && retryCount < 10)
+            {
+                retryCount++;
+                postBody.variables["limit"] = (int)postBody.variables["limit"] / 2;
+                continue;
+            }
 
             response.EnsureSuccessStatusCode();
 
@@ -84,21 +94,25 @@ public class ContentfulGraphQlClient
 
             var responseObject = JsonConvert.DeserializeObject<JObject>(responseString);
 
-            if (responseObject is null) yield break;
+            if (responseObject is null)
+                yield break;
 
             if (responseObject.SelectToken(jsonResultsPath) is not JArray newRecords)
                 yield break;
 
-            if (newRecords.Count == 0) yield break;
+            if (newRecords.Count == 0)
+                yield break;
 
             foreach (var record in newRecords)
             {
                 yield return (JObject)record;
                 recCount++;
-                if (limit is not null && recCount >= limit) yield break;
+                if (limit is not null && recCount >= limit)
+                    yield break;
             }
 
-            if (newRecords.Count < (int)postBody.variables["limit"]) yield break;
+            if (newRecords.Count < (int)postBody.variables["limit"])
+                yield break;
 
             postBody.variables["skip"] = (int)postBody.variables["skip"] + (int)postBody.variables["limit"];
         }
