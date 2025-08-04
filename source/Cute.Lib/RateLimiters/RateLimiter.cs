@@ -1,4 +1,5 @@
-﻿using Cute.Lib.Exceptions;
+﻿using Contentful.Core.Errors;
+using Cute.Lib.Exceptions;
 using System.Diagnostics;
 
 namespace Cute.Lib.RateLimiters;
@@ -85,6 +86,14 @@ public class RateLimiter
             }
             catch (Exception ex)
             {
+                if (ex is ContentfulException ce)
+                {
+                    if (ce.Message.StartsWith("Response size too big. Maximum allowed response size:"))
+                    {
+                        throw new CliException($"{ex.Message}", ex);
+                    }
+                }
+
                 if (retryAttempt > _retryLimit)
                 {
                     errorNotifier?.Invoke($"Too many retries. {ex.Message}.");
