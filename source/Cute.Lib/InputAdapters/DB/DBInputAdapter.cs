@@ -36,14 +36,19 @@ namespace Cute.Lib.InputAdapters.DB
             var connectionStringDict = CompileValuesWithEnvironment(new Dictionary<string, string> { ["connectionString"] = adapter.connectionString });
             var connectionString = connectionStringDict["connectionString"];
 
-            var queryDict = CompileValuesWithEnvironment(new Dictionary<string, string> { ["query"] = adapter.query });
-            var query = queryDict["query"];
-
             _results = new List<Dictionary<string, string>>();
             using var connection = GetDbConnection(connectionString);
             await connection.OpenAsync();
 
-            _results.AddRange(MakeDBCall(connection));
+
+            if (_entryEnumerators is null)
+            {
+                _results.AddRange(MakeDBCall(connection));
+            }
+            else
+            {
+                _results = await MakeDBCallsForEnumerators(connection);
+            }
 
             _currentRecordIndex = 0;
 
@@ -84,7 +89,7 @@ namespace Cute.Lib.InputAdapters.DB
             return returnValue;
         }
 
-        private async Task<List<Dictionary<string, string>>> MakeDBCallsForEnumerators(SqlConnection connection, int level = 0, List<Dictionary<string, string>> returnVal = null!)
+        private async Task<List<Dictionary<string, string>>> MakeDBCallsForEnumerators(DbConnection connection, int level = 0, List<Dictionary<string, string>> returnVal = null!)
         {
             if (_entryEnumerators is null) throw new CliException("No entry enumerators defined.");
 
