@@ -111,11 +111,13 @@ namespace Cute.Lib.InputAdapters.DB
 
             var padding = new string(' ', level * 3);
 
+            string contentType = adapter.EnumerateForContentTypes[level].ContentType;
+
+            var displayField = (await _contentfulConnection.GetContentTypeAsync(contentType)).DisplayField;
+
             await foreach (var (obj, _) in _entryEnumerators[level])
             {
                 obj.Fields["id"] = obj.SystemProperties.Id;
-
-                string contentType = adapter.EnumerateForContentTypes[level].ContentType;
 
                 _scriptObject.SetValue(contentType, obj.Fields, true);
 
@@ -124,13 +126,13 @@ namespace Cute.Lib.InputAdapters.DB
                 if (filterTemplate is null ||
                     (filterResult is not null && filterResult.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)))
                 {
-                    ActionNotifier?.Invoke($"{padding}Processing '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
+                    ActionNotifier?.Invoke($"{padding}Processing '{contentType}' - '{obj.Fields[displayField]?["en"]}'..");
 
                     _ = await MakeDBCallsForEnumerators(connection, level + 1, returnVal);
                 }
                 else
                 {
-                    ActionNotifier?.Invoke($"{padding}Skipping '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
+                    ActionNotifier?.Invoke($"{padding}Skipping '{contentType}' - '{obj.Fields[displayField]?["en"]}'..");
                 }
 
                 _scriptObject.Remove(contentType);

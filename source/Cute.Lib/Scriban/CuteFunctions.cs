@@ -1,5 +1,6 @@
 ﻿using Contentful.Core.Models;
 using Cute.Lib.Contentful;
+using Cute.Lib.Extensions;
 using Cute.Lib.Utilities;
 using Html2Markdown;
 using Newtonsoft.Json;
@@ -310,5 +311,10 @@ public class CuteFunctions : ScriptObject
         }
 
         return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
+
+    public static string ToPascalCase(string value)
+    {
+        return value.ToPascalCase();
     }
 }

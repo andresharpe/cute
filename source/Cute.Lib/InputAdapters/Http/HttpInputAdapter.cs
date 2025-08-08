@@ -97,11 +97,14 @@ public class HttpInputAdapter(
 
         var padding = new string(' ', level * 3);
 
+        string contentType = _adapter.EnumerateForContentTypes[level].ContentType;
+
+        var displayField = (await _contentfulConnection.GetContentTypeAsync(contentType)).DisplayField;
+
         await foreach (var (obj, _) in _entryEnumerators[level])
         {
             obj.Fields["id"] = obj.SystemProperties.Id;
 
-            string contentType = _adapter.EnumerateForContentTypes[level].ContentType;
 
             _scriptObject.SetValue(contentType, obj.Fields, true);
 
@@ -110,13 +113,13 @@ public class HttpInputAdapter(
             if (filterTemplate is null ||
                 (filterResult is not null && filterResult.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)))
             {
-                ActionNotifier?.Invoke($"{padding}Processing '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
+                ActionNotifier?.Invoke($"{padding}Processing '{contentType}' - '{obj.Fields[displayField]?["en"]}'..");
 
                 _ = await MakeHttpCallsForEnumerators(level + 1, returnVal);
             }
             else
             {
-                ActionNotifier?.Invoke($"{padding}Skipping '{contentType}' - '{obj.Fields["title"]?["en"]}'..");
+                ActionNotifier?.Invoke($"{padding}Skipping '{contentType}' - '{obj.Fields[displayField]?["en"]}'..");
             }
 
             _scriptObject.Remove(contentType);
