@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Cute.Lib.Extensions;
@@ -90,6 +91,22 @@ public static partial class StringExtensions
         if (text.Length <= snipTo) return text;
 
         return text[..(snipTo - 1)] + "..";
+    }
+
+    public static string ToPascalCase(this string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        // Split input into words by using non-alphanumeric characters as separators
+        var words = Regex.Split(value, @"[^a-zA-Z0-9]+");
+
+        // Capitalize each word and concatenate
+        TextInfo textInfo = CultureInfo.InvariantCulture.TextInfo;
+        string result = string.Concat(Array.ConvertAll(words, word =>
+            textInfo.ToTitleCase(word.ToLower())));
+
+        return result;
     }
 
     public static IEnumerable<string> GetFixedLines(this ReadOnlySpan<char> input, int maxLength = 80, int? maxFirstLineLength = null)

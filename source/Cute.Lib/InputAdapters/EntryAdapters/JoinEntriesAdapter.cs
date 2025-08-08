@@ -125,8 +125,14 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
 
                 var newFlatEntry = targetSerializer.CreateNewFlatEntry();
                 newFlatEntry[$"key.{defaultLocale}"] = joinKey;
-                newFlatEntry[$"title.{defaultLocale}"] = joinTitle;
-                newFlatEntry[$"name.{defaultLocale}"] = joinName;
+                if (_targetContentType.Fields.Any(_targetContentType => _targetContentType.Id == "title"))
+                {
+                    newFlatEntry[$"title.{defaultLocale}"] = joinTitle;
+                }
+                if (_targetContentType.Fields.Any(_targetContentType => _targetContentType.Id == "name"))
+                {
+                    newFlatEntry[$"name.{defaultLocale}"] = joinName;
+                }
 
                 for (int i = 0; i < currentEntries.Count; i++)
                 {

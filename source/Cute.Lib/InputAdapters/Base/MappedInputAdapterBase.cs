@@ -26,6 +26,8 @@ namespace Cute.Lib.InputAdapters.Base
 
         protected readonly ContentLocales _contentLocales = contentLocales;
 
+        protected readonly ContentfulConnection _contentfulConnection = contentfulConnection;
+
         protected readonly ScriptObject _scriptObject = CreateScriptObject(contentfulConnection, envSettings);
 
         protected readonly Dictionary<Template, Template> _compiledTemplates = dataAdapterConfig.CompileMappingTemplates();
