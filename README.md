@@ -25,8 +25,9 @@
   - [`upload` and Synchronize Content](#upload-and-synchronize-content)
   - [Content Aggregates using `join`](#content-aggregates-using-join)
     - [Example](#example)
-  - [Sync Content with APIs using `sync-api`](#sync-content-with-apis-using-sync-api)
-    - [Example](#example-1)
+  - [Sync Content with an API or Database using `sync-api`](#sync-content-with-an-api-or-database-using-sync-api)
+    - [API Example](#api-example)
+    - [Database Example](#database-example)
   - [`generate` Content using OpenAI](#generate-content-using-openai)
     - [Configuring AI Content Generation](#configuring-ai-content-generation)
     - [Example 1](#example-1)
@@ -39,7 +40,7 @@
 - [Commands: Running ***cute*** as a `server`](#commands-running-cute-as-a-server)
   - [Run ***cute*** as a `scheduler` server](#run-cute-as-a-scheduler-server)
   - [Run ***cute*** as a `webhooks` server](#run-cute-as-a-webhooks-server)
-    - [Example](#example-2)
+    - [Example](#example-1)
 - [Commands: Manage Content Types using `type`](#commands-manage-content-types-using-type)
   - [`scaffold` strong JavaScript or .NET Types](#scaffold-strong-javascript-or-net-types)
 - [Configuring ***cute*** in Contentful](#configuring-cute-in-contentful)
@@ -54,6 +55,7 @@
 - [Command Structure for v2.0](#command-structure-for-v20)
 - [Contributing to Cute](#contributing-to-cute)
 
+<!-- /TOC -->
 <!-- /TOC -->
 <!-- /TOC -->
 </details>
@@ -161,6 +163,8 @@ OPTIONS:
     -h, --help                  Prints help information
     -c, --content-type-id <ID>  The Contentful content type id
     -l, --locale <CODE>         The locale code (eg. 'en') to apply the command to. Default is all
+        --no-publish            Specifies whether to skip publish for modified entries
+        --use-session           Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones)
     -f, --format <FORMAT>       The output format for the download operation (Excel/CSV/TSV/JSON/YAML)
     -p, --path <PATH>           The output path and filename for the download operation
 ```
@@ -186,6 +190,8 @@ OPTIONS:
     -h, --help                  Prints help information
     -c, --content-type-id <ID>  The Contentful content type id
     -l, --locale <CODE>         The locale code (eg. 'en') to apply the command to. Default is all
+        --no-publish            Specifies whether to skip publish for modified entries
+        --use-session           Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones)
     -p, --path <PATH>           The local path to the file containing the data to sync
     -f, --format <FORMAT>       The format of the file specified in '--path' (Excel/CSV/TSV/JSON/YAML)
     -m, --match-field <NAME>    The optional name of the field to match in addition to the entry id
@@ -208,6 +214,9 @@ OPTIONS:
     -h, --help                  Prints help information
     -k, --key                   The id of the Contentful join entry to generate content for
     -i, --entry-id              Id of source 2 entry to join content for
+        --no-publish            Specifies whether to skip publish for modified entries
+    -a, --apply                 Apply and publish all the required edits
+        --use-session           Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones)
 ```
 
 ### Example
@@ -234,9 +243,9 @@ And if we look at one of the entries we can see that it concatenates the key and
 
 [Back to Index](#table-of-content)
 
-## Sync Content with APIs using `sync-api`
+## Sync Content with an API or Database using `sync-api`
 
-You can synchronize your Contentful content with external APIs by using the `cute content sync-api` command option.
+You can synchronize your Contentful content with an external API or database by using the `cute content sync-api` command option.
 
 ```powershell
 USAGE:
@@ -250,9 +259,11 @@ OPTIONS:
     -k, --key                   The key of the cuteContentSyncApi entry
     -a, --apply                 Apply and publish all the required edits
     -u, --use-filecache         Whether or not to cache responses to a local file cache for subsequent calls
+        --no-publish            Specifies whether to skip publish for modified entries
+        --use-session           Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones)
 ```
 
-### Example
+### API Example
 
 Prior to running the command, you should configure API settings and field mappings in your Contentful space under the `cuteContentSyncApi` content type.
 
@@ -260,7 +271,7 @@ Prior to running the command, you should configure API settings and field mappin
 
 Select `cuteContentSyncApi` and then click the 'Add Entry' button:
 
-![contentful contentSyncApi screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentSyncApi.png)
+![contentful contentSyncApi screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentSyncApi-empty.png)
 
 Create a new entry for the relevant content as per the graphic below:
 
@@ -357,6 +368,92 @@ mapping:
 Running the `cute content sync-api -k dataUser -a` command yields the following output in the terminal:
 
 ![cute content sync-api screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/sync-api.png)
+
+[Back to Index](#table-of-content)
+
+### Database Example
+
+Prior to running the command, you should configure database settings and field mappings in your Contentful space under the `cuteContentSyncApi` content type.
+
+> 💡 See [this section](#configuring-cutecontentsyncapi) if you need to define a `cuteContentSyncApi` content type within your Contentful space if you're using this feature for the first time.
+
+Select `cuteContentSyncApi` and then click the 'Add Entry' button:
+
+![contentful contentSyncApi screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentSyncApi.png)
+
+Create a new entry for the relevant content as per the graphic below:
+
+![contentful contentSyncApi yaml screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentSyncApi-db-yaml.png)
+
+For this example we've set up SQL Server in a local Docker container, running on port 1433. We've created a database called `CuteDemo` and a table called `dbo.User` with 5 simple user records.
+
+```sql
+-- Create CuteDemo database
+CREATE DATABASE CuteDemo
+USE CuteDemo
+
+-- Create User table
+CREATE TABLE [dbo].[User]
+(
+    [Id] INT NOT NULL PRIMARY KEY, -- Primary Key column
+    [UserName] NVARCHAR(50) NOT NULL,
+    [Name] NVARCHAR(256) NOT NULL,
+    [Email] NVARCHAR(320) NOT NULL,
+    [Phone] VARCHAR(30)
+);
+
+-- Seed user data
+INSERT INTO dbo.[User]
+  ( Column1, Column2, Column3, Column4, Column5 )
+VALUES
+  (11, 'JohnDoe', 'John Doe', 'johndoe@gmail.com', '+44(0)7974749274'), 
+  (12, 'dingbat99', 'Andrew James', 'ajames99@hotmail.com', '+45(0)7574749274'), 
+  (13, 'summerjones', 'Summer Jones', 'summerjones34@iol.com', '+54(0)7976749274'),
+  (14, 'charles.winkelman', 'Charles Winkelman', 'charles.winkerlman@futures.com', '+64(0)7976743274'),
+  (15, 'jill.prince', 'Jill Prince', 'jill87@icloud.com', '+44(0)7766749274');
+
+-- Select data
+SELECT [Id], [UserName], [Name], [Email], [Phone] FROM [CuteDemo].[dbo].[User]
+```
+Our `dbo.User` table has a few matching fields and some which we'll map.
+
+![contentful Users model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/database-user-select.png)
+
+Basic identifiers, database provider and connection string, as well as field mappings can be configured as per the code snippet below.
+
+```yaml
+# dataUserDB.yaml
+
+contentType: user
+contentKeyField: "id.en"
+contentDisplayField: "name.en"
+
+provider: sqlserver
+
+connectionString: Server=localhost,1433;Database=CuteDemo;User Id=sa;Password={{config.Cute__UserDBPassword}};TrustServerCertificate=True;
+
+query: SELECT [Id], [UserName], [Name], [Email], [Phone] FROM [dbo].[User];
+
+mapping:
+    - fieldName: id.en
+      expression: '{{ row.Id }}'
+
+    - fieldName: userName.en
+      expression: '{{ row.UserName }}'
+
+    - fieldName: name.en
+      expression: '{{ row.Name }}'
+
+    - fieldName: email.en
+      expression: '{{ row.Email }}'
+
+    - fieldName: phoneNumber.en
+      expression: '{{ row.Phone }}' 
+```
+
+Running the `cute content sync-api -k dataUserDB -a` command yields the following output in the terminal:
+
+![cute content sync-api database screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-syncapi-db.png)
 
 [Back to Index](#table-of-content)
 
