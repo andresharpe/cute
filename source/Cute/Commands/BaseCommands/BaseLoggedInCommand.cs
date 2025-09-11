@@ -68,6 +68,7 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 
         options.SpaceId = settings.SpaceId ?? options.SpaceId;
         options.Environment = settings.EnvironmentId ?? options.Environment;
+        options.ManagementApiKey = settings.ManagementToken ?? options.ManagementApiKey;
 
         _contentfulConnection = new ContentfulConnection.Builder()
             .WithHttpClient(new HttpClient())
