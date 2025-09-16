@@ -146,5 +146,10 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
         {
             _console.WriteNormalWithHighlights($"Created content type '{"CuteContentTypeTranslation"}'...", Globals.StyleHeading);
         }
+
+        if (await CreateContentTypeIfNotExist(CuteTranslationGlossaryContentType.Instance()))
+        {
+            _console.WriteNormalWithHighlights($"Created content type '{"CuteTranslationGlossary"}'...", Globals.StyleHeading);
+        }
     }
 }

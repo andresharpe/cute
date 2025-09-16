@@ -1,10 +1,11 @@
 ﻿using Contentful.Core.Models;
 using Contentful.Core.Search;
+using Cute.Lib.Contentful.CommandModels.TranslationGlossary;
 using Cute.Lib.Enums;
 
 namespace Cute.Lib.Contentful.CommandModels.Schedule
 {
-    public class CuteTranslationContentType
+    public class CuteTranslationGlossaryContentType
     {
         private static readonly ContentType _contentType;
 
@@ -13,9 +14,9 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
             return _contentType;
         }
 
-        static CuteTranslationContentType()
+        static CuteTranslationGlossaryContentType()
         {
-            var contentTypeBuilder = new ContentTypeBuilder(nameof(CuteTranslationContentType).ToCamelCase())
+            var contentTypeBuilder = new ContentTypeBuilder(nameof(CuteTranslationGlossary).ToCamelCase())
                 .WithDescription("Glossary for translations.")
                 .WithDisplayField("title")
                 .WithFields([
