@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Cute.Lib.Contentful.CommandModels.TranslationGlossary
+﻿namespace Cute.Lib.Contentful.CommandModels.TranslationGlossary
 {
     public class CuteTranslationGlossary
     {
