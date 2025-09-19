@@ -184,6 +184,12 @@ public class CommandAppBuilder
 
                 branchConfig.AddCommand<TypeDeleteCommand>("delete")
                     .WithDescription("Delete a content type along with its entries.");
+
+                branchConfig.AddCommand<TypeExportCommand>("export")
+                    .WithDescription("Export metadata for specified content types into a Json format.");
+
+                branchConfig.AddCommand<TypeImportCommand>("import")
+                    .WithDescription("Import metadata from previously exported Json file.");
             });
 
             commandConfig.AddBranch("app", branchConfig =>
