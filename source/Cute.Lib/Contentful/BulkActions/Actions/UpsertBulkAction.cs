@@ -99,8 +99,6 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
         {
             _withFlatEntries.Add(flatEntry);
 
-            var displayFieldValue = flatEntry[displayKey]?.ToString() ?? string.Empty;
-
             progressUpdaterRead?.Invoke(new(i, totalRecords, null, null));
 
             if (++i % 1000 == 0)

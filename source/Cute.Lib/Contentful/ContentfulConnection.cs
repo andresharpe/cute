@@ -268,7 +268,7 @@ public class ContentfulConnection
         _contentTypes = new(GetContentTypes, true);
     }
 
-    public async Task<ContentType> CloneContentTypeAsync(ContentType contentType, string contentTypeId)
+    public async Task<ContentType> CloneContentTypeAsync(ContentType contentType, string contentTypeId, bool persist = true)
     {
         if (contentType is null)
         {
@@ -297,14 +297,16 @@ public class ContentfulConnection
         clonedContentType.Metadata = null;
 
         // end: hack
+        if (persist)
+        {
+            clonedContentType = await RateLimiter.SendRequestAsync(() =>
+                _contentfulManagementClient.CreateOrUpdateContentType(clonedContentType));
 
-        clonedContentType = await RateLimiter.SendRequestAsync(() =>
-            _contentfulManagementClient.CreateOrUpdateContentType(clonedContentType));
+            await RateLimiter.SendRequestAsync(() =>
+                _contentfulManagementClient.ActivateContentType(contentTypeId, 1));
 
-        await RateLimiter.SendRequestAsync(() =>
-            _contentfulManagementClient.ActivateContentType(contentTypeId, 1));
-
-        _contentTypes = new(GetContentTypes, true);
+            _contentTypes = new(GetContentTypes, true);
+        }
 
         return clonedContentType;
     }
