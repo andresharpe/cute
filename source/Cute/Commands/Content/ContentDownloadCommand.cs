@@ -86,7 +86,11 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
 
                 taskPrepare.Increment(80);
 
-                var serializer = new EntrySerializer(contentType, await ContentfulConnection.GetContentLocalesAsync());
+                var localeSet = settings.Locales?.ToHashSet() ?? new HashSet<string>();
+                var locales = await ContentfulConnection.GetContentLocalesAsync();
+                locales = new ContentLocales(locales.Locales.Where(l => localeSet.Contains(l)).ToArray(), locales.DefaultLocale);
+
+                var serializer = new EntrySerializer(contentType, locales);
 
                 outputAdapter.AddHeadings(serializer.ColumnFieldNames);
                 taskPrepare.Increment(20);
