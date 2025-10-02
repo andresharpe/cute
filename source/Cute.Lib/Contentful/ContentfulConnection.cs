@@ -436,7 +436,7 @@ public class ContentfulConnection
 
     private async Task<IEnumerable<Locale>> GetLocales()
     {
-        return await RateLimiter.SendRequestAsync(() => _contentfulManagementClient.GetLocalesCollection());
+        return await RateLimiter.SendRequestAsync(() => _contentfulDeliveryClient.GetLocales());
     }
 
     private async Task<ContentLocales> GetContentLocales()
