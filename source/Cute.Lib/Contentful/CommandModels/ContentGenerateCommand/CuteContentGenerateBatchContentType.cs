@@ -7,14 +7,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 
 public class CuteContentGenerateBatchContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static CuteContentGenerateBatchContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("cuteContentGenerateBatch")
             .WithDescription("Batch requests for AI to generate and translate content for any content type and field.")
@@ -82,6 +75,6 @@ public class CuteContentGenerateBatchContentType
 
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

@@ -8,14 +8,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentTestData;
 
 public static class TestCountryContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static TestCountryContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("testCountry")
             .WithDescription("Data about countries.")
@@ -109,6 +102,6 @@ public static class TestCountryContentType
 
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

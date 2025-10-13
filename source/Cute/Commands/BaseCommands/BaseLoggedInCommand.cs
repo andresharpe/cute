@@ -256,12 +256,14 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 
     private async Task CreateCuteContentTypesIfNotExists()
     {
+        var defaultLocaleCode = (await _contentfulConnection.GetDefaultLocaleAsync()).Code;
+
         ContentType[] cuteTypes = [
-            CuteDataQueryContentType.Instance(),
-            CuteLanguageContentType.Instance(),
-            CuteContentSyncApiContentType.Instance(),
-            CuteContentGenerateContentType.Instance(),
-            CuteContentGenerateBatchContentType.Instance()
+            CuteDataQueryContentType.GetContentType(defaultLocaleCode),
+            CuteLanguageContentType.GetContentType(defaultLocaleCode),
+            CuteContentSyncApiContentType.GetContentType(defaultLocaleCode),
+            CuteContentGenerateContentType.GetContentType(defaultLocaleCode),
+            CuteContentGenerateBatchContentType.GetContentType(defaultLocaleCode)
         ];
 
         var contentTypeIds = (await _contentfulConnection.GetContentTypesAsync())

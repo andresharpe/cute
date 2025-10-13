@@ -8,14 +8,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 
 public class CuteContentGenerateContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static CuteContentGenerateContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("cuteContentGenerate")
             .WithDescription("Prompts designated for AI to generate and translate content for any content type and field.")
@@ -51,31 +44,31 @@ public class CuteContentGenerateContentType
 
             new FieldBuilder("maxTokenLimit", FieldType.Integer)
                 .IsRequired()
-                .DefaultValue("en", 1200)
+                .DefaultValue(locale, 1200)
                 .Build(),
 
             new FieldBuilder("temperature", FieldType.Number)
                 .IsRequired()
                 .ValidateInRange(0,2)
-                .DefaultValue("en", 0.8f)
+                .DefaultValue(locale, 0.8f)
                 .Build(),
 
             new FieldBuilder("topP", FieldType.Number)
                 .IsRequired()
                 .ValidateInRange(0,1)
-                .DefaultValue("en", 0.95f)
+                .DefaultValue(locale, 0.95f)
                 .Build(),
 
             new FieldBuilder("frequencyPenalty", FieldType.Number)
                 .IsRequired()
                 .ValidateInRange(0,2)
-                .DefaultValue("en", 0.0f)
+                .DefaultValue(locale, 0.0f)
                 .Build(),
 
             new FieldBuilder("presencePenalty", FieldType.Number)
                 .IsRequired()
                 .ValidateInRange(0,2)
-                .DefaultValue("en", 0.0f)
+                .DefaultValue(locale, 0.0f)
                 .Build(),
 
             new FieldBuilder("cuteDataQueryEntry", FieldType.Link)
@@ -88,6 +81,6 @@ public class CuteContentGenerateContentType
                 .Build(),
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

@@ -59,7 +59,9 @@ public class ContentGenerateTestCommand(IConsoleWriter console, ILogger<ContentG
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var contentMetaType = CuteContentGenerateContentType.Instance();
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+
+        var contentMetaType = CuteContentGenerateContentType.GetContentType(defaultLocale.Code);
 
         if (await CreateContentTypeIfNotExist(contentMetaType))
         {
@@ -67,8 +69,6 @@ public class ContentGenerateTestCommand(IConsoleWriter console, ILogger<ContentG
         }
 
         var contentMetaTypeId = contentMetaType.SystemProperties.Id;
-
-        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
 
         var defaultLocaleCode = defaultLocale.Code;
 

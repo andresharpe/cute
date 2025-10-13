@@ -5,14 +5,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 
 public class CuteDataQueryContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static CuteDataQueryContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("cuteDataQuery")
             .WithDescription("A graphQl query that returns Contentful entries.")
@@ -42,6 +35,6 @@ public class CuteDataQueryContentType
 
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

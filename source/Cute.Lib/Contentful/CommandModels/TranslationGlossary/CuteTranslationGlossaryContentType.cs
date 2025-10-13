@@ -7,14 +7,7 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
 {
     public class CuteTranslationGlossaryContentType
     {
-        private static readonly ContentType _contentType;
-
-        public static ContentType Instance()
-        {
-            return _contentType;
-        }
-
-        static CuteTranslationGlossaryContentType()
+        public static ContentType GetContentType(string locale)
         {
             var contentTypeBuilder = new ContentTypeBuilder(nameof(CuteTranslationGlossary).ToCamelCase())
                 .WithDescription("Glossary for translations.")
@@ -26,13 +19,12 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
                     .IsUnique()
                     .Build(),
 
-                    new FieldBuilder("title", FieldType.Text)
-                        .IsUnique()
+                    new FieldBuilder("title", FieldType.Symbol)
                         .Build()
 
                 ]);
 
-            _contentType = contentTypeBuilder.Build();
+            return contentTypeBuilder.Build();
         }
     }
 }

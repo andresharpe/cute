@@ -60,11 +60,11 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var contentMetaType = CuteContentGenerateContentType.Instance();
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+
+        var contentMetaType = CuteContentGenerateContentType.GetContentType(defaultLocale.Code);
 
         var contentMetaTypeId = contentMetaType.SystemProperties.Id;
-
-        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
 
         var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
 
