@@ -29,6 +29,16 @@ public enum GenerateOperation
     ListBatches,
 }
 
+public class GenerationFailure
+{
+    public string EntryKey { get; init; } = string.Empty;
+    public string EntryTitle { get; init; } = string.Empty;
+    public string EntryId { get; init; } = string.Empty;
+    public string ErrorMessage { get; init; } = string.Empty;
+    public string Stage { get; init; } = string.Empty; // "AI Generation" or "Contentful Update"
+    public Exception? Exception { get; init; }
+}
+
 public class GenerateBulkAction(
         ContentfulConnection contentfulConnection,
         HttpClient httpClient,
@@ -44,6 +54,8 @@ public class GenerateBulkAction(
     private Dictionary<string, ContentType>? _withContentTypes;
 
     private GenerateOperation _operation = GenerateOperation.GenerateBatch;
+
+    private readonly List<GenerationFailure> _failures = new();
 
     public GenerateBulkAction WithContentTypes(IEnumerable<ContentType> contentTypes)
     {
@@ -154,7 +166,7 @@ public class GenerateBulkAction(
                         break;
 
                     case GenerateOperation.GenerateParallel:
-                        ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                        await ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
                         break;
 
                     case GenerateOperation.GenerateBatch:
@@ -170,6 +182,9 @@ public class GenerateBulkAction(
                 await ProcessQueryResultsForModels(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, modelNames);
             }
         }
+
+        // Report any failures at the end
+        ReportFailures(displayActions);
     }
 
     private async Task<CuteContentGenerateBatch?> GetOpenBatchEntry(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult, DisplayActions displayActions, Action<int, int>? progressUpdater, bool testOnly)
@@ -447,48 +462,104 @@ public class GenerateBulkAction(
                 ?? entry["name"]?.Value<string>()
                 ?? "(unknown entry title)";
 
+            var entryId = entry.SelectToken("$.sys.id")?.Value<string>() ?? "(unknown entry id)";
+
             displayActions.DisplayAlert?.Invoke($"[{entryKey}] : [{entryTitle}]");
             displayActions.DisplayBlankLine?.Invoke();
 
-            scriptObject.SetValue(variableName, entry, true);
-
-            var systemMessage = RenderTemplate(scriptObject, systemTemplate);
-
-            var prompt = RenderTemplate(scriptObject, promptTemplate);
-
-            displayActions.DisplayRuler?.Invoke();
-
-            if (displaySystemMessageAndPrompt)
+            try
             {
-                displayActions.DisplayHeading?.Invoke("System Message:");
+                scriptObject.SetValue(variableName, entry, true);
 
-                DisplayLines(systemMessage, displayActions.DisplayDim);
+                var systemMessage = RenderTemplate(scriptObject, systemTemplate);
+
+                var prompt = RenderTemplate(scriptObject, promptTemplate);
+
+                displayActions.DisplayRuler?.Invoke();
+
+                if (displaySystemMessageAndPrompt)
+                {
+                    displayActions.DisplayHeading?.Invoke("System Message:");
+
+                    DisplayLines(systemMessage, displayActions.DisplayDim);
+
+                    displayActions.DisplayBlankLine?.Invoke();
+
+                    displayActions.DisplayHeading?.Invoke("Prompt:");
+
+                    DisplayLines(prompt, displayActions.DisplayDim);
+                }
 
                 displayActions.DisplayBlankLine?.Invoke();
 
-                displayActions.DisplayHeading?.Invoke("Prompt:");
+                var modelNameAsString = modelName == null ? string.Empty : $"[{modelName}] ";
 
-                DisplayLines(prompt, displayActions.DisplayDim);
+                displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
+
+                string promptResult;
+                try
+                {
+                    promptResult = FixFormatting(await SendPromptToModel(chatClient, chatCompletionOptions, systemMessage, prompt));
+                    DisplayLines(promptResult, displayActions.DisplayNormal);
+                }
+                catch (Exception ex)
+                {
+                    var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                    _failures.Add(new GenerationFailure
+                    {
+                        EntryKey = entryKey,
+                        EntryTitle = entryTitle,
+                        EntryId = entryId,
+                        ErrorMessage = errorMessage,
+                        Stage = "AI Generation",
+                        Exception = ex
+                    });
+                    displayActions.DisplayAlert?.Invoke($"❌ AI generation failed: {errorMessage}");
+                    continue; // Skip to next entry
+                }
+
+                displayActions.DisplayBlankLine?.Invoke();
+
+                if (!testOnly)
+                {
+                    try
+                    {
+                        await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
+                    }
+                    catch (Exception ex)
+                    {
+                        var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                        _failures.Add(new GenerationFailure
+                        {
+                            EntryKey = entryKey,
+                            EntryTitle = entryTitle,
+                            EntryId = entryId,
+                            ErrorMessage = errorMessage,
+                            Stage = "Contentful Update",
+                            Exception = ex
+                        });
+                        displayActions.DisplayAlert?.Invoke($"❌ Contentful update failed: {errorMessage}");
+                    }
+                }
             }
-
-            displayActions.DisplayBlankLine?.Invoke();
-
-            var modelNameAsString = modelName == null ? string.Empty : $"[{modelName}] ";
-
-            displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
-
-            var promptResult = FixFormatting(await SendPromptToModel(chatClient, chatCompletionOptions, systemMessage, prompt));
-
-            DisplayLines(promptResult, displayActions.DisplayNormal);
-
-            displayActions.DisplayBlankLine?.Invoke();
-
-            if (!testOnly)
+            catch (Exception ex)
             {
-                await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
+                var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = entryKey,
+                    EntryTitle = entryTitle,
+                    EntryId = entryId,
+                    ErrorMessage = errorMessage,
+                    Stage = "Template Processing",
+                    Exception = ex
+                });
+                displayActions.DisplayAlert?.Invoke($"❌ Template processing failed: {errorMessage}");
             }
-
-            scriptObject.Remove(variableName);
+            finally
+            {
+                scriptObject.Remove(variableName);
+            }
         }
     }
 
@@ -636,7 +707,7 @@ public class GenerateBulkAction(
         displayActions.DisplayBlankLine?.Invoke();
     }
 
-    private void ProcessQueryResultsInParallel(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult,
+    private async Task ProcessQueryResultsInParallel(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult,
             DisplayActions displayActions,
             Action<int, int>? progressUpdater,
             bool testOnly,
@@ -733,12 +804,24 @@ public class GenerateBulkAction(
 
             displayActions.DisplayFormatted?.Invoke($"Generating content for {taskList.Count} entries...");
 
-            Task.WaitAll(taskList.Select(j => j.GenerateTask).ToArray());
+            // Wait for all generation tasks, handling failures silently
+            try
+            {
+                await Task.WhenAll(taskList.Select(j => j.GenerateTask).ToArray());
+            }
+            catch
+            {
+                // Silently continue - individual task failures will be handled below
+            }
 
             displayActions.DisplayBlankLine?.Invoke();
 
+            var updateTasks = new List<Task>();
+
             foreach (var completedJob in taskList)
             {
+                var entryId = completedJob.Entry.SelectToken("$.sys.id")?.Value<string>() ?? "(unknown entry id)";
+
                 displayActions.DisplayAlert?.Invoke($"[{completedJob.EntryKey}] : [{completedJob.EntryTitle}]");
                 displayActions.DisplayBlankLine?.Invoke();
 
@@ -761,6 +844,25 @@ public class GenerateBulkAction(
 
                 displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
 
+                // Check if the generation task failed
+                if (completedJob.GenerateTask.IsFaulted)
+                {
+                    var ex = completedJob.GenerateTask.Exception?.GetBaseException() ?? completedJob.GenerateTask.Exception;
+                    var errorMessage = ex?.Message.Length > 100 ? ex.Message[..100] + "..." : ex?.Message ?? "Unknown error";
+                    _failures.Add(new GenerationFailure
+                    {
+                        EntryKey = completedJob.EntryKey,
+                        EntryTitle = completedJob.EntryTitle,
+                        EntryId = entryId,
+                        ErrorMessage = errorMessage,
+                        Stage = "AI Generation",
+                        Exception = ex
+                    });
+                    displayActions.DisplayAlert?.Invoke($"❌ AI generation failed: {errorMessage}");
+                    displayActions.DisplayBlankLine?.Invoke();
+                    continue;
+                }
+
                 var promptResult = FixFormatting(completedJob.GenerateTask.Result);
 
                 DisplayLines(promptResult, displayActions.DisplayNormal);
@@ -769,17 +871,50 @@ public class GenerateBulkAction(
 
                 if (!testOnly)
                 {
-                    completedJob.UpdateTask = UpdateContentfulEntry(cuteContentGenerateEntry, completedJob.Entry, promptResult, displayActions);
+                    // Wrap the update task to handle failures
+                    var updateTask = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await UpdateContentfulEntry(cuteContentGenerateEntry, completedJob.Entry, promptResult, displayActions);
+                        }
+                        catch (Exception ex)
+                        {
+                            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                            _failures.Add(new GenerationFailure
+                            {
+                                EntryKey = completedJob.EntryKey,
+                                EntryTitle = completedJob.EntryTitle,
+                                EntryId = entryId,
+                                ErrorMessage = errorMessage,
+                                Stage = "Contentful Update",
+                                Exception = ex
+                            });
+                            displayActions.DisplayAlert?.Invoke($"❌ Contentful update failed: {errorMessage}");
+                        }
+                    });
+                    updateTasks.Add(updateTask);
                 }
             }
 
-            displayActions.DisplayBlankLine?.Invoke();
+            if (updateTasks.Count > 0)
+            {
+                displayActions.DisplayBlankLine?.Invoke();
 
-            displayActions.DisplayFormatted?.Invoke($"Saving {taskList.Count} entries...");
+                displayActions.DisplayFormatted?.Invoke($"Saving {updateTasks.Count} entries...");
 
-            Task.WaitAll(taskList.Select(j => j.UpdateTask).ToArray());
+                // Wait for all update tasks, handling failures silently
+                try
+                {
+                    await Task.WhenAll(updateTasks);
+                }
+                catch
+                {
+                    // Silently continue - individual task failures are already handled
+                }
 
-            displayActions.DisplayBlankLine?.Invoke();
+                displayActions.DisplayBlankLine?.Invoke();
+            }
 
             taskList.Clear();
         }
@@ -1199,6 +1334,30 @@ public class GenerateBulkAction(
         }
 
         return commonLocales;
+    }
+
+    private void ReportFailures(DisplayActions displayActions)
+    {
+        if (_failures.Count == 0) return;
+
+        displayActions.DisplayRuler?.Invoke();
+        displayActions.DisplayBlankLine?.Invoke();
+        displayActions.DisplayAlert?.Invoke($"⚠️  Generation completed with {_failures.Count} failure(s):");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        foreach (var failure in _failures)
+        {
+            displayActions.DisplayFormatted?.Invoke($"Entry: [{failure.EntryKey}] - {failure.EntryTitle}");
+            displayActions.DisplayFormatted?.Invoke($"Stage: {failure.Stage}");
+            displayActions.DisplayAlert?.Invoke($"Error: {failure.ErrorMessage}");
+            if (failure.Exception != null)
+            {
+                displayActions.DisplayDim?.Invoke($"Details: {failure.Exception.GetType().Name}");
+            }
+            displayActions.DisplayBlankLine?.Invoke();
+        }
+
+        displayActions.DisplayRuler?.Invoke();
     }
 
     private class GenerateJob
