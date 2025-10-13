@@ -5,14 +5,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
 {
     public class CuteContentJoinType
     {
-        private static readonly ContentType _contentType;
-
-        public static ContentType Instance()
-        {
-            return _contentType;
-        }
-
-        static CuteContentJoinType()
+        public static ContentType GetContentType(string locale)
         {
 
             var contentTypeBuilder = new ContentTypeBuilder("cuteContentJoin")
@@ -57,7 +50,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentJoinCommand
 
                 ]);
 
-            _contentType = contentTypeBuilder.Build();
+            return contentTypeBuilder.Build();
         }
     }
 }

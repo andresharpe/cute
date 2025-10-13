@@ -65,18 +65,18 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
+        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+
         IInputAdapter inputAdapter;
 
-        var contentSyncApiType = CuteContentSyncApiContentType.Instance();
+        var contentSyncApiType = CuteContentSyncApiContentType.GetContentType(defaultLocale.Code);
 
         if (await CreateContentTypeIfNotExist(contentSyncApiType))
         {
             _console.WriteNormalWithHighlights($"Created content type {contentSyncApiType.SystemProperties.Id}...", Globals.StyleHeading);
         }
 
-        var contentSyncApiTypeId = contentSyncApiType.SystemProperties.Id;
-
-        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();       
+        var contentSyncApiTypeId = contentSyncApiType.SystemProperties.Id;     
 
         var contentLocales = new ContentLocales((await ContentfulConnection.GetContentLocalesAsync()).Locales, defaultLocale.Code);
 

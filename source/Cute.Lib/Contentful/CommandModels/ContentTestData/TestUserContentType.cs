@@ -5,14 +5,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentTestData;
 
 public static class TestUserContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static TestUserContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("testUser")
             .WithDescription("A test model for cute development.")
@@ -46,6 +39,6 @@ public static class TestUserContentType
 
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

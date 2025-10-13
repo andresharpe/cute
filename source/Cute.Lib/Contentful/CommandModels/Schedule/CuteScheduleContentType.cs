@@ -6,14 +6,7 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
 {
     public class CuteScheduleContentType
     {
-        private static readonly ContentType _contentType;
-
-        public static ContentType Instance()
-        {
-            return _contentType;
-        }
-
-        static CuteScheduleContentType()
+        public static ContentType GetContentType(string locale)
         {
             var contentTypeBuilder = new ContentTypeBuilder(nameof(CuteSchedule).ToCamelCase())
                 .WithDescription("Jobs and definitions for synchronising the space with external API's.")
@@ -56,7 +49,7 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
 
                 ]);
 
-            _contentType = contentTypeBuilder.Build();
+            return contentTypeBuilder.Build();
         }
     }
 }

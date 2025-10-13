@@ -599,7 +599,7 @@ public class GenerateBulkAction(
         displayActions.DisplayFormatted?.Invoke($"Azure batch '{createBatchJobResponse.Id}' has status of '{batchJobStatus.Status}'...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var cuteBatchContentType = CuteContentGenerateBatchContentType.Instance();
+        var cuteBatchContentType = CuteContentGenerateBatchContentType.GetContentType((await _contentfulConnection.GetDefaultLocaleAsync()).Code);
 
         var serializer = new EntrySerializer(cuteBatchContentType, _contentLocales!);
 

@@ -1,19 +1,11 @@
 ﻿using Contentful.Core.Models;
 using Cute.Lib.Enums;
-using System.Text.RegularExpressions;
 
 namespace Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 
 public static class CuteContentTypeTranslationContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static CuteContentTypeTranslationContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("cuteContentTypeTranslation")
             .WithDescription("Content Type Translation Instructions.")
@@ -39,6 +31,6 @@ public static class CuteContentTypeTranslationContentType
                     .Build(),
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

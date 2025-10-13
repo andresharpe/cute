@@ -6,14 +6,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentGenerateCommand;
 
 public static class CuteLanguageContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static CuteLanguageContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("cuteLanguage")
             .WithDescription("Data about languages.")
@@ -58,6 +51,6 @@ public static class CuteLanguageContentType
 
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

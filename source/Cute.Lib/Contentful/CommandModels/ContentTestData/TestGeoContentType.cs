@@ -5,14 +5,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentTestData;
 
 public static class TestGeoContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static TestGeoContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("testGeo")
             .WithDescription("Data about geographies.")
@@ -103,6 +96,6 @@ public static class TestGeoContentType
 
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

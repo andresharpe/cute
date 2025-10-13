@@ -8,14 +8,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentTestData;
 
 public static class TestLocationContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static TestLocationContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("testLocation")
             .WithDescription("Data about locations.")
@@ -93,6 +86,6 @@ public static class TestLocationContentType
             ]);
 #pragma warning restore SYSLIB1045 // Convert to 'GeneratedRegexAttribute'.
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

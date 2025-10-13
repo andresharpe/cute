@@ -5,14 +5,7 @@ namespace Cute.Lib.Contentful.CommandModels.ContentSyncApi;
 
 public class CuteContentSyncApiContentType
 {
-    private static readonly ContentType _contentType;
-
-    public static ContentType Instance()
-    {
-        return _contentType;
-    }
-
-    static CuteContentSyncApiContentType()
+    public static ContentType GetContentType(string locale)
     {
         var contentTypeBuilder = new ContentTypeBuilder("cuteContentSyncApi")
             .WithDescription("Jobs and definitions for synchronising the space with external API's.")
@@ -37,6 +30,6 @@ public class CuteContentSyncApiContentType
 
             ]);
 
-        _contentType = contentTypeBuilder.Build();
+        return contentTypeBuilder.Build();
     }
 }

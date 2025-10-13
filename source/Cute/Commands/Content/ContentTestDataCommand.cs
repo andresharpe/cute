@@ -37,17 +37,17 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        var contentType = TestUserContentType.Instance();
-
-        var contentTypeId = contentType.SystemProperties.Id;
-
         var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
 
         var defaultLocaleCode = defaultLocale.Code;
 
+        var contentType = TestUserContentType.GetContentType(defaultLocaleCode);
+
+        var contentTypeId = contentType.SystemProperties.Id;
+
         var contentLocales = new ContentLocales([defaultLocaleCode], defaultLocaleCode);
 
-        await CreateTestContentTypesIfNotExists();
+        await CreateTestContentTypesIfNotExists(defaultLocaleCode);
 
         if (!ConfirmWithPromptChallenge($"{"DELETE"} and {"REGENERATE"} all entries in '{contentTypeId}'"))
         {
@@ -87,67 +87,67 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
         return 0;
     }
 
-    private async Task CreateTestContentTypesIfNotExists()
+    private async Task CreateTestContentTypesIfNotExists(string defaultLocaleCode)
     {
-        if (await CreateContentTypeIfNotExist(CuteDataQueryContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteDataQueryContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type {"cuteDataQuery"}...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(CuteLanguageContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteLanguageContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"cuteLanguage"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(CuteContentSyncApiContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteContentSyncApiContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"cuteContentSyncApi"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(CuteContentGenerateContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteContentGenerateContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"cuteContentGenerate"}'...", Globals.StyleHeading);
         }
-        if (await CreateContentTypeIfNotExist(CuteContentGenerateBatchContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteContentGenerateBatchContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type batch tracker '{"cuteContentGenerateBatch"}'...", Globals.StyleHeading);
         }
-        if (await CreateContentTypeIfNotExist(CuteContentJoinType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteContentJoinType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"cuteContentJoin"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(TestUserContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(TestUserContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"testUser"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(TestCountryContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(TestCountryContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"testCountry"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(TestLocationContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(TestLocationContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"testLocation"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(TestGeoContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(TestGeoContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"testGeo"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(CuteScheduleContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteScheduleContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"CuteSchedule"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(CuteContentTypeTranslationContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteContentTypeTranslationContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"CuteContentTypeTranslation"}'...", Globals.StyleHeading);
         }
 
-        if (await CreateContentTypeIfNotExist(CuteTranslationGlossaryContentType.Instance()))
+        if (await CreateContentTypeIfNotExist(CuteTranslationGlossaryContentType.GetContentType(defaultLocaleCode)))
         {
             _console.WriteNormalWithHighlights($"Created content type '{"CuteTranslationGlossary"}'...", Globals.StyleHeading);
         }
