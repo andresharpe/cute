@@ -5,6 +5,7 @@ using Cute.Constants;
 using Cute.Lib.Cache;
 using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
+using Cute.Lib.InputAdapters.Base;
 using Cute.Lib.Contentful.CommandModels.ContentSyncApi;
 using Cute.Lib.Exceptions;
 using Cute.Lib.InputAdapters;
@@ -51,6 +52,14 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
         [CommandOption("--use-session")]
         [Description("Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones).")]
         public bool UseSession { get; set; } = false;
+
+        [CommandOption("--streaming")]
+        [Description("Use streaming processing for large datasets to reduce memory usage. Recommended for datasets over 10,000 entries.")]
+        public bool UseStreaming { get; set; } = false;
+
+        [CommandOption("--batch-size")]
+        [Description("Batch size for streaming processing (default: 1000). Only used with --streaming option.")]
+        public int BatchSize { get; set; } = 1000;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -129,14 +138,42 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
             return -1;
         }
 
-        await PerformBulkOperations([
-            new UpsertBulkAction(ContentfulConnection, _httpClient, true)
+        // Choose between streaming and regular processing based on settings
+        BulkActionBase upsertAction;
+        
+        if (settings.UseStreaming && inputAdapter is IStreamingInputAdapter)
+        {
+            upsertAction = new StreamingUpsertBulkAction(ContentfulConnection, _httpClient, true)
+                .WithBatchSize(settings.BatchSize)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithNewEntries(inputAdapter)
                 .WithMatchField(adapter.ContentKeyField)
                 .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity),
+                .WithVerbosity(settings.Verbosity);
+                
+            _console.WriteNormalWithHighlights(
+                $"Using streaming processing with batch size of {settings.BatchSize} for memory efficiency...", 
+                Globals.StyleHeading);
+        }
+        else
+        {
+            if (settings.UseStreaming)
+            {
+                _console.WriteAlert("Warning: Streaming requested but input adapter does not support streaming. Using regular processing.");
+            }
+            
+            upsertAction = new UpsertBulkAction(ContentfulConnection, _httpClient, true)
+                .WithContentType(contentType)
+                .WithContentLocales(contentLocales)
+                .WithNewEntries(inputAdapter)
+                .WithMatchField(adapter.ContentKeyField)
+                .WithApplyChanges(settings.Apply)
+                .WithVerbosity(settings.Verbosity);
+        }
+
+        await PerformBulkOperations([
+            upsertAction,
             new PublishBulkAction(ContentfulConnection, _httpClient)
             .WithContentType(contentType)
             .WithContentLocales(contentLocales)
