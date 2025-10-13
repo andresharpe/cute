@@ -29,6 +29,16 @@ public enum GenerateOperation
     ListBatches,
 }
 
+public class GenerationFailure
+{
+    public string EntryKey { get; init; } = string.Empty;
+    public string EntryTitle { get; init; } = string.Empty;
+    public string EntryId { get; init; } = string.Empty;
+    public string ErrorMessage { get; init; } = string.Empty;
+    public string Stage { get; init; } = string.Empty; // "AI Generation" or "Contentful Update"
+    public Exception? Exception { get; init; }
+}
+
 public class GenerateBulkAction(
         ContentfulConnection contentfulConnection,
         HttpClient httpClient,
@@ -44,6 +54,8 @@ public class GenerateBulkAction(
     private Dictionary<string, ContentType>? _withContentTypes;
 
     private GenerateOperation _operation = GenerateOperation.GenerateBatch;
+
+    private readonly List<GenerationFailure> _failures = new();
 
     public GenerateBulkAction WithContentTypes(IEnumerable<ContentType> contentTypes)
     {
@@ -154,7 +166,7 @@ public class GenerateBulkAction(
                         break;
 
                     case GenerateOperation.GenerateParallel:
-                        ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                        await ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
                         break;
 
                     case GenerateOperation.GenerateBatch:
@@ -170,6 +182,9 @@ public class GenerateBulkAction(
                 await ProcessQueryResultsForModels(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, modelNames);
             }
         }
+
+        // Report any failures at the end
+        ReportFailures(displayActions);
     }
 
     private async Task<CuteContentGenerateBatch?> GetOpenBatchEntry(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult, DisplayActions displayActions, Action<int, int>? progressUpdater, bool testOnly)
@@ -190,8 +205,34 @@ public class GenerateBulkAction(
 
         displayActions.DisplayFormatted?.Invoke($"Getting batch status(es) from Azure Open AI at '{_httpClient.BaseAddress}'...");
 
-        var status = await azureOpenAiBatchProcessor.BatchJobStatus(batchEntry.Key)
-            ?? throw new CliException("List batch status(es) from Azure Open AI failed.");
+        CreateBatchJobResponse? status;
+        try
+        {
+            status = await azureOpenAiBatchProcessor.BatchJobStatus(batchEntry.Key);
+            if (status == null)
+            {
+                throw new CliException("List batch status(es) from Azure Open AI failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+            
+            // Add a general failure for the entire batch
+            _failures.Add(new GenerationFailure
+            {
+                EntryKey = $"(batch {batchEntry.Key})",
+                EntryTitle = $"(batch {batchEntry.Title})",
+                EntryId = batchEntry.Key,
+                ErrorMessage = errorMessage,
+                Stage = "Azure OpenAI Batch Status Check",
+                Exception = ex
+            });
+            
+            displayActions.DisplayAlert?.Invoke($"❌ Azure OpenAI batch status check failed: {errorMessage}");
+            displayActions.DisplayBlankLine?.Invoke();
+            return batchEntry;
+        }
 
         if (status.CompletedAt is not null)
         {
@@ -199,18 +240,39 @@ public class GenerateBulkAction(
             batchEntry.Status = status.Status;
             await SaveCuteBatchEntry(batchEntry, displayActions);
 
-            await ProcessBatchResults(
-                azureOpenAiBatchProcessor.BatchJobResult(status.OutputFileId),
-                cuteContentGenerateEntry,
-                batchEntry,
-                queryResult, displayActions,
-                progressUpdater,
-                testOnly);
+            try
+            {
+                await ProcessBatchResults(
+                    azureOpenAiBatchProcessor.BatchJobResult(status.OutputFileId),
+                    cuteContentGenerateEntry,
+                    batchEntry,
+                    queryResult, displayActions,
+                    progressUpdater,
+                    testOnly);
 
-            batchEntry.Status = "completed-and-applied";
-            batchEntry.AppliedAt = DateTime.UtcNow.StripMilliseconds();
-            batchEntry.Sys.Version++;
-            await SaveCuteBatchEntry(batchEntry, displayActions);
+                batchEntry.Status = "completed-and-applied";
+                batchEntry.AppliedAt = DateTime.UtcNow.StripMilliseconds();
+                batchEntry.Sys.Version++;
+                await SaveCuteBatchEntry(batchEntry, displayActions);
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                
+                // Add a general failure for the batch result processing
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = $"(batch {batchEntry.Key})",
+                    EntryTitle = $"(batch {batchEntry.Title})",
+                    EntryId = batchEntry.Key,
+                    ErrorMessage = errorMessage,
+                    Stage = "Azure OpenAI Batch Result Processing",
+                    Exception = ex
+                });
+                
+                displayActions.DisplayAlert?.Invoke($"❌ Azure OpenAI batch result processing failed: {errorMessage}");
+                displayActions.DisplayBlankLine?.Invoke();
+            }
         }
         else if (status.ExpiredAt is not null)
         {
@@ -258,20 +320,70 @@ public class GenerateBulkAction(
         await foreach (var jobResult in jobResults)
         {
             progressUpdater?.Invoke(entryCount++, queryResult.Count);
-            batchEntry.CompletionTokens += jobResult.Response.Body.Usage.CompletionTokens;
-            batchEntry.PromptTokens += jobResult.Response.Body.Usage.PromptTokens;
-            batchEntry.TotalTokens += jobResult.Response.Body.Usage.TotalTokens;
-
-            var objectId = jobResult.CustomId.Split('|')[1];
-
-            if (!entriesDict.TryGetValue(objectId, out var entry)) continue;
-
-            var promptResult = jobResult.Response.Body.Choices[0].Message.Content;
-
-            if (!testOnly)
+            
+            try
             {
-                await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
-                queryResult.Remove(entry);
+                batchEntry.CompletionTokens += jobResult.Response.Body.Usage.CompletionTokens;
+                batchEntry.PromptTokens += jobResult.Response.Body.Usage.PromptTokens;
+                batchEntry.TotalTokens += jobResult.Response.Body.Usage.TotalTokens;
+
+                var objectId = jobResult.CustomId.Split('|')[1];
+
+                if (!entriesDict.TryGetValue(objectId, out var entry)) continue;
+
+                var promptResult = jobResult.Response.Body.Choices[0].Message.Content;
+
+                if (!testOnly)
+                {
+                    try
+                    {
+                        await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
+                        queryResult.Remove(entry);
+                    }
+                    catch (Exception ex)
+                    {
+                        var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                        var entryKey = entry["key"]?.Value<string>() ?? "(unknown entry key)";
+                        var entryTitle = entry["title"]?.Value<string>() ?? entry["name"]?.Value<string>() ?? "(unknown entry title)";
+                        
+                        _failures.Add(new GenerationFailure
+                        {
+                            EntryKey = entryKey,
+                            EntryTitle = entryTitle,
+                            EntryId = objectId,
+                            ErrorMessage = errorMessage,
+                            Stage = "Contentful Update (Batch)",
+                            Exception = ex
+                        });
+                        
+                        displayActions.DisplayAlert?.Invoke($"❌ Contentful update failed for [{entryKey}]: {errorMessage}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                var objectId = "(unknown)";  
+                try
+                {
+                    objectId = jobResult.CustomId.Split('|')[1];
+                }
+                catch
+                {
+                    // Ignore error parsing custom ID
+                }
+                
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = "(batch result)",
+                    EntryTitle = "(batch result)",
+                    EntryId = objectId,
+                    ErrorMessage = errorMessage,
+                    Stage = "Azure OpenAI Batch Result Item Processing",
+                    Exception = ex
+                });
+                
+                displayActions.DisplayAlert?.Invoke($"❌ Batch result processing failed for item: {errorMessage}");
             }
         }
     }
@@ -309,8 +421,33 @@ public class GenerateBulkAction(
 
         displayActions.DisplayFormatted?.Invoke($"Getting batch status(es) from Azure Open AI at '{_httpClient.BaseAddress}'...");
 
-        var response = await azureOpenAiBatchProcessor.BatchJobStatusList()
-            ?? throw new CliException("List batch status(es) from Azure Open AI failed.");
+        IReadOnlyList<CreateBatchJobResponse>? response;
+        try
+        {
+            response = await azureOpenAiBatchProcessor.BatchJobStatusList();
+            if (response == null)
+            {
+                throw new CliException("List batch status(es) from Azure Open AI failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+            
+            _failures.Add(new GenerationFailure
+            {
+                EntryKey = "(batch list)",
+                EntryTitle = "(batch list)",
+                EntryId = "(batch list)",
+                ErrorMessage = errorMessage,
+                Stage = "Azure OpenAI Batch List",
+                Exception = ex
+            });
+            
+            displayActions.DisplayAlert?.Invoke($"❌ Azure OpenAI batch list failed: {errorMessage}");
+            displayActions.DisplayBlankLine?.Invoke();
+            return;
+        }
 
         static DateTime? dd(int? i) => i is null ? null : DateTimeOffset.FromUnixTimeSeconds(i.Value).UtcDateTime;
 
@@ -447,48 +584,104 @@ public class GenerateBulkAction(
                 ?? entry["name"]?.Value<string>()
                 ?? "(unknown entry title)";
 
+            var entryId = entry.SelectToken("$.sys.id")?.Value<string>() ?? "(unknown entry id)";
+
             displayActions.DisplayAlert?.Invoke($"[{entryKey}] : [{entryTitle}]");
             displayActions.DisplayBlankLine?.Invoke();
 
-            scriptObject.SetValue(variableName, entry, true);
-
-            var systemMessage = RenderTemplate(scriptObject, systemTemplate);
-
-            var prompt = RenderTemplate(scriptObject, promptTemplate);
-
-            displayActions.DisplayRuler?.Invoke();
-
-            if (displaySystemMessageAndPrompt)
+            try
             {
-                displayActions.DisplayHeading?.Invoke("System Message:");
+                scriptObject.SetValue(variableName, entry, true);
 
-                DisplayLines(systemMessage, displayActions.DisplayDim);
+                var systemMessage = RenderTemplate(scriptObject, systemTemplate);
+
+                var prompt = RenderTemplate(scriptObject, promptTemplate);
+
+                displayActions.DisplayRuler?.Invoke();
+
+                if (displaySystemMessageAndPrompt)
+                {
+                    displayActions.DisplayHeading?.Invoke("System Message:");
+
+                    DisplayLines(systemMessage, displayActions.DisplayDim);
+
+                    displayActions.DisplayBlankLine?.Invoke();
+
+                    displayActions.DisplayHeading?.Invoke("Prompt:");
+
+                    DisplayLines(prompt, displayActions.DisplayDim);
+                }
 
                 displayActions.DisplayBlankLine?.Invoke();
 
-                displayActions.DisplayHeading?.Invoke("Prompt:");
+                var modelNameAsString = modelName == null ? string.Empty : $"[{modelName}] ";
 
-                DisplayLines(prompt, displayActions.DisplayDim);
+                displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
+
+                string promptResult;
+                try
+                {
+                    promptResult = FixFormatting(await SendPromptToModel(chatClient, chatCompletionOptions, systemMessage, prompt));
+                    DisplayLines(promptResult, displayActions.DisplayNormal);
+                }
+                catch (Exception ex)
+                {
+                    var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                    _failures.Add(new GenerationFailure
+                    {
+                        EntryKey = entryKey,
+                        EntryTitle = entryTitle,
+                        EntryId = entryId,
+                        ErrorMessage = errorMessage,
+                        Stage = "AI Generation",
+                        Exception = ex
+                    });
+                    displayActions.DisplayAlert?.Invoke($"❌ AI generation failed: {errorMessage}");
+                    continue; // Skip to next entry
+                }
+
+                displayActions.DisplayBlankLine?.Invoke();
+
+                if (!testOnly)
+                {
+                    try
+                    {
+                        await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
+                    }
+                    catch (Exception ex)
+                    {
+                        var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                        _failures.Add(new GenerationFailure
+                        {
+                            EntryKey = entryKey,
+                            EntryTitle = entryTitle,
+                            EntryId = entryId,
+                            ErrorMessage = errorMessage,
+                            Stage = "Contentful Update",
+                            Exception = ex
+                        });
+                        displayActions.DisplayAlert?.Invoke($"❌ Contentful update failed: {errorMessage}");
+                    }
+                }
             }
-
-            displayActions.DisplayBlankLine?.Invoke();
-
-            var modelNameAsString = modelName == null ? string.Empty : $"[{modelName}] ";
-
-            displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
-
-            var promptResult = FixFormatting(await SendPromptToModel(chatClient, chatCompletionOptions, systemMessage, prompt));
-
-            DisplayLines(promptResult, displayActions.DisplayNormal);
-
-            displayActions.DisplayBlankLine?.Invoke();
-
-            if (!testOnly)
+            catch (Exception ex)
             {
-                await UpdateContentfulEntry(cuteContentGenerateEntry, entry, promptResult, displayActions);
+                var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = entryKey,
+                    EntryTitle = entryTitle,
+                    EntryId = entryId,
+                    ErrorMessage = errorMessage,
+                    Stage = "Template Processing",
+                    Exception = ex
+                });
+                displayActions.DisplayAlert?.Invoke($"❌ Template processing failed: {errorMessage}");
             }
-
-            scriptObject.Remove(variableName);
+            finally
+            {
+                scriptObject.Remove(variableName);
+            }
         }
     }
 
@@ -573,28 +766,145 @@ public class GenerateBulkAction(
         displayActions.DisplayFormatted?.Invoke($"Uploading to Azure Open AI at '{options.Endpoint}'...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var response = await azureOpenAiBatchProcessor.UploadRequests(jobs)
-            ?? throw new CliException("Batch file upload to Azure Open AI failed.");
+        BatchFileUploadResponse? response;
+        try
+        {
+            response = await azureOpenAiBatchProcessor.UploadRequests(jobs);
+            if (response == null)
+            {
+                throw new CliException("Batch file upload to Azure Open AI failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+            
+            // Add a failure for each job that couldn't be uploaded
+            foreach (var job in jobs)
+            {
+                var entryInfo = ExtractEntryInfoFromCustomId(job.CustomId);
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = entryInfo.EntryKey,
+                    EntryTitle = entryInfo.EntryTitle,
+                    EntryId = entryInfo.EntryId,
+                    ErrorMessage = errorMessage,
+                    Stage = "Azure OpenAI Batch Upload",
+                    Exception = ex
+                });
+            }
+            
+            displayActions.DisplayAlert?.Invoke($"❌ Azure OpenAI batch upload failed: {errorMessage}");
+            displayActions.DisplayBlankLine?.Invoke();
+            return;
+        }
 
         displayActions.DisplayFormatted?.Invoke($"File reference from Azure is '{response.Id}'...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var completedResponse = await azureOpenAiBatchProcessor.WaitForUploadCompleted(response);
+        BatchFileUploadResponse? completedResponse;
+        try
+        {
+            completedResponse = await azureOpenAiBatchProcessor.WaitForUploadCompleted(response);
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+            
+            // Add a failure for each job that couldn't be processed
+            foreach (var job in jobs)
+            {
+                var entryInfo = ExtractEntryInfoFromCustomId(job.CustomId);
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = entryInfo.EntryKey,
+                    EntryTitle = entryInfo.EntryTitle,
+                    EntryId = entryInfo.EntryId,
+                    ErrorMessage = errorMessage,
+                    Stage = "Azure OpenAI Upload Processing",
+                    Exception = ex
+                });
+            }
+            
+            displayActions.DisplayAlert?.Invoke($"❌ Azure OpenAI upload processing failed: {errorMessage}");
+            displayActions.DisplayBlankLine?.Invoke();
+            return;
+        }
 
-        displayActions.DisplayFormatted?.Invoke($"File upload completed for '{response.Id}' ({response.Bytes:N0} bytes)...");
+        displayActions.DisplayFormatted?.Invoke($"File upload completed for '{response.Id}' ({completedResponse.Bytes:N0} bytes)...");
         displayActions.DisplayBlankLine?.Invoke();
 
         displayActions.DisplayFormatted?.Invoke($"Creating batch job for cute batch '{azureOpenAiBatchProcessor.Id}'...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var createBatchJobResponse = await azureOpenAiBatchProcessor.CreateBatchJob(completedResponse)
-            ?? throw new CliException("Batch job creation on Azure Open AI failed.");
+        CreateBatchJobResponse? createBatchJobResponse;
+        try
+        {
+            createBatchJobResponse = await azureOpenAiBatchProcessor.CreateBatchJob(completedResponse);
+            if (createBatchJobResponse == null)
+            {
+                throw new CliException("Batch job creation on Azure Open AI failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+            
+            // Add a failure for each job that couldn't be processed
+            foreach (var job in jobs)
+            {
+                var entryInfo = ExtractEntryInfoFromCustomId(job.CustomId);
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = entryInfo.EntryKey,
+                    EntryTitle = entryInfo.EntryTitle,
+                    EntryId = entryInfo.EntryId,
+                    ErrorMessage = errorMessage,
+                    Stage = "Azure OpenAI Batch Job Creation",
+                    Exception = ex
+                });
+            }
+            
+            displayActions.DisplayAlert?.Invoke($"❌ Azure OpenAI batch job creation failed: {errorMessage}");
+            displayActions.DisplayBlankLine?.Invoke();
+            return;
+        }
 
         displayActions.DisplayFormatted?.Invoke($"Created Azure batch '{createBatchJobResponse.Id}'...");
         displayActions.DisplayBlankLine?.Invoke();
 
-        var batchJobStatus = await azureOpenAiBatchProcessor.BatchJobStatus(createBatchJobResponse)
-            ?? throw new CliException("Batch job status failed on Azure Open AI.");
+        CreateBatchJobResponse? batchJobStatus;
+        try
+        {
+            batchJobStatus = await azureOpenAiBatchProcessor.BatchJobStatus(createBatchJobResponse);
+            if (batchJobStatus == null)
+            {
+                throw new CliException("Batch job status failed on Azure Open AI.");
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+            
+            // Add a failure for each job that couldn't be processed
+            foreach (var job in jobs)
+            {
+                var entryInfo = ExtractEntryInfoFromCustomId(job.CustomId);
+                _failures.Add(new GenerationFailure
+                {
+                    EntryKey = entryInfo.EntryKey,
+                    EntryTitle = entryInfo.EntryTitle,
+                    EntryId = entryInfo.EntryId,
+                    ErrorMessage = errorMessage,
+                    Stage = "Azure OpenAI Batch Status Check",
+                    Exception = ex
+                });
+            }
+            
+            displayActions.DisplayAlert?.Invoke($"❌ Azure OpenAI batch status check failed: {errorMessage}");
+            displayActions.DisplayBlankLine?.Invoke();
+            return;
+        }
 
         displayActions.DisplayFormatted?.Invoke($"Azure batch '{createBatchJobResponse.Id}' has status of '{batchJobStatus.Status}'...");
         displayActions.DisplayBlankLine?.Invoke();
@@ -636,7 +946,7 @@ public class GenerateBulkAction(
         displayActions.DisplayBlankLine?.Invoke();
     }
 
-    private void ProcessQueryResultsInParallel(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult,
+    private async Task ProcessQueryResultsInParallel(CuteContentGenerate cuteContentGenerateEntry, JArray queryResult,
             DisplayActions displayActions,
             Action<int, int>? progressUpdater,
             bool testOnly,
@@ -733,12 +1043,24 @@ public class GenerateBulkAction(
 
             displayActions.DisplayFormatted?.Invoke($"Generating content for {taskList.Count} entries...");
 
-            Task.WaitAll(taskList.Select(j => j.GenerateTask).ToArray());
+            // Wait for all generation tasks, handling failures silently
+            try
+            {
+                await Task.WhenAll(taskList.Select(j => j.GenerateTask).ToArray());
+            }
+            catch
+            {
+                // Silently continue - individual task failures will be handled below
+            }
 
             displayActions.DisplayBlankLine?.Invoke();
 
+            var updateTasks = new List<Task>();
+
             foreach (var completedJob in taskList)
             {
+                var entryId = completedJob.Entry.SelectToken("$.sys.id")?.Value<string>() ?? "(unknown entry id)";
+
                 displayActions.DisplayAlert?.Invoke($"[{completedJob.EntryKey}] : [{completedJob.EntryTitle}]");
                 displayActions.DisplayBlankLine?.Invoke();
 
@@ -761,6 +1083,25 @@ public class GenerateBulkAction(
 
                 displayActions.DisplayHeading?.Invoke($"{modelNameAsString}Response:");
 
+                // Check if the generation task failed
+                if (completedJob.GenerateTask.IsFaulted)
+                {
+                    var ex = completedJob.GenerateTask.Exception?.GetBaseException() ?? completedJob.GenerateTask.Exception;
+                    var errorMessage = ex?.Message.Length > 100 ? ex.Message[..100] + "..." : ex?.Message ?? "Unknown error";
+                    _failures.Add(new GenerationFailure
+                    {
+                        EntryKey = completedJob.EntryKey,
+                        EntryTitle = completedJob.EntryTitle,
+                        EntryId = entryId,
+                        ErrorMessage = errorMessage,
+                        Stage = "AI Generation",
+                        Exception = ex
+                    });
+                    displayActions.DisplayAlert?.Invoke($"❌ AI generation failed: {errorMessage}");
+                    displayActions.DisplayBlankLine?.Invoke();
+                    continue;
+                }
+
                 var promptResult = FixFormatting(completedJob.GenerateTask.Result);
 
                 DisplayLines(promptResult, displayActions.DisplayNormal);
@@ -769,17 +1110,50 @@ public class GenerateBulkAction(
 
                 if (!testOnly)
                 {
-                    completedJob.UpdateTask = UpdateContentfulEntry(cuteContentGenerateEntry, completedJob.Entry, promptResult, displayActions);
+                    // Wrap the update task to handle failures
+                    var updateTask = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await UpdateContentfulEntry(cuteContentGenerateEntry, completedJob.Entry, promptResult, displayActions);
+                        }
+                        catch (Exception ex)
+                        {
+                            var errorMessage = ex.Message.Length > 100 ? ex.Message[..100] + "..." : ex.Message;
+                            _failures.Add(new GenerationFailure
+                            {
+                                EntryKey = completedJob.EntryKey,
+                                EntryTitle = completedJob.EntryTitle,
+                                EntryId = entryId,
+                                ErrorMessage = errorMessage,
+                                Stage = "Contentful Update",
+                                Exception = ex
+                            });
+                            displayActions.DisplayAlert?.Invoke($"❌ Contentful update failed: {errorMessage}");
+                        }
+                    });
+                    updateTasks.Add(updateTask);
                 }
             }
 
-            displayActions.DisplayBlankLine?.Invoke();
+            if (updateTasks.Count > 0)
+            {
+                displayActions.DisplayBlankLine?.Invoke();
 
-            displayActions.DisplayFormatted?.Invoke($"Saving {taskList.Count} entries...");
+                displayActions.DisplayFormatted?.Invoke($"Saving {updateTasks.Count} entries...");
 
-            Task.WaitAll(taskList.Select(j => j.UpdateTask).ToArray());
+                // Wait for all update tasks, handling failures silently
+                try
+                {
+                    await Task.WhenAll(updateTasks);
+                }
+                catch
+                {
+                    // Silently continue - individual task failures are already handled
+                }
 
-            displayActions.DisplayBlankLine?.Invoke();
+                displayActions.DisplayBlankLine?.Invoke();
+            }
 
             taskList.Clear();
         }
@@ -1199,6 +1573,38 @@ public class GenerateBulkAction(
         }
 
         return commonLocales;
+    }
+
+    private (string EntryKey, string EntryTitle, string EntryId) ExtractEntryInfoFromCustomId(string customId)
+    {
+        // CustomId format: "{cuteContentGenerateEntry.Sys.Id}|{entry.SelectToken("sys.id")}"
+        var parts = customId.Split('|');
+        var entryId = parts.Length > 1 ? parts[1] : "(unknown entry id)";
+        return ("(batch entry)", "(batch entry)", entryId);
+    }
+
+    private void ReportFailures(DisplayActions displayActions)
+    {
+        if (_failures.Count == 0) return;
+
+        displayActions.DisplayRuler?.Invoke();
+        displayActions.DisplayBlankLine?.Invoke();
+        displayActions.DisplayAlert?.Invoke($"⚠️  Generation completed with {_failures.Count} failure(s):");
+        displayActions.DisplayBlankLine?.Invoke();
+
+        foreach (var failure in _failures)
+        {
+            displayActions.DisplayFormatted?.Invoke($"Entry: [{failure.EntryKey}] - {failure.EntryTitle}");
+            displayActions.DisplayFormatted?.Invoke($"Stage: {failure.Stage}");
+            displayActions.DisplayAlert?.Invoke($"Error: {failure.ErrorMessage}");
+            if (failure.Exception != null)
+            {
+                displayActions.DisplayDim?.Invoke($"Details: {failure.Exception.GetType().Name}");
+            }
+            displayActions.DisplayBlankLine?.Invoke();
+        }
+
+        displayActions.DisplayRuler?.Invoke();
     }
 
     private class GenerateJob
