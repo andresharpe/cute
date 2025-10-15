@@ -153,30 +153,14 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         translate = settings.UseCustomModel ?
         async (translator, text, from, to) =>
         {
-            try
-            {
-                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
-                return translation?.Text;
-            }
-            catch (Exception ex)
-            {
-                _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
-                return null;
-            }
+            var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
+            return translation?.Text;
         }
         :
         async (translator, text, from, to) =>
         {
-            try
-            {
-                var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
-                return translation?.Text;
-            }
-            catch (Exception ex)
-            {
-                _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
-                return null;
-            }
+            var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
+            return translation?.Text;
         };
 
         try
@@ -373,11 +357,18 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     translatedText = await translate(translator, text, sourceLocale, targetLanguage);
                     if (!string.IsNullOrEmpty(translatedText))
                         break;
+                        
+                    // Service succeeded but returned empty/null - break to try fallback
+                    if (retryCount == 1)
+                        break;
                 }
                 catch (Exception ex)
                 {
-                    if (retryCount == 1) // Only log on final attempt
-                        _console.WriteAlert($"Error translating text: {ex.Message}");
+                    // Log alert when service fails to translate
+                    _console.WriteAlert($"Error translating text from {sourceLocale} to {targetLanguage.Iso2Code} using {translator.GetType().Name}. Error Message: {ex.Message}");
+                    
+                    // Don't try fallback on service failure, just fail
+                    return (targetField, null, false);
                 }
 
                 retryCount--;
@@ -385,6 +376,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     await Task.Delay(1000); // Wait before retry
             }
 
+            // Use fallback only when service translated but returned empty/null
             if(string.IsNullOrEmpty(translatedText) && fallbackService != null && tService != fallbackService)
             {
                 translator = _translateFactory.Create(fallbackService.Value);
@@ -395,7 +387,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 }
                 catch (Exception ex)
                 {
-                    _console.WriteAlert($"Error translating text from {sourceLocale} to {targetLanguage.Iso2Code} using {translator.GetType().Name}. Error Message: {ex.Message}");
+                    _console.WriteAlert($"Fallback translation failed from {sourceLocale} to {targetLanguage.Iso2Code} using {translator.GetType().Name}. Error Message: {ex.Message}");
                     translatedText = null;
                 }
             }
@@ -404,7 +396,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         }
         catch (Exception ex)
         {
-            _console.WriteAlert($"Error translating text from {sourceLocale} to {targetLanguage.Iso2Code}. Error: {ex.Message}");
+            _console.WriteAlert($"Unexpected error in TranslateFieldAsync from {sourceLocale} to {targetLanguage.Iso2Code}. Error: {ex.Message}");
             return (targetField, null, false);
         }
         finally
