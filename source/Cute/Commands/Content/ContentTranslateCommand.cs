@@ -1,4 +1,4 @@
-﻿using Contentful.Core.Models;
+using Contentful.Core.Models;
 using Cute.Commands.BaseCommands;
 using Cute.Config;
 using Cute.Lib.Contentful;
@@ -16,14 +16,21 @@ using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
+using System.Collections.Concurrent;
 
 namespace Cute.Commands.Content;
 
 public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTranslateCommand> logger,
     AppSettings appSettings, TranslateFactory translateFactory, HttpClient httpClient) : BaseLoggedInCommand<ContentTranslateCommand.Settings>(console, logger, appSettings)
 {
+    private const int ENTRY_BATCH_SIZE = 20;
+    private const int TRANSLATION_BATCH_SIZE = 50;
+    private const int MAX_ENTRY_UPDATE_CONCURRENCY = 10;
+    
     private readonly TranslateFactory _translateFactory = translateFactory;
     private readonly HttpClient _httpClient = httpClient;
+    private readonly ConcurrentDictionary<TranslationService, ITranslator> _translatorCache = new();
+    private readonly List<(string entryId, Entry<dynamic> entry, int version)> _pendingUpdates = new();
     private Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = default!;
 
     public class Settings : ContentCommandSettings
@@ -181,24 +188,27 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
         try
         {
-            // Create a semaphore to limit concurrent translations
+            // Create semaphores to limit concurrent operations
             var throttler = new SemaphoreSlim(settings.MaxConcurrency);
+            var updateSemaphore = new SemaphoreSlim(MAX_ENTRY_UPDATE_CONCURRENCY);
             bool needToPublish = false;
             Dictionary<string, List<string>> failedEntryIds = new Dictionary<string, List<string>>();
+            
             await ProgressBars.Instance()
                 .AutoClear(false)
                 .StartAsync(async ctx =>
                 {
                     var taskTranslate = ctx.AddTask($"{Emoji.Known.Robot}  Translating (0 symbols translated)");
 
-                    var targetLocaleCodes = targetLocales.Select(targetLocales => targetLocales.Code).ToArray();
+                    var targetLocaleCodes = targetLocales.Select(tl => tl.Code).ToArray();
                     var serializer = new EntrySerializer(contentType, allContentLocales);
+                    var fieldMappings = BuildFieldMappings(defaultLocale.Code, targetLocales, fieldsToTranslate);
 
                     var queryBuilder = new EntryQuery.Builder()
-                    .WithContentType(settings.ContentTypeId)
-                    .WithPageSize(1)
-                    .WithLocale("*")
-                    .WithIncludeLevels(0);
+                        .WithContentType(settings.ContentTypeId)
+                        .WithPageSize(100)
+                        .WithLocale("*")
+                        .WithIncludeLevels(0);
 
                     if (!string.IsNullOrEmpty(queryString))
                     {
@@ -206,8 +216,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     }
                     
                     taskTranslate.MaxValue = 1;
-
                     long symbols = 0;
+                    
+                    var entryBatch = new List<Entry<JObject>>();
+                    int totalEntries = 0;
 
                     await foreach (var (entry, total) in ContentfulConnection.GetManagementEntries<Entry<JObject>>(
                         queryBuilder.Build()))
@@ -215,108 +227,76 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         if (taskTranslate.MaxValue == 1)
                         {
                             taskTranslate.MaxValue = total * targetLocales.Count * fieldsToTranslate.Count;
+                            totalEntries = total;
                         }
 
-                        var entryId = entry.SystemProperties.Id;
-                        var entryChanged = false;
-                        var flatEntry = serializer.SerializeEntry(entry);
-
-                        var defaultLocaleFieldNames = flatEntry.Keys.Where(k => k.Contains($".{defaultLocale.Code}")).ToArray();
-
-                        // Create a collection of tasks
-                        var translationTasks = new List<Task<(string targetField, string? translatedText, bool success)>>();
-
-                        foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
+                        entryBatch.Add(entry);
+                        
+                        if (entryBatch.Count >= ENTRY_BATCH_SIZE)
                         {
-                            if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith($"{f.Id}.")))
+                            var (batchSymbols, batchNeedsPublish, batchFailures) = await ProcessEntryBatch(
+                                entryBatch, 
+                                serializer, 
+                                fieldMappings, 
+                                fieldsToTranslate, 
+                                targetLocales, 
+                                targetLocaleCodes, 
+                                defaultLocale, 
+                                translationConfiguration, 
+                                settings, 
+                                throttler,
+                                updateSemaphore,
+                                taskTranslate);
+                            
+                            symbols += batchSymbols;
+                            needToPublish = needToPublish || batchNeedsPublish;
+                            
+                            foreach (var failure in batchFailures)
                             {
-                                continue;
+                                if (!failedEntryIds.ContainsKey(failure.Key))
+                                    failedEntryIds[failure.Key] = new List<string>();
+                                failedEntryIds[failure.Key].AddRange(failure.Value);
                             }
-
-                            var flatEntryDefaultLocaleValue = flatEntry[defaultLocaleFieldName];
-                            var defaultLocaleFieldValue = flatEntryDefaultLocaleValue?.ToString();
-
-                            if (flatEntryDefaultLocaleValue is not string || string.IsNullOrEmpty(defaultLocaleFieldValue))
-                            {
-                                taskTranslate.Increment(targetLocales.Count);
-                                continue;
-                            }
-
-                            foreach (var targetLocale in targetLocales)
-                            {
-                                if (!translationConfiguration.TryGetValue(targetLocale.Code, out var cuteLanguage))
-                                {
-                                    _console.WriteAlert($"No translation configuration found for locale {targetLocale.Code}");
-                                    continue;
-                                }
-
-                                var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
-                                if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || flatEntryTargetLocaleValue is null || string.IsNullOrEmpty(flatEntryTargetLocaleValue.ToString()))
-                                {
-                                    symbols += defaultLocaleFieldValue.Length;
-                                    TranslationService tService;
-                                    if(!Enum.TryParse(cuteLanguage.TranslationService, out tService))
-                                    {
-                                        tService = TranslationService.GPT4o;
-                                    }
-                                    translationTasks.Add(TranslateFieldAsync(
-                                        defaultLocaleFieldValue,
-                                        defaultLocale.Code,
-                                        cuteLanguage,
-                                        targetLocaleFieldName,
-                                        tService,
-                                        settings.FallbackService,
-                                        throttler));
-                                }
-                                taskTranslate.Increment(1);
-                            }
-                        }
-
-                        // Await all tasks to complete
-                        var results = await Task.WhenAll(translationTasks);
-
-                        // Process results
-                        foreach (var (targetField, translatedText, success) in results)
-                        {
-                            if (success && !string.IsNullOrEmpty(translatedText))
-                            {
-                                flatEntry[targetField] = translatedText;
-                                entryChanged = true;
-                                taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
-                            }
-                            else
-                            {
-                                if (!failedEntryIds.ContainsKey(entryId))
-                                    failedEntryIds[entryId] = new List<string>();
-
-                                failedEntryIds[entryId].Add(targetField);
-                            }
-                        }
-
-                        if (entryChanged)
-                        {
-                            var cloudEntry = await ContentfulConnection.GetManagementEntryAsync(entryId);
-                            var deserializedEntry = serializer.DeserializeEntry(flatEntry);
-
-                            foreach (var field in fieldsToTranslate)
-                            {
-                                foreach (var localeCode in targetLocaleCodes)
-                                {
-                                    if (cloudEntry.Fields[field.Id] is null)
-                                    {
-                                        cloudEntry.Fields[field.Id] = new JObject();
-                                    }
-                                    cloudEntry.Fields[field.Id][localeCode] = deserializedEntry.Fields[field.Id]![localeCode];
-                                }
-                            }
-
-                            needToPublish = true;
-                            await ContentfulConnection.CreateOrUpdateEntryAsync(cloudEntry, entry.SystemProperties.Version);
+                            
+                            taskTranslate.Description = $"{Emoji.Known.Robot} Translating ({symbols} symbols translated)";
+                            entryBatch.Clear();
                         }
                     }
 
+                    // Process remaining entries in the batch
+                    if (entryBatch.Count > 0)
+                    {
+                        var (batchSymbols, batchNeedsPublish, batchFailures) = await ProcessEntryBatch(
+                            entryBatch, 
+                            serializer, 
+                            fieldMappings, 
+                            fieldsToTranslate, 
+                            targetLocales, 
+                            targetLocaleCodes, 
+                            defaultLocale, 
+                            translationConfiguration, 
+                            settings, 
+                            throttler,
+                            updateSemaphore,
+                            taskTranslate);
+                        
+                        symbols += batchSymbols;
+                        needToPublish = needToPublish || batchNeedsPublish;
+                        
+                        foreach (var failure in batchFailures)
+                        {
+                            if (!failedEntryIds.ContainsKey(failure.Key))
+                                failedEntryIds[failure.Key] = new List<string>();
+                            failedEntryIds[failure.Key].AddRange(failure.Value);
+                        }
+                    }
+
+                    // Flush any remaining pending updates
+                    await FlushPendingUpdates(updateSemaphore);
+                    
+                    taskTranslate.Description = $"{Emoji.Known.Robot} Translation completed ({symbols} symbols translated)";
                     taskTranslate.StopTask();
-                });            
+                });
 
             if (!needToPublish)
             {
@@ -410,6 +390,333 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         finally
         {
             throttler.Release(); // Always release the throttler
+        }
+    }
+
+    private async Task<(long symbols, bool needsPublish, Dictionary<string, List<string>> failures)> ProcessEntryBatch(
+        List<Entry<JObject>> entries,
+        EntrySerializer serializer,
+        Dictionary<string, string> fieldMappings,
+        List<Field> fieldsToTranslate,
+        dynamic targetLocales,
+        string[] targetLocaleCodes,
+        dynamic defaultLocale,
+        Dictionary<string, CuteLanguage> translationConfiguration,
+        Settings settings,
+        SemaphoreSlim throttler,
+        SemaphoreSlim updateSemaphore,
+        ProgressTask taskTranslate)
+    {
+        long symbols = 0;
+        bool needsPublish = false;
+        var failures = new Dictionary<string, List<string>>();
+        var allTranslationRequests = new List<(string text, string sourceLocale, CuteLanguage targetLanguage, string targetField, TranslationService service, TranslationService? fallbackService, string entryId, string requestId)>();
+        var entryFlatData = new Dictionary<string, (Entry<JObject> originalEntry, Dictionary<string, object?> flatEntry)>();
+
+        // First pass: collect all translation requests
+        foreach (var entry in entries)
+        {
+            var entryId = entry.SystemProperties.Id;
+            var flatEntry = serializer.SerializeEntry(entry);
+            entryFlatData[entryId] = (entry, new Dictionary<string, object?>(flatEntry));
+
+            var defaultLocaleFieldNames = flatEntry.Keys
+                .Where(k => k.Contains($".{defaultLocale.Code}"))
+                .ToArray();
+
+            foreach (var defaultLocaleFieldName in defaultLocaleFieldNames)
+            {
+                if (!fieldsToTranslate.Any(f => defaultLocaleFieldName.StartsWith($"{f.Id}.")))
+                    continue;
+
+                var flatEntryDefaultLocaleValue = flatEntry[defaultLocaleFieldName];
+                var defaultLocaleFieldValue = flatEntryDefaultLocaleValue?.ToString();
+
+                if (flatEntryDefaultLocaleValue is not string || string.IsNullOrEmpty(defaultLocaleFieldValue))
+                {
+                    taskTranslate.Increment(targetLocales.Count);
+                    continue;
+                }
+
+                foreach (var targetLocale in targetLocales)
+                {
+                    if (!translationConfiguration.TryGetValue(targetLocale.Code, out CuteLanguage? cuteLanguage) || cuteLanguage == null)
+                    {
+                        _console.WriteAlert($"No translation configuration found for locale {targetLocale.Code}");
+                        continue;
+                    }
+
+                    var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
+                    
+                    if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || 
+                        flatEntryTargetLocaleValue is null || 
+                        string.IsNullOrEmpty(flatEntryTargetLocaleValue.ToString()))
+                    {
+                        symbols += defaultLocaleFieldValue.Length;
+                        TranslationService tService;
+                        if (!Enum.TryParse(cuteLanguage!.TranslationService, out tService))
+                        {
+                            tService = TranslationService.GPT4o;
+                        }
+                        
+                        var requestId = Guid.NewGuid().ToString();
+                        allTranslationRequests.Add((
+                            defaultLocaleFieldValue,
+                            defaultLocale.Code,
+                            cuteLanguage,
+                            targetLocaleFieldName,
+                            tService,
+                            settings.FallbackService,
+                            entryId,
+                            requestId
+                        ));
+                    }
+                    
+                    taskTranslate.Increment(1);
+                }
+            }
+        }
+
+        // Batch process translations
+        if (allTranslationRequests.Count > 0)
+        {
+            var translationRequestsForBatch = allTranslationRequests
+                .Select(r => (r.text, r.sourceLocale, r.targetLanguage, r.targetField, r.service, r.fallbackService, r.requestId))
+                .ToList();
+            
+            var translationResults = await BatchTranslateFields(translationRequestsForBatch, throttler);
+            var resultsByEntryAndField = new Dictionary<string, Dictionary<string, (string? translatedText, bool success)>>();
+            
+            // Create lookup dictionary for requests by requestId
+            var requestLookup = allTranslationRequests.ToDictionary(r => r.requestId, r => r);
+
+            // Map results back to entries using requestId
+            foreach (var result in translationResults)
+            {
+                if (requestLookup.TryGetValue(result.requestId, out var request))
+                {
+                    if (!resultsByEntryAndField.ContainsKey(request.entryId))
+                        resultsByEntryAndField[request.entryId] = new Dictionary<string, (string?, bool)>();
+                        
+                    // Use request.targetField to ensure correct field mapping
+                    resultsByEntryAndField[request.entryId][request.targetField] = (result.translatedText, result.success);
+                }
+            }
+
+            // Process results and update entries
+            var updateTasks = new List<Task>();
+            
+            foreach (var entryResult in resultsByEntryAndField)
+            {
+                var entryId = entryResult.Key;
+                var (originalEntry, flatEntry) = entryFlatData[entryId];
+                var entryChanged = false;
+
+                foreach (var fieldResult in entryResult.Value)
+                {
+                    var targetField = fieldResult.Key;
+                    var (translatedText, success) = fieldResult.Value;
+
+                    if (success && !string.IsNullOrEmpty(translatedText))
+                    {
+                        flatEntry[targetField] = translatedText;
+                        entryChanged = true;
+                    }
+                    else
+                    {
+                        if (!failures.ContainsKey(entryId))
+                            failures[entryId] = new List<string>();
+                        failures[entryId].Add(targetField);
+                    }
+                }
+
+                if (entryChanged)
+                {
+                    needsPublish = true;
+                    updateTasks.Add(UpdateEntryAsync(entryId, originalEntry, flatEntry, serializer, fieldsToTranslate, targetLocaleCodes, updateSemaphore));
+                }
+            }
+
+            // Wait for all entry updates to complete
+            await Task.WhenAll(updateTasks);
+        }
+
+        return (symbols, needsPublish, failures);
+    }
+
+    private async Task UpdateEntryAsync(
+        string entryId,
+        Entry<JObject> originalEntry,
+        Dictionary<string, object?> flatEntry,
+        EntrySerializer serializer,
+        List<Field> fieldsToTranslate,
+        string[] targetLocaleCodes,
+        SemaphoreSlim updateSemaphore)
+    {
+        await updateSemaphore.WaitAsync();
+        
+        try
+        {
+            var cloudEntry = await ContentfulConnection.GetManagementEntryAsync(entryId);
+            var deserializedEntry = serializer.DeserializeEntry(new Dictionary<string, object?>(flatEntry));
+
+            foreach (var field in fieldsToTranslate)
+            {
+                foreach (var localeCode in targetLocaleCodes)
+                {
+                    if (cloudEntry.Fields[field.Id] is null)
+                    {
+                        cloudEntry.Fields[field.Id] = new JObject();
+                    }
+                    cloudEntry.Fields[field.Id][localeCode] = deserializedEntry.Fields[field.Id]![localeCode];
+                }
+            }
+
+            await ContentfulConnection.CreateOrUpdateEntryAsync(cloudEntry, originalEntry.SystemProperties.Version);
+        }
+        finally
+        {
+            updateSemaphore.Release();
+        }
+    }
+
+    private ITranslator GetCachedTranslator(TranslationService service)
+    {
+        return _translatorCache.GetOrAdd(service, s => _translateFactory.Create(s));
+    }
+
+    private async Task<string?> TranslateText(string text, string from, TranslationService service, CuteLanguage targetLanguage, TranslationService? fallbackService = null, Dictionary<string, string>? glossary = null)
+    {
+        var translator = GetCachedTranslator(service);
+        string? translation = null;
+        
+        try
+        {
+            translation = await translate(translator, text, from, targetLanguage);
+        }
+        catch (Exception ex)
+        {
+            _console.WriteAlert($"Error translating text: {ex.Message}");
+        }
+
+        // Try fallback service if primary failed
+        if (string.IsNullOrEmpty(translation) && fallbackService != null && service != fallbackService)
+        {
+            try
+            {
+                var fallbackTranslator = GetCachedTranslator(fallbackService.Value);
+                var response = await fallbackTranslator.Translate(text, from, targetLanguage.Iso2Code, glossary);
+                translation = response?.Text;
+            }
+            catch (Exception ex)
+            {
+                _console.WriteAlert($"Error translating text with fallback service: {ex.Message}");
+            }
+        }
+
+        return translation;
+    }
+
+    private Dictionary<string, string> BuildFieldMappings(string defaultLocale, dynamic targetLocales, IEnumerable<Field> fieldsToTranslate)
+    {
+        var mappings = new Dictionary<string, string>();
+        
+        foreach (var field in fieldsToTranslate)
+        {
+            foreach (var targetLocale in targetLocales)
+            {
+                var sourceKey = $"{field.Id}.{defaultLocale}";
+                var targetKey = $"{field.Id}.{targetLocale.Code}";
+                mappings[sourceKey] = targetKey;
+            }
+        }
+        
+        return mappings;
+    }
+
+    private async Task FlushPendingUpdates(SemaphoreSlim updateSemaphore)
+    {
+        if (_pendingUpdates.Count == 0) return;
+
+        var updateTasks = _pendingUpdates.Select(async update =>
+        {
+            await updateSemaphore.WaitAsync();
+            try
+            {
+                await ContentfulConnection.CreateOrUpdateEntryAsync(update.entry, update.version);
+            }
+            finally
+            {
+                updateSemaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(updateTasks);
+        _pendingUpdates.Clear();
+    }
+
+    private async Task<List<(string targetField, string? translatedText, bool success, string requestId)>> BatchTranslateFields(
+        List<(string text, string sourceLocale, CuteLanguage targetLanguage, string targetField, TranslationService service, TranslationService? fallbackService, string requestId)> translationRequests,
+        SemaphoreSlim throttler)
+    {
+        // Group by service and target language for batch processing
+        var groupedRequests = translationRequests
+            .GroupBy(r => new { r.service, r.targetLanguage.Iso2Code })
+            .ToList();
+
+        var allResults = new List<(string targetField, string? translatedText, bool success, string requestId)>();
+
+        foreach (var group in groupedRequests)
+        {
+            var requests = group.ToList();
+            var batchTasks = new List<Task<(string targetField, string? translatedText, bool success, string requestId)>>();
+
+            // Process in smaller batches to avoid overwhelming the translation service
+            for (int i = 0; i < requests.Count; i += TRANSLATION_BATCH_SIZE)
+            {
+                var batch = requests.Skip(i).Take(TRANSLATION_BATCH_SIZE).ToList();
+                
+                foreach (var request in batch)
+                {
+                    batchTasks.Add(TranslateFieldDirect(
+                        request.text,
+                        request.sourceLocale,
+                        request.targetLanguage,
+                        request.targetField,
+                        request.service,
+                        request.fallbackService,
+                        request.requestId,
+                        throttler));
+                }
+            }
+
+            var batchResults = await Task.WhenAll(batchTasks);
+            allResults.AddRange(batchResults);
+        }
+
+        return allResults;
+    }
+
+    private async Task<(string targetField, string? translatedText, bool success, string requestId)> TranslateFieldDirect(
+        string text,
+        string sourceLocale,
+        CuteLanguage targetLanguage,
+        string targetField,
+        TranslationService service,
+        TranslationService? fallbackService,
+        string requestId,
+        SemaphoreSlim throttler)
+    {
+        await throttler.WaitAsync();
+        
+        try
+        {
+            var translatedText = await TranslateText(text, sourceLocale, service, targetLanguage, fallbackService);
+            return (targetField, translatedText, !string.IsNullOrEmpty(translatedText), requestId);
+        }
+        finally
+        {
+            throttler.Release();
         }
     }
 }

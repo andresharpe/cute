@@ -104,7 +104,7 @@ public partial class ConsoleWriter : IConsoleWriter
 
     public void WriteNormalWithHighlights(FormattableString text, Style highlightStyle)
     {
-        Console?.MarkupLine(Format(text.Format, Globals.StyleNormal, highlightStyle, text.GetArguments()));
+        Console?.MarkupLine(Format(text.Format.EscapeMarkup(), Globals.StyleNormal, highlightStyle, text.GetArguments()));
         Logger?.LogInformation(text.Format, text.GetArguments());
     }
 
