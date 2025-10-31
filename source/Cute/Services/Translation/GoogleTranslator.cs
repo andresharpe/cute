@@ -14,7 +14,7 @@ namespace Cute.Services.Translation
         {
             if(!appSettings.GetSettings().TryGetValue("Cute__GoogleApiKey", out var googleApiKey))
             {
-                throw new CliException("Google API Key not found in appsettings.json");
+                throw new CliException("Google API Key not found in the environment settings");
             }
 
             _client = TranslationClient.CreateFromApiKey(googleApiKey);

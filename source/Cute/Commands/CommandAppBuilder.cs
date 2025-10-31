@@ -138,6 +138,10 @@ public class CommandAppBuilder
                     .WithDescription("Seed geographical test data to start your project.")
                     .IsHidden();
 
+                branchConfig.AddCommand<ContentSeedGeoDataCommandLegacy>("seed-geo-legacy")
+                    .WithDescription("Seed geographical test data to start your project.")
+                    .IsHidden();
+
                 branchConfig.AddCommand<ContentSyncDatabaseCommand>("sync-db")
                     .WithDescription("Synchronize data to Contentful from a database.")
                     .IsHidden();
