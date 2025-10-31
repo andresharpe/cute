@@ -24,12 +24,12 @@ using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Globalization;
 
-using static Cute.Commands.Content.ContentSeedGeoDataCommand;
+using static Cute.Commands.Content.ContentSeedGeoDataCommandLegacy;
 using File = System.IO.File;
 
 namespace Cute.Commands.Content;
 
-public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<ContentSeedGeoDataCommand> logger,
+public sealed class ContentSeedGeoDataCommandLegacy(IConsoleWriter console, ILogger<ContentSeedGeoDataCommandLegacy> logger,
     AppSettings appSettings, HttpClient httpClient, HttpClient googleClient)
 
     : BaseLoggedInCommand<Settings>(console, logger, appSettings)
@@ -94,20 +94,13 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         [CommandOption("--use-session")]
         [Description("Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones).")]
         public bool UseSession { get; set; } = false;
-
-        [CommandOption("--calculate-location-count")]
-        [Description("Runs in location count calculation mode - updates location count for geos with radius > 0.")]
-        public bool CalculateLocationCount { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
     {
-        if (!settings.CalculateLocationCount)
+        if (!Uri.IsWellFormedUriString(settings.InputFileOrUrl, UriKind.Absolute) && !File.Exists(settings.InputFileOrUrl))
         {
-            if (!Uri.IsWellFormedUriString(settings.InputFileOrUrl, UriKind.Absolute) && !File.Exists(settings.InputFileOrUrl))
-            {
-                return ValidationResult.Error($"Path to input file '{settings.InputFileOrUrl}' was not found.");
-            }
+            return ValidationResult.Error($"Path to input file '{settings.InputFileOrUrl}' was not found.");
         }
 
         return base.Validate(context, settings);
@@ -115,11 +108,6 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
-        if (settings.CalculateLocationCount)
-        {
-            return await CalculateLocationCountMode(settings);
-        }
-
         if (!AppSettings.GetSettings().TryGetValue("Cute__GoogleApiKey", out _googleApiKey!))
         {
             throw new CliException("Google API key not found in environment variables. (Cute__GoogleApiKey)");
@@ -158,8 +146,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
                 .WithNewEntries(_newEntryRecords, "Simplemaps.com")
-                .WithMatchField(nameof(GeoFormat.SeedKey).ToCamelCase())
-                .WithApplyChanges(settings.Apply)
+                .WithMatchField(nameof(GeoFormat.Key).ToCamelCase())
+                .WithApplyChanges(true)
                 .WithVerbosity(settings.Verbosity),
             new PublishBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
@@ -169,144 +157,6 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 .WithUseSession(settings.UseSession)
         ]);
 
-        return 0;
-    }
-
-    private async Task<int> CalculateLocationCountMode(Settings settings)
-    {
-        var prefix = settings.ContentTypePrefix;
-        
-        _console.WriteRuler();
-        _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"Running in location count calculation mode...", Globals.StyleHeading);
-        
-        // Get all locations
-        _console.WriteNormalWithHighlights($"Loading locations from {AppSettings.ContentfulDefaultEnvironment}...", Globals.StyleHeading);
-        var newDate = new DateTime();
-        var today = DateTime.Now;
-        var dataLocations = ContentfulConnection.GetDeliveryEntries<JObject>($"{prefix}Location")
-            .ToBlockingEnumerable()
-            .Select(e => new
-            {
-                CountryCode = e.Entry.SelectToken($"{prefix}CountryEntry.iso2Code")?.Value<string>(),
-                Lat = e.Entry.SelectToken("latLon.lat")?.Value<double>() ?? 0.0f,
-                Lon = e.Entry.SelectToken("latLon.lon")?.Value<double>() ?? 0.0f,
-                CloseDate = e.Entry.SelectToken("closeDate")?.Value<DateTime?>(),
-            })
-            .Where(i => i.CountryCode is not null)
-            .Where(i => i.CloseDate is null || i.CloseDate == newDate || i.CloseDate > today)
-            .ToList();
-        
-        _console.WriteNormalWithHighlights($"...{dataLocations.Count:N0} locations found.", Globals.StyleHeading);
-        
-        // Get all Geos with Radius > 0
-        _console.WriteNormalWithHighlights($"Loading Geos with radius > 0...", Globals.StyleHeading);
-        var geosWithRadius = ContentfulConnection
-            .GetPreviewEntries<GeoFormat>(
-                new EntryQuery.Builder()
-                    .WithContentType($"{prefix}Geo")
-                    .Build()
-            )
-            .ToBlockingEnumerable()
-            .Select(x => x.Entry)
-            .Where(g => g.RadiusKilometers.HasValue && g.RadiusKilometers.Value > 0 && g.LatLon != null)
-            .ToList();
-        
-        _console.WriteNormalWithHighlights($"...{geosWithRadius.Count:N0} Geos with radius found.", Globals.StyleHeading);
-        _console.WriteBlankLine();
-        
-        // Calculate location count for each geo
-        var updatedGeos = new List<Entry<JObject>>();
-        var jsonSerializer = new JsonSerializer { ContractResolver = new CamelCasePropertyNamesContractResolver() };
-        
-        _console.WriteNormalWithHighlights($"Calculating location counts...", Globals.StyleHeading);
-        
-        List<string> animation = [
-            Emoji.Known.GlobeShowingAsiaAustralia,
-            Emoji.Known.GlobeShowingEuropeAfrica,
-            Emoji.Known.GlobeShowingAmericas
-        ];
-        
-        var animationFrame = 0;
-        var animateEvery = 25;
-        
-        await ProgressBars.Instance()
-            .AutoClear(false)
-            .StartAsync(async ctx =>
-            {
-                var taskCalculate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{animation[animationFrame++]} Calculating location counts..[/]");
-                
-                taskCalculate.MaxValue = geosWithRadius.Count;
-                
-                foreach (var geo in geosWithRadius)
-                {
-                    var boundingBox = Haversine.GetBoundingBox(geo.LatLon.Lon, geo.LatLon.Lat, geo.RadiusKilometers!.Value);
-                    var locationCount = dataLocations.Count(l => boundingBox.Contains(l.Lon, l.Lat));
-
-                    if (geo.DataLocationCount == locationCount) continue;
-
-                    geo.DataLocationCount = locationCount;
-                    
-                    var entry = new Entry<JObject>
-                    {
-                        SystemProperties = geo.Sys,
-                        Fields = JObject.FromObject(geo, jsonSerializer)
-                    };
-                    
-                    updatedGeos.Add(entry);
-                    taskCalculate.Increment(1);
-                    
-                    if (--animateEvery < 1)
-                    {
-                        animateEvery = 25;
-                        taskCalculate.Description = $"{animation[animationFrame++]} {_console.FormatToMarkup($"...processed {updatedGeos.Count:N0} of {geosWithRadius.Count:N0} geos", Globals.StyleNormal, Globals.StyleHeading)}..";
-                        if (animationFrame >= animation.Count) animationFrame = 0;
-                    }
-                }
-                
-                taskCalculate.Description = $"{animation[0]} {_console.FormatToMarkup($"Processed {updatedGeos.Count:N0} geos with location counts.", Globals.StyleNormal, Globals.StyleHeading)}";
-                taskCalculate.StopTask();
-                
-                await Task.CompletedTask;
-            });
-        
-        _console.WriteBlankLine();
-        _console.WriteNormalWithHighlights($"Processed {updatedGeos.Count:N0} geos with location counts.", Globals.StyleHeading);
-        _console.WriteBlankLine();
-        
-        if (updatedGeos.Count == 0)
-        {
-            _console.WriteNormal("No geos to update.");
-            return 0;
-        }
-        
-        // Upload changes
-        var contentTypeId = await ResolveContentTypeId($"{prefix}Geo") ?? throw new CliException($"Content type '{prefix}Geo' not found.");
-        var contentType = await GetContentTypeOrThrowError(contentTypeId);
-        var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
-        var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
-        
-        if (!ConfirmWithPromptChallenge($"update location counts for {updatedGeos.Count} geos in {contentTypeId}"))
-        {
-            return -1;
-        }
-        
-        await PerformBulkOperations([
-            new UpsertBulkAction(ContentfulConnection, _httpClient)
-                .WithContentType(contentType)
-                .WithContentLocales(contentLocales)
-                .WithNewEntries(updatedGeos, "Location Count Calculation")
-                .WithMatchField(nameof(GeoFormat.SeedKey).ToCamelCase())
-                .WithApplyChanges(settings.Apply)
-                .WithVerbosity(settings.Verbosity),
-            new PublishBulkAction(ContentfulConnection, _httpClient)
-                .WithContentType(contentType)
-                .WithContentLocales(contentLocales)
-                .WithVerbosity(settings.Verbosity)
-                .WithApplyChanges(!settings.NoPublish)
-                .WithUseSession(settings.UseSession)
-        ]);
-        
         return 0;
     }
 
@@ -442,7 +292,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
         _console.WriteNormalWithHighlights($"...{dataCountryCode.Count:N0} related countries found.", Globals.StyleHeading);
 
-        var countries = ContentfulConnection
+        var countryToGeoId = ContentfulConnection
                 .GetPreviewEntries<GeoFormat>(
                     new EntryQuery.Builder()
                         .WithContentType($"{prefix}Geo")
@@ -450,11 +300,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         .Build()
             )
             .ToBlockingEnumerable()
-            .Select(x => x.Entry).ToList();
-
-        var countryToGeoId = countries
-            .Where(e => dataCountryCode.Contains(e.SeedKey))
-            .ToDictionary(o => o.SeedKey);
+            .Select(x => x.Entry)
+            .Where(e => dataCountryCode.Contains(e.Key))
+            .ToDictionary(o => o.Key);
 
         _console.WriteNormalWithHighlights($"...{countryToGeoId.Count:N0} existing country Geos found.", Globals.StyleHeading);
 
@@ -467,7 +315,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             )
             .ToBlockingEnumerable()
             .Select(x => x.Entry)
-            .ToDictionary(o => o.SeedKey);
+            .ToDictionary(o => o.Key);
 
         _console.WriteNormalWithHighlights($"...{adminCodeToGeoId.Count:N0} existing state and province Geos found.", Globals.StyleHeading);
 
@@ -480,8 +328,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             )
             .ToBlockingEnumerable()
             .Select(x => x.Entry)
-            .Where(x => !string.IsNullOrEmpty(x.SeedKey))
-            .ToDictionary(o => o.SeedKey);
+            .ToDictionary(o => o.Key);
 
         _console.WriteNormalWithHighlights($"...{cityToGeoId.Count:N0} existing town and city Geos found.", Globals.StyleHeading);
 
@@ -489,8 +336,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             .GetPreviewEntries<GeoFormat>($"{prefix}Country")
              .ToBlockingEnumerable()
             .Select(x => x.Entry)
-            .Where(e => dataCountryCode.Contains(e.Key.Split('.').Last().ToUpper()))
-            .ToDictionary(o => o.Key.Split('.').Last().ToUpper(), o => o);
+            .Where(e => dataCountryCode.Contains(e.Key))
+            .ToDictionary(o => o.Key, o => o);
 
         _console.WriteNormalWithHighlights($"...{countryCodeToInfo.Count:N0} country names read.", Globals.StyleHeading);
 
@@ -580,26 +427,14 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         }
                     }
 
-                    var parentGeo = adminCodeToGeoId[adminCode];
-                    var grandparentName = parentGeo?.DataGeoParent?.Name;
-                    var parentName = parentGeo?.Name;
-                    var cityName = record.CityName;
-                    
-                    var keyParts = new List<string>();
-                    if (!string.IsNullOrEmpty(grandparentName)) keyParts.Add(grandparentName.ToPascalCase());
-                    if (!string.IsNullOrEmpty(parentName)) keyParts.Add(parentName.ToPascalCase());
-                    if (!string.IsNullOrEmpty(cityName)) keyParts.Add(cityName.ToPascalCase());
-                    var hierarchicalKey = string.Join(".", keyParts);
-
                     var newRecord = new GeoFormat()
                     {
                         Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
-                        Key = existingEntry?.Key ?? hierarchicalKey,
-                        SeedKey = record.Id,
+                        Key = record.Id,
                         Title = existingEntry?.Title ?? $"{record.CountryName} | {record.AdminName} | {record.CityName}",
                         Name = existingEntry?.Name ?? record.CityName,
                         AlternateNames = record.CityAlternateName.Replace(',', '\u2E32').Replace('|', ',').Split(',').ToList(),
-                        DataGeoParent = existingEntry?.DataGeoParent ?? parentGeo!,
+                        DataGeoParent = existingEntry?.DataGeoParent ?? adminCodeToGeoId[adminCode],
                         GeoType = "city-or-town",
                         GeoSubType = string.IsNullOrEmpty(record.Capital)
                             ? record.PopulationProper > 10000 ? "city" : "town"
@@ -656,18 +491,16 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             existingEntry.Count++;
             if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId))
             {
-                return countryCode;
+                return existingEntry.Key;
             }
         }
 
         var countryInfo = countryInfoList[countryCode];
-        var countryName = countryInfo.Name;
 
         var newRecord = new GeoFormat()
         {
             Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
-            Key = existingEntry?.Key ?? countryName.ToPascalCase(),
-            SeedKey = countryCode,
+            Key = countryCode,
             Title = countryInfo.Name,
             Name = countryInfo.Name,
             LatLon = countryInfo.LatLon,
@@ -716,27 +549,19 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             existingEntry.Count++;
             if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId) && existingEntry.DataCountryEntry is not null)
             {
-                return adminCode;
+                return existingEntry.Key;
             }
         }
 
         var countryInfo = countryInfoList[record.CountryIso2];
-        var parentGeo = countryToToGeoId[record.CountryIso2];
-        var countryName = parentGeo?.Name;
-        
-        var keyParts = new List<string>();
-        if (!string.IsNullOrEmpty(countryName)) keyParts.Add(countryName.ToPascalCase());
-        if (!string.IsNullOrEmpty(adminName)) keyParts.Add(adminName.ToPascalCase());
-        var hierarchicalKey = string.Join(".", keyParts);
 
         var newRecord = new GeoFormat()
         {
             Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
-            Key = existingEntry?.Key ?? hierarchicalKey,
-            SeedKey = existingEntry?.Key ?? adminCode,
+            Key = existingEntry?.Key ?? adminCode,
             Title = existingEntry?.Title ?? $"{record.CountryName} | {adminName} ({adminCode})",
             Name = existingEntry?.Name ?? record.AdminName,
-            DataGeoParent = existingEntry?.DataGeoParent ?? parentGeo!,
+            DataGeoParent = existingEntry?.DataGeoParent ?? countryToToGeoId[record.CountryIso2],
             GeoType = "state-or-province",
             GeoSubType = record.AdminType,
             LatLon = existingEntry?.LatLon ?? new() { Lat = record.Lat, Lon = record.Lon },
@@ -848,7 +673,6 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
     {
         public SystemProperties Sys { get; set; } = default!;
         public string Key { get; set; } = default!;
-        public string SeedKey { get; set; } = default!;
         public string Title { get; set; } = default!;
         public string Name { get; set; } = default!;
         public List<string> AlternateNames { get; set; } = default!;
@@ -865,8 +689,6 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public string? GooglePlacesId { get; set; } = default!;
         public int Count { get; set; } = 0;
         public GeoFormat DataCountryEntry { get; set; } = default!;
-        public int? RadiusKilometers { get; set; } = default;
-        public int? DataLocationCount { get; set; } = 0;
     }
 
     public class GeoInfoCompact
@@ -926,7 +748,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
             if (newRecord.GeoType == "state-or-province")
             {
-                if (adminCodeToGeoId[newRecord.Sys.Id].Count > 1 || newRecord.DataCountryEntry?.Key == "UnitedStates.Us")
+                if (adminCodeToGeoId[newRecord.Sys.Id].Count > 1 || newRecord.DataCountryEntry?.Key == "US")
                 {
                     var provinceEntry = new Entry<JObject>
                     {
