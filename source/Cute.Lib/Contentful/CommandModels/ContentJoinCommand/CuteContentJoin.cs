@@ -9,7 +9,7 @@
         public string? SourceQueryString1 { get; set; } = default!;
         public string SourceContentType2 { get; set; } = default!;
         public string? SourceQueryString2 { get; set; } = default!;
-        public string SourceContentType3 { get; set; } = default!;
+        public string? SourceContentType3 { get; set; } = default!;
         public string? SourceQueryString3 { get; set; } = default!;
     }
 }
