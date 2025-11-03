@@ -56,8 +56,6 @@
 - [Contributing to Cute](#contributing-to-cute)
 
 <!-- /TOC -->
-<!-- /TOC -->
-<!-- /TOC -->
 </details>
 
 # Introduction
@@ -225,9 +223,13 @@ We'll start by configuring our content aggregate. We'll use our existing `diplom
 
 > 💡 See [this section](#configuring-cutecontentjoin) if you need to define a `cuteContentJoin` content type within your Contentful space if you're using this feature for the first time.
 
-See the attached screenshot below. The `targetContentType` refers to our new aggregated content type. For source 1 our content type is `branchLocation` and we're selecting all entries `*`. For source 2 our content type is `diplomaCourse` and we're selecting only `MATHEMATICS`. 
+See the attached screenshot below. The `targetContentType` refers to our new aggregated content type. We can join up to 3 sources, but for this example we'll focus on 2. For source 1 our content type is `branchLocation` and by leaving `sourceQueryString1` empty, we're effectively selecting all entries. For source 2 our content type is `diplomaCourse` and we're selecting only `MATHEMATICS`. 
 
 ![contentful cuteContentJoin entry configuration screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentJoin-entry.png)
+
+> 💡 Ask [GhatGPT]([#configuring-cutecontentjoin](https://chatgpt.com/)) for guidance on how you can form your query string parameters. A prompt like `give me an overview on using square bracket notation for web api query parameters` should yield the necessary guidance.
+>
+> The example above uses `fields.key=MATHEMATICS`, but you can include multiple values using `fields.key[in]=MATHEMATICS,ECONOMICS,ART`
 
 Running the `cute content join --key ViewCourseByLocation` command yields the following output:
 
@@ -454,6 +456,10 @@ mapping:
 Running the `cute content sync-api -k dataUserDB -a` command yields the following output in the terminal:
 
 ![cute content sync-api database screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute-content-syncapi-db.png)
+
+And a closer look at our `User` content type in Contentful reveals the addition of the 5 user records in our database.
+
+![cute content sync-api database result screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-User-dbsync-result.png)
 
 [Back to Index](#table-of-content)
 
@@ -763,7 +769,7 @@ Typing `cute content testdata --help` will show the full usage and options.
 
 ```powershell
 USAGE:
-    cute server webhooks [OPTIONS]
+    cute content testdata [OPTIONS]
 
 OPTIONS:
     -h, --help                  Prints help information
