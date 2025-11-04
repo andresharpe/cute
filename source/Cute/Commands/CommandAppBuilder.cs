@@ -349,7 +349,8 @@ public class CommandAppBuilder
             {
                 Header = Globals.StyleSubHeading,
                 RequiredOption = Globals.StyleAlert,
-                OptionalOption = Globals.StyleAlertAccent,
+                RequiredOptionValue = Globals.StyleAlert,
+                OptionalOptionValue = Globals.StyleAlertAccent,
                 DefaultValue = Globals.StyleDim,
                 DefaultValueHeader = Globals.StyleNormal,
             },

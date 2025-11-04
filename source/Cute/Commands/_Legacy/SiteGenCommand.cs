@@ -56,9 +56,9 @@ public sealed class SiteGenCommand : LoggedInCommand<SiteGenCommand.Settings>
         return base.Validate(context, settings);
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
-        _ = await base.ExecuteAsync(context, settings);
+        _ = await base.ExecuteAsync(context, settings, cancellationToken);
 
         var generator = _siteGenerator
             .WithDisplayAction(f => _console.WriteNormalWithHighlights(f, Globals.StyleHeading))

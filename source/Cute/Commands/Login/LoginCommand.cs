@@ -35,7 +35,7 @@ public sealed class LoginCommand(IConsoleWriter console, IPersistedTokenCache to
         public string? OpenAiDeploymentName { get; set; } = null!;
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         var currentSettings = _appSettings;
 

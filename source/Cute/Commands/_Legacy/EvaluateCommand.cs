@@ -87,9 +87,9 @@ public sealed class EvaluateCommand : LoggedInCommand<EvaluateCommand.Settings>
         return base.Validate(context, settings);
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
-        await base.ExecuteAsync(context, settings);
+        await base.ExecuteAsync(context, settings, cancellationToken);
 
         var commandOptions = GetOptions(settings);
 
