@@ -349,7 +349,8 @@ public class CommandAppBuilder
             {
                 Header = Globals.StyleSubHeading,
                 RequiredOption = Globals.StyleAlert,
-                // DefaultOption = Globals.StyleAlertAccent,  // Property renamed in newer Spectre.Console
+                RequiredOptionValue = Globals.StyleAlert,
+                OptionalOptionValue = Globals.StyleAlertAccent,
                 DefaultValue = Globals.StyleDim,
                 DefaultValueHeader = Globals.StyleNormal,
             },
