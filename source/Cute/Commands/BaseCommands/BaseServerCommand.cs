@@ -57,11 +57,11 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
     </style>
     """;
 
-    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {
         _commandContext = context;
 
-        return await base.ExecuteAsync(context, settings);
+        return await base.ExecuteAsync(context, settings, cancellationToken);
     }
 
     public abstract void ConfigureWebApplication(WebApplication webApp);

@@ -52,9 +52,9 @@ public sealed class TestGenerateCommand : LoggedInCommand<TestGenerateCommand.Se
         return base.Validate(context, settings);
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
-        var result = await base.ExecuteAsync(context, settings);
+        var result = await base.ExecuteAsync(context, settings, cancellationToken);
 
         var displayActions = new DisplayActions()
         {

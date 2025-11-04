@@ -19,7 +19,7 @@ public class LogoutCommand(IConsoleWriter console,
         public bool Purge { get; set; } = false;
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         _tokenCache.Clear(Globals.AppName);
 

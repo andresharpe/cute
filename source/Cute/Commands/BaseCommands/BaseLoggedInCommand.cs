@@ -51,7 +51,7 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 
     public abstract Task<int> ExecuteCommandAsync(CommandContext context, TSettings settings);
 
-    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {
         if (settings is not LoggedInSettings loggedInSettings)
         {

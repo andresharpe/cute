@@ -61,7 +61,7 @@ public abstract class LoggedInCommand<TSettings> : AsyncCommand<TSettings> where
         _appSettings = appSettings;
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {
         await DisplaySettings(context, settings);
 

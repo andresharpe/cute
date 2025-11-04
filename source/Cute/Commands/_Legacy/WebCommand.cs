@@ -23,9 +23,9 @@ public abstract class WebCommand<TSettings> : LoggedInCommand<TSettings> where T
         _logger = logger;
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, TSettings settings, CancellationToken cancellationToken)
     {
-        var result = await base.ExecuteAsync(context, settings);
+        var result = await base.ExecuteAsync(context, settings, cancellationToken);
 
         if (result != 0) return result;
 
