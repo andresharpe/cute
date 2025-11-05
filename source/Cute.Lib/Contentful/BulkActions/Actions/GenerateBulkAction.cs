@@ -1391,8 +1391,6 @@ public class GenerateBulkAction(
             }
         }
 
-        if (!oldValue.IsNull()) return;
-
         if (!string.IsNullOrWhiteSpace(oldValue?.ToString())) return;
 
         JToken? replaceValue = fieldDefinition.Type switch
