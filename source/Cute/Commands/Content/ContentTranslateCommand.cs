@@ -456,7 +456,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         TranslationService tService;
                         if (!Enum.TryParse(cuteLanguage!.TranslationService, out tService))
                         {
-                            tService = TranslationService.GPT4o;
+                            tService = TranslationService.AzureOpenAi;
                         }
                         
                         var requestId = Guid.NewGuid().ToString();

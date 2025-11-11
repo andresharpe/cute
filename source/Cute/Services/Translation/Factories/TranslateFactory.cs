@@ -19,8 +19,8 @@ namespace Cute.Services.Translation.Factories
                     return _serviceProvider.GetRequiredService<GoogleTranslator>();
                 case TranslationService.Deepl:
                     return _serviceProvider.GetRequiredService<DeeplTranslator>();
-                case TranslationService.GPT4o:
-                    return _serviceProvider.GetRequiredService<GPT4oTranslator>();
+                case TranslationService.AzureOpenAi:
+                    return _serviceProvider.GetRequiredService<AzureOpenAiTranslator>();
                 case TranslationService.Azure:
                 default:
                     return _serviceProvider.GetRequiredService<AzureTranslator>();
