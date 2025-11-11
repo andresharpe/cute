@@ -451,7 +451,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         if (isChanged)
         {
-            var newEntryName = localFlatEntry[$"{contentDisplayField}.{defaultLocale}"];
+            var newEntryName = localFlatEntry.ContainsKey($"{contentDisplayField}.{defaultLocale}") ? localFlatEntry[$"{contentDisplayField}.{defaultLocale}"] : localFlatEntry[$"{_matchField}.{defaultLocale}"];
 
             NotifyUserInterface($"'{_contentTypeId}' - '{newEntryName}' will be updated.", progressUpdater);
 
