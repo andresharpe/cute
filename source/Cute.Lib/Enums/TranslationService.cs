@@ -5,6 +5,6 @@
         Azure,
         Google,
         Deepl,
-        GPT4o
+        AzureOpenAi
     }
 }

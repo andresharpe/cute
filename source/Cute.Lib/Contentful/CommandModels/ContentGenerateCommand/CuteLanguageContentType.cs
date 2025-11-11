@@ -49,6 +49,12 @@ public static class CuteLanguageContentType
              new FieldBuilder("translationContext", FieldType.Text)
                     .Build(),
 
+             new FieldBuilder("symbolCountThreshold", FieldType.Number)
+                    .Build(),
+
+             new FieldBuilder("thresholdSetting", FieldType.Text)
+                    .Build(),
+
             ]);
 
         return contentTypeBuilder.Build();

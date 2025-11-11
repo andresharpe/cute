@@ -252,7 +252,7 @@ public class CommandAppBuilder
         services.AddSingleton<IAzureOpenAiOptionsProvider>(_appSettings);
         services.AddSingleton<TranslateFactory>();
         services.AddTransient<AzureTranslator>();
-        services.AddTransient<GPT4oTranslator>();
+        services.AddTransient<AzureOpenAiTranslator>();
         services.AddTransient<GoogleTranslator>();
         services.AddTransient<DeeplTranslator>();
 

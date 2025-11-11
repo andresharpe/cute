@@ -11,5 +11,7 @@
         public bool IsContentfulLocale { get; set; } = default!;
         public string TranslationService { get; set; } = default!;
         public string TranslationContext { get; set; } = default!;
+        public int? SymbolCountThreshold { get; set; } = default!;
+        public string? ThresholdSetting { get; set; } = default!;
     }
 }
