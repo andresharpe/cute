@@ -12,7 +12,7 @@ namespace Cute.Services.Translation
 {
     public class AzureOpenAiTranslator : ITranslator
     {
-        private readonly ChatCompletionOptions _chatCompletionOptions = new ChatCompletionOptions()
+        private readonly ChatCompletionOptions _defaultChatCompletionOptions = new ChatCompletionOptions()
         {
             MaxOutputTokenCount = 4096,
             Temperature = 0.2f,
@@ -20,6 +20,8 @@ namespace Cute.Services.Translation
             PresencePenalty = 0.1f,
             TopP = 0.85f
         };
+
+        private readonly ChatCompletionOptions _thresholdChatCompletionOptions = new ChatCompletionOptions();
         private readonly ChatClient _chatClient;
 
         private readonly AzureOpenAiOptions _azureOpenAiOptions;
@@ -99,7 +101,7 @@ namespace Cute.Services.Translation
 
         private async Task<string> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, string toLanguageCode, string? languagePrompt, string? contentTypePrompt, Dictionary<string, string>? glossary, int? symbolCountThreshold = null, string? thresholdSetting = null)
         {
-            var chatClient = GetChatClient(textToTranslate, symbolCountThreshold, thresholdSetting);
+            (var chatClient, var chatCompletionOptions) = GetChatClient(textToTranslate, symbolCountThreshold, thresholdSetting);
 
             List<ChatMessage> messages = [];
             var systemMessageText = $"{languagePrompt} {contentTypePrompt}";
@@ -116,7 +118,7 @@ namespace Cute.Services.Translation
             messages.Add(new UserChatMessage($"Translate text from language {fromLanguageCode} to language {toLanguageCode}. Text: {textToTranslate}"));
 
             StringBuilder sb = new();
-            await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, _chatCompletionOptions))
+            await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, chatCompletionOptions))
             {
                 if (part == null || part.ToString() == null) continue;
 
@@ -129,14 +131,14 @@ namespace Cute.Services.Translation
             return sb.ToString();
         }
 
-        private ChatClient GetChatClient(string textToTranslate, int? symbolCountThreshold, string? thresholdSetting)
+        private (ChatClient, ChatCompletionOptions) GetChatClient(string textToTranslate, int? symbolCountThreshold, string? thresholdSetting)
         {
             if(symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length < symbolCountThreshold)
             {
-                return _azureOpenAIClient.GetChatClient(thresholdSetting);
+                return (_azureOpenAIClient.GetChatClient(thresholdSetting), _thresholdChatCompletionOptions);
             }
 
-            return _chatClient;
+            return (_chatClient, _defaultChatCompletionOptions);
         }
     }
 }
