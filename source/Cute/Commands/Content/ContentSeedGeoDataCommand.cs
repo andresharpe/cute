@@ -581,9 +581,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                     }
 
                     var parentGeo = adminCodeToGeoId[adminCode];
-                    var grandparentName = parentGeo?.DataGeoParent?.Name;
-                    var parentName = parentGeo?.Name;
-                    var cityName = record.CityName;
+                    var grandparentName = parentGeo?.DataGeoParent?.Name.NormalizeString();
+                    var parentName = parentGeo?.Name.NormalizeString();
+                    var cityName = record.CityName.NormalizeString();
                     
                     var keyParts = new List<string>();
                     if (!string.IsNullOrEmpty(grandparentName)) keyParts.Add(grandparentName.ToPascalCase());
@@ -666,7 +666,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         var newRecord = new GeoFormat()
         {
             Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
-            Key = existingEntry?.Key ?? countryName.ToPascalCase(),
+            Key = existingEntry?.Key ?? countryName.NormalizeString().ToPascalCase(),
             SeedKey = countryCode,
             Title = countryInfo.Name,
             Name = countryInfo.Name,
@@ -725,7 +725,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         var countryName = parentGeo?.Name;
         
         var keyParts = new List<string>();
-        if (!string.IsNullOrEmpty(countryName)) keyParts.Add(countryName.ToPascalCase());
+        if (!string.IsNullOrEmpty(countryName)) keyParts.Add(countryName.NormalizeString().ToPascalCase());
         if (!string.IsNullOrEmpty(adminName)) keyParts.Add(adminName.ToPascalCase());
         var hierarchicalKey = string.Join(".", keyParts);
 
@@ -733,7 +733,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         {
             Sys = existingEntry?.Sys ?? new() { Id = ContentfulIdGenerator.NewId() },
             Key = existingEntry?.Key ?? hierarchicalKey,
-            SeedKey = existingEntry?.Key ?? adminCode,
+            SeedKey = existingEntry?.SeedKey ?? adminCode,
             Title = existingEntry?.Title ?? $"{record.CountryName} | {adminName} ({adminCode})",
             Name = existingEntry?.Name ?? record.AdminName,
             DataGeoParent = existingEntry?.DataGeoParent ?? parentGeo!,

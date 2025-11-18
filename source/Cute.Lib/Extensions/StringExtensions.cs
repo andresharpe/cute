@@ -109,6 +109,28 @@ public static partial class StringExtensions
         return result;
     }
 
+    public static string NormalizeString(this string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        // Decompose to form like: Ō => O + ˉ
+        var normalized = text.Normalize(NormalizationForm.FormD);
+
+        // Remove all non-spacing marks (diacritics)
+        var sb = new StringBuilder();
+        foreach (var c in normalized)
+        {
+            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
+
     public static IEnumerable<string> GetFixedLines(this ReadOnlySpan<char> input, int maxLength = 80, int? maxFirstLineLength = null)
     {
         var lines = new List<string>();
