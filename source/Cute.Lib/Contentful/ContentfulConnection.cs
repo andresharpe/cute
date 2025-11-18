@@ -373,8 +373,12 @@ public class ContentfulConnection
             contentfulConnection._contentfulDeliveryClient =
                 new ContentfulClient(contentfulConnection._httpClient, contentfulConnection._contentfulOptions);
 
+            var previewOptions = contentfulConnection.Options;
+            //previewOptions.DeliveryApiKey = previewOptions.PreviewApiKey;
+            previewOptions.UsePreviewApi = true;
+
             contentfulConnection._contentfulPreviewClient =
-                new ContentfulClient(contentfulConnection._httpClient, contentfulConnection._contentfulOptions);
+                new ContentfulClient(contentfulConnection._httpClient, previewOptions);
 
             contentfulConnection._contentTypes =
                 new(contentfulConnection.GetContentTypes, true);

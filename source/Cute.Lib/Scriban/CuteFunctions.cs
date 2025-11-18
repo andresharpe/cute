@@ -293,24 +293,7 @@ public class CuteFunctions : ScriptObject
 
     public static string NormalizeString(string input)
     {
-        if (string.IsNullOrEmpty(input))
-            return input;
-
-        // Decompose to form like: Ō => O + ˉ
-        var normalized = input.Normalize(NormalizationForm.FormD);
-
-        // Remove all non-spacing marks (diacritics)
-        var sb = new StringBuilder();
-        foreach (var c in normalized)
-        {
-            var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
-            if (unicodeCategory != UnicodeCategory.NonSpacingMark)
-            {
-                sb.Append(c);
-            }
-        }
-
-        return sb.ToString().Normalize(NormalizationForm.FormC);
+        return input.NormalizeString();
     }
 
     public static string ToPascalCase(string value)
