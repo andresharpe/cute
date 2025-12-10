@@ -43,30 +43,25 @@ public class CuteContentGenerateContentType
                 .Build(),
 
             new FieldBuilder("maxTokenLimit", FieldType.Integer)
-                .IsRequired()
                 .DefaultValue(locale, 1200)
                 .Build(),
 
             new FieldBuilder("temperature", FieldType.Number)
-                .IsRequired()
                 .ValidateInRange(0,2)
                 .DefaultValue(locale, 0.8f)
                 .Build(),
 
             new FieldBuilder("topP", FieldType.Number)
-                .IsRequired()
                 .ValidateInRange(0,1)
                 .DefaultValue(locale, 0.95f)
                 .Build(),
 
             new FieldBuilder("frequencyPenalty", FieldType.Number)
-                .IsRequired()
                 .ValidateInRange(0,2)
                 .DefaultValue(locale, 0.0f)
                 .Build(),
 
             new FieldBuilder("presencePenalty", FieldType.Number)
-                .IsRequired()
                 .ValidateInRange(0,2)
                 .DefaultValue(locale, 0.0f)
                 .Build(),

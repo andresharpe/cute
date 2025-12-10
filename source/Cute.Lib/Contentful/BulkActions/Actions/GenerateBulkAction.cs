@@ -162,11 +162,11 @@ public class GenerateBulkAction(
                 switch (_operation)
                 {
                     case GenerateOperation.GenerateSingle:
-                        await ProcessQueryResults(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                        await ProcessQueryResults(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, cuteContentGenerateEntry.DeploymentModel);
                         break;
 
                     case GenerateOperation.GenerateParallel:
-                        await ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly);
+                        await ProcessQueryResultsInParallel(cuteContentGenerateEntry, queryResult, displayActions, progressUpdater, testOnly, cuteContentGenerateEntry.DeploymentModel);
                         break;
 
                     case GenerateOperation.GenerateBatch:
@@ -546,14 +546,28 @@ public class GenerateBulkAction(
 
         var chatClient = CreateChatClient(modelName, displayActions);
 
-        var chatCompletionOptions = new ChatCompletionOptions()
+        var chatCompletionOptions = new ChatCompletionOptions();
+
+        if (cuteContentGenerateEntry.MaxTokenLimit.HasValue)
         {
-            MaxOutputTokenCount = cuteContentGenerateEntry.MaxTokenLimit,
-            Temperature = (float)cuteContentGenerateEntry.Temperature,
-            FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty,
-            PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty,
-            TopP = (float)cuteContentGenerateEntry.TopP
-        };
+            chatCompletionOptions.MaxOutputTokenCount = cuteContentGenerateEntry.MaxTokenLimit;
+        }
+        if (cuteContentGenerateEntry.Temperature.HasValue)
+        {
+            chatCompletionOptions.Temperature = (float)cuteContentGenerateEntry.Temperature;
+        }
+        if (cuteContentGenerateEntry.FrequencyPenalty.HasValue)
+        {
+            chatCompletionOptions.FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty;
+        }
+        if (cuteContentGenerateEntry.PresencePenalty.HasValue)
+        {
+            chatCompletionOptions.PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty;
+        }
+        if (cuteContentGenerateEntry.TopP.HasValue)
+        {
+            chatCompletionOptions.TopP = (float)cuteContentGenerateEntry.TopP;
+        }
 
         if (modelName is null)
         {
@@ -1001,14 +1015,28 @@ public class GenerateBulkAction(
 
         var chatClient = CreateChatClient(modelName, displayActions);
 
-        var chatCompletionOptions = new ChatCompletionOptions()
+        var chatCompletionOptions = new ChatCompletionOptions();
+
+        if (cuteContentGenerateEntry.MaxTokenLimit.HasValue)
         {
-            MaxOutputTokenCount = cuteContentGenerateEntry.MaxTokenLimit,
-            Temperature = (float)cuteContentGenerateEntry.Temperature,
-            FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty,
-            PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty,
-            TopP = (float)cuteContentGenerateEntry.TopP
-        };
+            chatCompletionOptions.MaxOutputTokenCount = cuteContentGenerateEntry.MaxTokenLimit;
+        }
+        if (cuteContentGenerateEntry.Temperature.HasValue)
+        {
+            chatCompletionOptions.Temperature = (float)cuteContentGenerateEntry.Temperature;
+        }
+        if (cuteContentGenerateEntry.FrequencyPenalty.HasValue)
+        {
+            chatCompletionOptions.FrequencyPenalty = (float)cuteContentGenerateEntry.FrequencyPenalty;
+        }
+        if (cuteContentGenerateEntry.PresencePenalty.HasValue)
+        {
+            chatCompletionOptions.PresencePenalty = (float)cuteContentGenerateEntry.PresencePenalty;
+        }
+        if (cuteContentGenerateEntry.TopP.HasValue)
+        {
+            chatCompletionOptions.TopP = (float)cuteContentGenerateEntry.TopP;
+        }
 
         if (modelName is null)
         {

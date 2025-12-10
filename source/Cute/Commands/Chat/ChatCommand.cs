@@ -120,14 +120,28 @@ public sealed class ChatCommand(IConsoleWriter console, ILogger<ChatCommand> log
 
             systemMessage = apiSyncEntry.SystemMessage;
 
-            chatCompletionOptions = new()
+            chatCompletionOptions = new ChatCompletionOptions();
+
+            if (apiSyncEntry.MaxTokenLimit.HasValue)
             {
-                MaxOutputTokenCount = apiSyncEntry.MaxTokenLimit,
-                Temperature = (float)apiSyncEntry.Temperature,
-                FrequencyPenalty = (float)apiSyncEntry.FrequencyPenalty,
-                PresencePenalty = (float)apiSyncEntry.PresencePenalty,
-                TopP = (float)apiSyncEntry.TopP,
-            };
+                chatCompletionOptions.MaxOutputTokenCount = apiSyncEntry.MaxTokenLimit;
+            }
+            if (apiSyncEntry.Temperature.HasValue)
+            {
+                chatCompletionOptions.Temperature = (float)apiSyncEntry.Temperature;
+            }
+            if (apiSyncEntry.FrequencyPenalty.HasValue)
+            {
+                chatCompletionOptions.FrequencyPenalty = (float)apiSyncEntry.FrequencyPenalty;
+            }
+            if (apiSyncEntry.PresencePenalty.HasValue)
+            {
+                chatCompletionOptions.PresencePenalty = (float)apiSyncEntry.PresencePenalty;
+            }
+            if (apiSyncEntry.TopP.HasValue)
+            {
+                chatCompletionOptions.TopP = (float)apiSyncEntry.TopP;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(settings.SystemPrompt))
