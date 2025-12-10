@@ -31,7 +31,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
     private readonly HttpClient _httpClient = httpClient;
     private readonly ConcurrentDictionary<TranslationService, ITranslator> _translatorCache = new();
     private readonly List<(string entryId, Entry<dynamic> entry, int version)> _pendingUpdates = new();
-    private Func<ITranslator, string, string, CuteLanguage, Task<string?>> translate = default!;
+    private bool useCustomModel = false;
 
     public class Settings : ContentCommandSettings
     {
@@ -67,6 +67,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
     {
         var contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
         var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
+        useCustomModel = settings.UseCustomModel;
 
         var fieldsToTranslate = contentType.Fields.Where(f => f.Localized).ToList();
         if(settings.Fields?.Length > 0)
@@ -157,35 +158,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             return -1;
         }
 
-        translate = settings.UseCustomModel ?
-        async (translator, text, from, to) =>
-        {
-            try
-            {
-                var translation = await translator.TranslateWithCustomModel(text, from, to, contentTypeTranslation, glossary?[to.Iso2Code]);
-                return translation?.Text;
-            }
-            catch (Exception ex)
-            {
-                _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
-                return null;
-            }
-        }
-        :
-        async (translator, text, from, to) =>
-        {
-            try
-            {
-                var translation = await translator.Translate(text, from, to.Iso2Code, glossary?[to.Iso2Code]);
-                return translation?.Text;
-            }
-            catch (Exception ex)
-            {
-                _console.WriteAlert($"Error translating text from {from} to {to} using {translator.GetType().Name}. Error Message: {ex.Message}");
-                return null;
-            }
-        };
-
         try
         {
             // Create semaphores to limit concurrent operations
@@ -246,7 +218,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                 settings, 
                                 throttler,
                                 updateSemaphore,
-                                taskTranslate);
+                                taskTranslate,
+                                glossary);
                             
                             symbols += batchSymbols;
                             needToPublish = needToPublish || batchNeedsPublish;
@@ -278,7 +251,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                             settings, 
                             throttler,
                             updateSemaphore,
-                            taskTranslate);
+                            taskTranslate,
+                            glossary);
                         
                         symbols += batchSymbols;
                         needToPublish = needToPublish || batchNeedsPublish;
@@ -329,70 +303,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
     }
 
-    private async Task<(string targetField, string? translatedText, bool success)> TranslateFieldAsync(
-    string text,
-    string sourceLocale,
-    CuteLanguage targetLanguage,
-    string targetField,
-    TranslationService tService,
-    TranslationService? fallbackService,
-    SemaphoreSlim throttler)
-    {
-        await throttler.WaitAsync(); // Wait for a slot to be available
-
-        try
-        {
-            var translator = _translateFactory.Create(tService);
-            string? translatedText = null;
-            int retryCount = 3;
-
-            while (retryCount > 0)
-            {
-                try
-                {
-                    translatedText = await translate(translator, text, sourceLocale, targetLanguage);
-                    if (!string.IsNullOrEmpty(translatedText))
-                        break;
-                }
-                catch (Exception ex)
-                {
-                    if (retryCount == 1) // Only log on final attempt
-                        _console.WriteAlert($"Error translating text: {ex.Message}");
-                }
-
-                retryCount--;
-                if (retryCount > 0)
-                    await Task.Delay(1000); // Wait before retry
-            }
-
-            if(string.IsNullOrEmpty(translatedText) && fallbackService != null && tService != fallbackService)
-            {
-                translator = _translateFactory.Create(fallbackService.Value);
-                try
-                {
-                    var translation = await translator.Translate(text, sourceLocale, targetLanguage.Iso2Code);
-                    translatedText = translation?.Text;
-                }
-                catch (Exception ex)
-                {
-                    _console.WriteAlert($"Error translating text from {sourceLocale} to {targetLanguage.Iso2Code} using {translator.GetType().Name}. Error Message: {ex.Message}");
-                    translatedText = null;
-                }
-            }
-
-            return (targetField, translatedText, !string.IsNullOrEmpty(translatedText));
-        }
-        catch (Exception ex)
-        {
-            _console.WriteAlert($"Error translating text from {sourceLocale} to {targetLanguage.Iso2Code}. Error: {ex.Message}");
-            return (targetField, null, false);
-        }
-        finally
-        {
-            throttler.Release(); // Always release the throttler
-        }
-    }
-
     private async Task<(long symbols, bool needsPublish, Dictionary<string, List<string>> failures)> ProcessEntryBatch(
         List<Entry<JObject>> entries,
         EntrySerializer serializer,
@@ -405,7 +315,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         Settings settings,
         SemaphoreSlim throttler,
         SemaphoreSlim updateSemaphore,
-        ProgressTask taskTranslate)
+        ProgressTask taskTranslate,
+        Dictionary<string, Dictionary<string, string>>? glossary = null)
     {
         long symbols = 0;
         bool needsPublish = false;
@@ -484,7 +395,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 .Select(r => (r.text, r.sourceLocale, r.targetLanguage, r.targetField, r.service, r.fallbackService, r.requestId, r.entryId))
                 .ToList();
             
-            var translationResults = await BatchTranslateFields(translationRequestsForBatch, throttler);
+            var translationResults = await BatchTranslateFields(translationRequestsForBatch, throttler, glossary);
             
             var resultsByEntryAndField = new Dictionary<string, Dictionary<string, (string? translatedText, bool success)>>();
             
@@ -585,44 +496,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         }
     }
 
-    private ITranslator GetCachedTranslator(TranslationService service)
-    {
-        return _translatorCache.GetOrAdd(service, s => _translateFactory.Create(s));
-    }
-
-    private async Task<string?> TranslateText(string text, string from, TranslationService service, CuteLanguage targetLanguage, TranslationService? fallbackService = null, Dictionary<string, string>? glossary = null)
-    {
-        var translator = GetCachedTranslator(service);
-        string? translation = null;
-        
-        try
-        {
-            translation = await translate(translator, text, from, targetLanguage);
-        }
-        catch (Exception ex)
-        {
-            _console.WriteAlert($"Error translating text: {ex.Message}");
-        }
-
-        // Try fallback service if primary failed
-        if (string.IsNullOrEmpty(translation) && fallbackService != null && service != fallbackService)
-        {
-            try
-            {
-                var fallbackTranslator = GetCachedTranslator(fallbackService.Value);
-                var response = await fallbackTranslator.Translate(text, from, targetLanguage.Iso2Code, glossary);
-                translation = response?.Text;
-            }
-            catch (Exception ex)
-            {
-                _console.WriteAlert($"Error translating text with fallback service: {ex.Message}");
-            }
-        }
-
-        return translation;
-    }
-
-    private async Task<TranslationResponse[]?> TranslateTextMultiLanguage(string text, string from, TranslationService service, List<CuteLanguage> targetLanguages, TranslationService? fallbackService = null)
+    private async Task<TranslationResponse[]?> TranslateTextMultiLanguage(string text, string from, TranslationService service, List<CuteLanguage> targetLanguages, TranslationService? fallbackService = null, Dictionary<string, Dictionary<string, string>>? glossaries = null)
     {
         // Create a NEW translator instance for each call to avoid state issues with concurrent requests
         // The ChatClient may have state that gets confused with concurrent requests
@@ -631,8 +505,15 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         
         try
         {
-            // Use the multi-language translation method
-            translations = await translator.TranslateWithCustomModel(text, from, targetLanguages);
+            if (useCustomModel)
+            {
+                // Use the multi-language translation method
+                translations = await translator.TranslateWithCustomModel(text, from, targetLanguages, glossaries);
+            }
+            else
+            {
+                translations = await translator.Translate(text, from, targetLanguages);
+            }
         }
         catch (Exception ex)
         {
@@ -698,7 +579,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
     private async Task<List<(string targetField, string? translatedText, bool success, string requestId)>> BatchTranslateFields(
         List<(string text, string sourceLocale, CuteLanguage targetLanguage, string targetField, TranslationService service, TranslationService? fallbackService, string requestId, string entryId)> translationRequests,
-        SemaphoreSlim throttler)
+        SemaphoreSlim throttler,
+        Dictionary<string, Dictionary<string, string>>? glossaries = null)
     {
         // Group by text, sourceLocale, service, entryId, and field base name to translate same field from same entry to multiple languages at once
         // Important: Include entryId to avoid mixing translations between different entries with same content
@@ -734,7 +616,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 await throttler.WaitAsync();
                 try
                 {
-                    var translations = await TranslateTextMultiLanguage(textToTranslate, sourceLocaleCode, translationService, targetLanguages, fallbackTranslationService);
+                    var translations = await TranslateTextMultiLanguage(textToTranslate, sourceLocaleCode, translationService, targetLanguages, fallbackTranslationService, glossaries);
                     
                     // Map translations back to request IDs - each request gets its own translation
                     foreach (var request in requests)
@@ -765,28 +647,5 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
         await Task.WhenAll(batchTasks);
         return allResults.ToList();
-    }
-
-    private async Task<(string targetField, string? translatedText, bool success, string requestId)> TranslateFieldDirect(
-        string text,
-        string sourceLocale,
-        CuteLanguage targetLanguage,
-        string targetField,
-        TranslationService service,
-        TranslationService? fallbackService,
-        string requestId,
-        SemaphoreSlim throttler)
-    {
-        await throttler.WaitAsync();
-        
-        try
-        {
-            var translatedText = await TranslateText(text, sourceLocale, service, targetLanguage, fallbackService);
-            return (targetField, translatedText, !string.IsNullOrEmpty(translatedText), requestId);
-        }
-        finally
-        {
-            throttler.Release();
-        }
     }
 }

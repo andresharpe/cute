@@ -55,7 +55,9 @@ namespace Cute.Services.Translation
 
         public async Task<TranslationResponse?> Translate(string textToTranslate, string fromLanguageCode, string toLanguageCode, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
         {
-            var results = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, new[] { toLanguageCode }, null, cuteContentTypeTranslation?.TranslationContext, glossary);
+            // Single glossary for single language
+            var glossaries = glossary != null ? new Dictionary<string, Dictionary<string, string>> { { toLanguageCode, glossary } } : null;
+            var results = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, new[] { toLanguageCode }, null, cuteContentTypeTranslation?.TranslationContext, glossaries);
             return results?.FirstOrDefault();
         }
 
@@ -64,32 +66,54 @@ namespace Cute.Services.Translation
             return await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, toLanguageCodes, null, cuteContentTypeTranslation?.TranslationContext, null);
         }
 
-        public async Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages)
+        public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages, Dictionary<string, Dictionary<string, string>>? glossaries = null)
+        {
+            var firstLanguage = toLanguages.FirstOrDefault();
+            if (firstLanguage == null) return Array.Empty<TranslationResponse>();
+
+            var languageCodes = toLanguages.Select(l => l.Iso2Code);
+            return await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, languageCodes, null, null, glossaries, firstLanguage.SymbolCountThreshold, firstLanguage.ThresholdSetting);
+        }
+
+        public async Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages, Dictionary<string, Dictionary<string, string>>? glossaries = null)
         {
             var firstLanguage = toLanguages.FirstOrDefault();
             if (firstLanguage == null) return Array.Empty<TranslationResponse>();
             
             var languageCodes = toLanguages.Select(l => l.Iso2Code);
-            return await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, languageCodes, firstLanguage.TranslationContext, null, null, firstLanguage.SymbolCountThreshold, firstLanguage.ThresholdSetting);
+            return await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, languageCodes, firstLanguage.TranslationContext, null, glossaries, firstLanguage.SymbolCountThreshold, firstLanguage.ThresholdSetting);
         }
 
         public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, Dictionary<string, string>? glossary = null)
         {
-            return await TranslateWithCustomModel(textToTranslate, fromLanguageCode, toLanguage, null); 
+            return await TranslateWithCustomModel(textToTranslate, fromLanguageCode, toLanguage, null, glossary); 
         }
 
         public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, CuteContentTypeTranslation? cuteContentTypeTranslation, Dictionary<string, string>? glossary = null)
         {
-            var results = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, new[] { toLanguage.Iso2Code }, toLanguage.TranslationContext, cuteContentTypeTranslation?.TranslationContext, glossary, toLanguage.SymbolCountThreshold, toLanguage.ThresholdSetting);
+            // Single glossary for single language
+            var glossaries = glossary != null ? new Dictionary<string, Dictionary<string, string>> { { toLanguage.Iso2Code, glossary } } : null;
+            var results = await GeneratePromptAndTranslate(textToTranslate, fromLanguageCode, new[] { toLanguage.Iso2Code }, toLanguage.TranslationContext, cuteContentTypeTranslation?.TranslationContext, glossaries, toLanguage.SymbolCountThreshold, toLanguage.ThresholdSetting);
             return results?.FirstOrDefault();
         }
 
-        private async Task<TranslationResponse[]?> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes, string? languagePrompt, string? contentTypePrompt, Dictionary<string, string>? glossary, int? symbolCountThreshold = null, string? thresholdSetting = null)
+        private async Task<TranslationResponse[]?> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes, string? languagePrompt, string? contentTypePrompt, Dictionary<string, Dictionary<string, string>>? glossaries, int? symbolCountThreshold = null, string? thresholdSetting = null)
         {
             var stopwatch = Stopwatch.StartNew();
             var symbolCount = textToTranslate.Length;
             var toLanguageCodesArray = toLanguageCodes.ToArray();
             var targetLanguagesStr = string.Join(", ", toLanguageCodesArray);
+            
+            // Check if we should translate one-by-one: using threshold model (GPT-4o) with multiple languages
+            // When text >= symbolCountThreshold, we use GPT-4o which has limited output tokens, so translate one by one
+            var isUsingThresholdModel = symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length >= symbolCountThreshold;
+            var shouldTranslateOneByOne = isUsingThresholdModel && toLanguageCodesArray.Length > 1;
+            
+            if (shouldTranslateOneByOne)
+            {
+                // Translate each language separately to avoid output token limits with GPT-4o
+                return await TranslateOneByOne(textToTranslate, fromLanguageCode, toLanguageCodesArray, languagePrompt, contentTypePrompt, glossaries, symbolCountThreshold, thresholdSetting);
+            }
             
             (var chatClient, var chatCompletionOptions) = GetChatClient(textToTranslate, symbolCountThreshold, thresholdSetting, toLanguageCodesArray.Length);
 
@@ -104,9 +128,26 @@ namespace Cute.Services.Translation
                 messages.Add(new SystemChatMessage(systemMessageText));
             }
 
-            if (glossary != null && glossary.Count > 0)
+            // Add glossaries for all target languages
+            if (glossaries != null && glossaries.Count > 0)
             {
-                messages.Add(new SystemChatMessage($"Consider the following glossary ({fromLanguageCode}:{targetLanguagesStr}) when translating:\n{string.Join('\n', glossary.Select(x => $"{x.Key} : {x.Value}"))}"));
+                var glossaryText = new StringBuilder();
+                foreach (var targetLang in toLanguageCodesArray)
+                {
+                    if (glossaries.TryGetValue(targetLang, out var glossary) && glossary.Count > 0)
+                    {
+                        glossaryText.AppendLine($"\nGlossary for {fromLanguageCode} -> {targetLang}:");
+                        foreach (var term in glossary)
+                        {
+                            glossaryText.AppendLine($"  {term.Key} : {term.Value}");
+                        }
+                    }
+                }
+                
+                if (glossaryText.Length > 0)
+                {
+                    messages.Add(new SystemChatMessage($"Consider the following glossaries when translating:{glossaryText}"));
+                }
             }
 
             // Create a more strict prompt that emphasizes JSON-only output
@@ -154,12 +195,89 @@ Text to translate:
             return results;
         }
 
+        private async Task<TranslationResponse[]?> TranslateOneByOne(string textToTranslate, string fromLanguageCode, string[] toLanguageCodes, string? languagePrompt, string? contentTypePrompt, Dictionary<string, Dictionary<string, string>>? glossaries, int? symbolCountThreshold, string? thresholdSetting)
+        {
+            var results = new List<TranslationResponse>();
+            
+            foreach (var targetLanguage in toLanguageCodes)
+            {
+                // Extract glossary for this specific language
+                Dictionary<string, string>? glossary = null;
+                if (glossaries != null && glossaries.TryGetValue(targetLanguage, out var langGlossary))
+                {
+                    glossary = langGlossary;
+                }
+                
+                var singleResult = await TranslateSingleLanguage(textToTranslate, fromLanguageCode, targetLanguage, languagePrompt, contentTypePrompt, glossary, symbolCountThreshold, thresholdSetting);
+                
+                if (singleResult != null)
+                {
+                    results.Add(singleResult);
+                }
+            }
+            
+            return results.ToArray();
+        }
+        
+        private async Task<TranslationResponse?> TranslateSingleLanguage(string textToTranslate, string fromLanguageCode, string toLanguageCode, string? languagePrompt, string? contentTypePrompt, Dictionary<string, string>? glossary, int? symbolCountThreshold, string? thresholdSetting)
+        {
+            (var chatClient, var chatCompletionOptions) = GetChatClient(textToTranslate, symbolCountThreshold, thresholdSetting, 1);
+            
+            List<ChatMessage> messages = [];
+            messages.Add(new SystemChatMessage("You are a translation API that ONLY outputs valid JSON. Never include explanations, markdown, or any text outside the JSON object."));
+            
+            var systemMessageText = $"{languagePrompt} {contentTypePrompt}";
+            if (!string.IsNullOrEmpty(systemMessageText.Trim()))
+            {
+                messages.Add(new SystemChatMessage(systemMessageText));
+            }
+            
+            if (glossary != null && glossary.Count > 0)
+            {
+                messages.Add(new SystemChatMessage($"Consider the following glossary ({fromLanguageCode}:{toLanguageCode}) when translating:\n{string.Join('\n', glossary.Select(x => $"{x.Key} : {x.Value}"))}"));
+            }
+            
+            var userPrompt = $@"Translate the text from {fromLanguageCode} to {toLanguageCode}.
+
+IMPORTANT: Return ONLY a valid JSON object with no additional text.
+Format: {{""{toLanguageCode}"":""translation""}}
+
+Text to translate:
+{textToTranslate}";
+            
+            messages.Add(new UserChatMessage(userPrompt));
+            
+            StringBuilder sb = new();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(DEFAULT_TIMEOUT_SECONDS));
+            
+            try
+            {
+                await foreach (var part in chatClient.CompleteChatStreamingAsync(messages, chatCompletionOptions).WithCancellation(cts.Token))
+                {
+                    if (part == null) continue;
+                    foreach (var token in part.ContentUpdate)
+                    {
+                        sb.Append(token.Text);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+            
+            var jsonResponse = sb.ToString();
+            var parsedResult = ParseAndValidateSingleLanguageResponse(jsonResponse, toLanguageCode);
+            
+            return parsedResult;
+        }
+
         private (ChatClient, ChatCompletionOptions) GetChatClient(string textToTranslate, int? symbolCountThreshold, string? thresholdSetting, int languageCount = 1)
         {
             ChatCompletionOptions options;
             ChatClient client;
             
-            if(symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length < symbolCountThreshold)
+            if(symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length >= symbolCountThreshold)
             {
                 client = _azureOpenAIClient.GetChatClient(thresholdSetting);
                 options = _thresholdChatCompletionOptions;
@@ -168,41 +286,50 @@ Text to translate:
             {
                 client = _chatClient;
                 options = _defaultChatCompletionOptions;
-
-                // For multi-language translations, increase max output tokens
-                if (languageCount > 1)
-                {
-                    // Create a new options object with increased token limit
-                    // Estimate: base response + (language count * text length factor)
-                    var estimatedTokens = Math.Min(16000, 1000 + (languageCount * textToTranslate.Length * 2));
-                    options = new ChatCompletionOptions()
-                    {
-                        MaxOutputTokenCount = estimatedTokens,
-                        Temperature = options.Temperature ?? 0.2f,
-                        FrequencyPenalty = options.FrequencyPenalty ?? 0.1f,
-                        PresencePenalty = options.PresencePenalty ?? 0.1f,
-                        TopP = options.TopP ?? 0.85f,
-                        ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat() // Force JSON output
-                    };
-                }
-                else
-                {
-                    // Also use JSON format for single language to be consistent
-                    options = new ChatCompletionOptions()
-                    {
-                        MaxOutputTokenCount = options.MaxOutputTokenCount,
-                        Temperature = options.Temperature ?? 0.2f,
-                        FrequencyPenalty = options.FrequencyPenalty ?? 0.1f,
-                        PresencePenalty = options.PresencePenalty ?? 0.1f,
-                        TopP = options.TopP ?? 0.85f,
-                        ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat() // Force JSON output
-                    };
-                }
             }
             
             return (client, options);
         }
 
+        private TranslationResponse? ParseAndValidateSingleLanguageResponse(string jsonResponse, string targetLanguage)
+        {
+            try
+            {
+                var jsonStart = jsonResponse.IndexOf('{');
+                var jsonEnd = jsonResponse.LastIndexOf('}');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var jsonContent = jsonResponse.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    var translations = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    
+                    if (translations != null && translations.TryGetValue(targetLanguage, out var translatedText))
+                    {
+                        // Validate that we got the expected format with non-empty translation
+                        if (!string.IsNullOrEmpty(translatedText))
+                        {
+                            return new TranslationResponse
+                            {
+                                Text = translatedText,
+                                TargetLanguage = targetLanguage
+                            };
+                        }
+                    }
+                }
+                
+                // Invalid format - return null
+                return null;
+            }
+            catch (Exception)
+            {
+                // Parsing failed - return null
+                return null;
+            }
+        }
+        
         private TranslationResponse[]? ParseTranslationResponse(string jsonResponse, string[] targetLanguages)
         {
             try
@@ -221,10 +348,11 @@ Text to translate:
                     
                     if (translations != null)
                     {
+                        // Validate that we got translations for ALL expected languages
                         var results = new List<TranslationResponse>();
                         foreach (var targetLanguage in targetLanguages)
                         {
-                            if (translations.TryGetValue(targetLanguage, out var translatedText))
+                            if (translations.TryGetValue(targetLanguage, out var translatedText) && !string.IsNullOrEmpty(translatedText))
                             {
                                 results.Add(new TranslationResponse
                                 {
@@ -233,17 +361,18 @@ Text to translate:
                                 });
                             }
                         }
+                        
                         return results.ToArray();
                     }
                 }
                 
-                // Fallback: if JSON parsing fails, return the entire response for the first language
-                return new[] { new TranslationResponse { Text = jsonResponse, TargetLanguage = targetLanguages.FirstOrDefault() ?? "unknown" } };
+                // Invalid JSON format or missing translations - return empty array
+                return Array.Empty<TranslationResponse>();
             }
             catch (Exception)
             {
-                // If parsing fails completely, return the raw response
-                return new[] { new TranslationResponse { Text = jsonResponse, TargetLanguage = targetLanguages.FirstOrDefault() ?? "unknown" } };
+                // Parsing failed - return empty array
+                return Array.Empty<TranslationResponse>();
             }
         }
 

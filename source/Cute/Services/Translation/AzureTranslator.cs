@@ -57,9 +57,24 @@ public class AzureTranslator : ITranslator
         return await Translate(textToTranslate, fromLanguageCode, toLanguageCodes);
     }
 
-    public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages)
+    public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages, Dictionary<string, Dictionary<string, string>>? glossaries = null)
     {
-        throw new NotImplementedException();
+        return await Translate(textToTranslate, fromLanguageCode, toLanguages.Select(k => k.Iso2Code));
+    }
+
+    public async Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages, Dictionary<string, Dictionary<string, string>>? glossaries = null)
+    {
+        List<TranslationResponse> result = new List<TranslationResponse>();
+        foreach (var language in toLanguages)
+        {
+            var translation = await TranslateWithCustomModel(textToTranslate, fromLanguageCode, language, glossaries != null && glossaries.ContainsKey(language.Iso2Code) ? glossaries[language.Iso2Code] : null);
+            if (translation != null)
+            {
+                result.Add(translation);
+            }
+        }
+
+        return result.ToArray();
     }
 
     public async Task<TranslationResponse?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, CuteLanguage toLanguage, Dictionary<string, string>? glossary = null)
