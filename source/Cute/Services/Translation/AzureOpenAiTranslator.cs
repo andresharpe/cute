@@ -99,7 +99,6 @@ namespace Cute.Services.Translation
 
         private async Task<TranslationResponse[]?> GeneratePromptAndTranslate(string textToTranslate, string fromLanguageCode, IEnumerable<string> toLanguageCodes, string? languagePrompt, string? contentTypePrompt, Dictionary<string, Dictionary<string, string>>? glossaries, int? symbolCountThreshold = null, string? thresholdSetting = null)
         {
-            var stopwatch = Stopwatch.StartNew();
             var symbolCount = textToTranslate.Length;
             var toLanguageCodesArray = toLanguageCodes.ToArray();
             var targetLanguagesStr = string.Join(", ", toLanguageCodesArray);
@@ -111,6 +110,7 @@ namespace Cute.Services.Translation
             
             if (shouldTranslateOneByOne)
             {
+                // TODO: Revisit this to refactor
                 // Translate each language separately to avoid output token limits with GPT-4o
                 return await TranslateOneByOne(textToTranslate, fromLanguageCode, toLanguageCodesArray, languagePrompt, contentTypePrompt, glossaries, symbolCountThreshold, thresholdSetting);
             }
@@ -184,13 +184,9 @@ Text to translate:
             {
                 throw new TimeoutException($"Translation request timed out after {timeoutSeconds} seconds for {toLanguageCodesArray.Length} language(s) with {symbolCount} characters.");
             }
-
-            stopwatch.Stop();
-            
+                        
             var jsonResponse = sb.ToString();
             var results = ParseTranslationResponse(jsonResponse, toLanguageCodesArray);
-            
-            await LogBenchmark(symbolCount, fromLanguageCode, targetLanguagesStr, stopwatch.ElapsedMilliseconds);
             
             return results;
         }
@@ -267,9 +263,9 @@ Text to translate:
             }
             
             var jsonResponse = sb.ToString();
-            var parsedResult = ParseAndValidateSingleLanguageResponse(jsonResponse, toLanguageCode);
+            var parsedResult = ParseTranslationResponse(jsonResponse, [toLanguageCode]);
             
-            return parsedResult;
+            return parsedResult?.Length > 0 ? parsedResult[0] : null;
         }
 
         private (ChatClient, ChatCompletionOptions) GetChatClient(string textToTranslate, int? symbolCountThreshold, string? thresholdSetting, int languageCount = 1)
@@ -277,7 +273,7 @@ Text to translate:
             ChatCompletionOptions options;
             ChatClient client;
             
-            if(symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length >= symbolCountThreshold)
+            if(symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length <= symbolCountThreshold)
             {
                 client = _azureOpenAIClient.GetChatClient(thresholdSetting);
                 options = _thresholdChatCompletionOptions;
@@ -289,45 +285,6 @@ Text to translate:
             }
             
             return (client, options);
-        }
-
-        private TranslationResponse? ParseAndValidateSingleLanguageResponse(string jsonResponse, string targetLanguage)
-        {
-            try
-            {
-                var jsonStart = jsonResponse.IndexOf('{');
-                var jsonEnd = jsonResponse.LastIndexOf('}');
-                
-                if (jsonStart >= 0 && jsonEnd > jsonStart)
-                {
-                    var jsonContent = jsonResponse.Substring(jsonStart, jsonEnd - jsonStart + 1);
-                    var translations = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
-                    
-                    if (translations != null && translations.TryGetValue(targetLanguage, out var translatedText))
-                    {
-                        // Validate that we got the expected format with non-empty translation
-                        if (!string.IsNullOrEmpty(translatedText))
-                        {
-                            return new TranslationResponse
-                            {
-                                Text = translatedText,
-                                TargetLanguage = targetLanguage
-                            };
-                        }
-                    }
-                }
-                
-                // Invalid format - return null
-                return null;
-            }
-            catch (Exception)
-            {
-                // Parsing failed - return null
-                return null;
-            }
         }
         
         private TranslationResponse[]? ParseTranslationResponse(string jsonResponse, string[] targetLanguages)
@@ -352,7 +309,7 @@ Text to translate:
                         var results = new List<TranslationResponse>();
                         foreach (var targetLanguage in targetLanguages)
                         {
-                            if (translations.TryGetValue(targetLanguage, out var translatedText) && !string.IsNullOrEmpty(translatedText))
+                            if (translations.TryGetValue(targetLanguage, out var translatedText) && !string.IsNullOrEmpty(translatedText) && targetLanguage != "ka")
                             {
                                 results.Add(new TranslationResponse
                                 {
@@ -373,24 +330,6 @@ Text to translate:
             {
                 // Parsing failed - return empty array
                 return Array.Empty<TranslationResponse>();
-            }
-        }
-
-        private static readonly SemaphoreSlim _logSemaphore = new SemaphoreSlim(1, 1);
-        private const string LogFilePath = "PromptBenchmark.txt";
-
-        private async Task LogBenchmark(int symbolCount, string source, string target, long elapsedMilliseconds)
-        {
-            await _logSemaphore.WaitAsync();
-            try
-            {
-                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                var logEntry = $"{timestamp} > Translated {symbolCount} from {source} to {target} in {elapsedMilliseconds}ms{Environment.NewLine}";
-                await File.AppendAllTextAsync(LogFilePath, logEntry);
-            }
-            finally
-            {
-                _logSemaphore.Release();
             }
         }
     }

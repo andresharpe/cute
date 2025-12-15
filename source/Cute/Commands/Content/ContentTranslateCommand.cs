@@ -522,13 +522,16 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         }
 
         // Try fallback service if primary failed
-        if ((translations == null || translations.Length == 0) && fallbackService != null && service != fallbackService)
+        if ((translations == null || translations.Length != targetLanguages.Count) && fallbackService != null && service != fallbackService)
         {
             try
             {
+                var translatedLanguages = translations?.Select(t => t.TargetLanguage).ToHashSet() ?? new HashSet<string>();
+
                 var fallbackTranslator = _translateFactory.Create(fallbackService.Value);
-                var languageCodes = targetLanguages.Select(l => l.Iso2Code).ToArray();
-                translations = await fallbackTranslator.Translate(text, from, languageCodes);
+                var languageCodes = targetLanguages.Where(l => !translatedLanguages.Contains(l.Iso2Code)).Select(l => l.Iso2Code).ToArray();
+                var fallBackTranslations = await fallbackTranslator.Translate(text, from, languageCodes);
+                translations = (fallBackTranslations ?? Array.Empty<TranslationResponse>()).Concat(translations ?? Array.Empty<TranslationResponse>()).ToArray();
             }
             catch (Exception ex)
             {
