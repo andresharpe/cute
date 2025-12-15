@@ -51,7 +51,12 @@ namespace Cute.Services.Translation
             return await Translate(textToTranslate, fromLanguageCode, toLanguageCodes);
         }
 
-        public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages)
+        public async Task<TranslationResponse[]?> Translate(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages, Dictionary<string, Dictionary<string, string>>? glossaries = null)
+        {
+            return await Translate(textToTranslate, fromLanguageCode, toLanguages.Select(k => k.Iso2Code));
+        }
+
+        public Task<TranslationResponse[]?> TranslateWithCustomModel(string textToTranslate, string fromLanguageCode, IEnumerable<CuteLanguage> toLanguages, Dictionary<string, Dictionary<string, string>>? glossaries = null)
         {
             throw new NotImplementedException();
         }
