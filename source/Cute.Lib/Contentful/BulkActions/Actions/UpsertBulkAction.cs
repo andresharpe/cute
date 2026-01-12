@@ -453,7 +453,7 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
             else if (existsInCloud && !string.IsNullOrEmpty(cloudValue?.ToString()))
             {
                 changedFields.Add(fieldName, (cloudValue?.ToString(), null));
-                cloudFlatEntry[fieldName] = null;
+                cloudFlatEntry.Remove(fieldName);
                 isChanged = true;
             }
         }
