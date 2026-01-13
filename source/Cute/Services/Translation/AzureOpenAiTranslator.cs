@@ -309,7 +309,7 @@ Text to translate:
                         var results = new List<TranslationResponse>();
                         foreach (var targetLanguage in targetLanguages)
                         {
-                            if (translations.TryGetValue(targetLanguage, out var translatedText) && !string.IsNullOrEmpty(translatedText) && targetLanguage != "ka")
+                            if (translations.TryGetValue(targetLanguage, out var translatedText) && !string.IsNullOrEmpty(translatedText))
                             {
                                 results.Add(new TranslationResponse
                                 {
