@@ -102,11 +102,11 @@ namespace Cute.Services.Translation
             var symbolCount = textToTranslate.Length;
             var toLanguageCodesArray = toLanguageCodes.ToArray();
             var targetLanguagesStr = string.Join(", ", toLanguageCodesArray);
-            
+
             // Check if we should translate one-by-one: using threshold model (GPT-4o) with multiple languages
             // When text >= symbolCountThreshold, we use GPT-4o which has limited output tokens, so translate one by one
-            var isUsingThresholdModel = symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length >= symbolCountThreshold;
-            var shouldTranslateOneByOne = isUsingThresholdModel && toLanguageCodesArray.Length > 1;
+            var isSubThresholdModel = symbolCountThreshold.HasValue && !string.IsNullOrEmpty(thresholdSetting) && textToTranslate.Length <= symbolCountThreshold;
+            var shouldTranslateOneByOne = !isSubThresholdModel && toLanguageCodesArray.Length > 1;
             
             if (shouldTranslateOneByOne)
             {

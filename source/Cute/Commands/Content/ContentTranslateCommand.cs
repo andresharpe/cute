@@ -22,11 +22,7 @@ namespace Cute.Commands.Content;
 
 public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTranslateCommand> logger,
     AppSettings appSettings, TranslateFactory translateFactory, HttpClient httpClient) : BaseLoggedInCommand<ContentTranslateCommand.Settings>(console, logger, appSettings)
-{
-    private const int ENTRY_BATCH_SIZE = 20;
-    private const int TRANSLATION_BATCH_SIZE = 50;
-    private const int MAX_ENTRY_UPDATE_CONCURRENCY = 10;
-    
+{    
     private readonly TranslateFactory _translateFactory = translateFactory;
     private readonly HttpClient _httpClient = httpClient;
     private readonly ConcurrentDictionary<TranslationService, ITranslator> _translatorCache = new();
@@ -58,6 +54,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("--max-concurrency")]
         [Description("Indicates how many concurrent calls can be made to a translation service for a single entry. Default is 10")]
         public int MaxConcurrency { get; set; } = 10;
+
+        [CommandOption("--entry-batch-size")]
+        [Description("Indicates how many concurrent calls can be made to a translation service for a single entry. Default is 10")]
+        public int EntryBatchSize { get; set; } = 10;
 
         [CommandOption("--fallback-service")]
         [Description("Fallback translation service (Azure, Google, Deepl, GPT4o), in case configured one doesn't return a value. Will translate without a custom model and glossary")]
@@ -162,7 +162,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         {
             // Create semaphores to limit concurrent operations
             var throttler = new SemaphoreSlim(settings.MaxConcurrency);
-            var updateSemaphore = new SemaphoreSlim(MAX_ENTRY_UPDATE_CONCURRENCY);
             bool needToPublish = false;
             Dictionary<string, List<string>> failedEntryIds = new Dictionary<string, List<string>>();
             
@@ -204,7 +203,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                         entryBatch.Add(entry);
                         
-                        if (entryBatch.Count >= ENTRY_BATCH_SIZE)
+                        if (entryBatch.Count >= settings.EntryBatchSize)
                         {
                             var (batchSymbols, batchNeedsPublish, batchFailures) = await ProcessEntryBatch(
                                 entryBatch, 
@@ -217,7 +216,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                 translationConfiguration, 
                                 settings, 
                                 throttler,
-                                updateSemaphore,
                                 taskTranslate,
                                 glossary);
                             
@@ -250,7 +248,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                             translationConfiguration, 
                             settings, 
                             throttler,
-                            updateSemaphore,
                             taskTranslate,
                             glossary);
                         
@@ -266,7 +263,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     }
 
                     // Flush any remaining pending updates
-                    await FlushPendingUpdates(updateSemaphore);
+                    await FlushPendingUpdates(throttler);
                     
                     taskTranslate.Description = $"{Emoji.Known.Robot} Translation completed ({symbols} symbols translated)";
                     taskTranslate.StopTask();
@@ -314,7 +311,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         Dictionary<string, CuteLanguage> translationConfiguration,
         Settings settings,
         SemaphoreSlim throttler,
-        SemaphoreSlim updateSemaphore,
         ProgressTask taskTranslate,
         Dictionary<string, Dictionary<string, string>>? glossary = null)
     {
@@ -449,7 +445,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 if (entryChanged)
                 {
                     needsPublish = true;
-                    updateTasks.Add(UpdateEntryAsync(entryId, originalEntry, flatEntry, serializer, fieldsToTranslate, targetLocaleCodes, updateSemaphore));
+                    updateTasks.Add(UpdateEntryAsync(entryId, originalEntry, flatEntry, serializer, fieldsToTranslate, targetLocaleCodes, throttler));
                 }
             }
 
@@ -512,7 +508,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             }
             else
             {
-                translations = await translator.Translate(text, from, targetLanguages);
+                translations = await translator.Translate(text, from, targetLanguages, glossaries);
             }
         }
         catch (Exception ex)
