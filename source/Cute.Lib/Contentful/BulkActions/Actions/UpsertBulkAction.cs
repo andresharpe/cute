@@ -428,41 +428,30 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 
         var contentDisplayField = _contentType!.DisplayField;
 
-        var allFieldNames = localFlatEntry.Keys
-            .Concat(cloudFlatEntry.Keys)
-            .Where(fieldName => !fieldName.StartsWith("sys."))
-            .ToHashSet();
-
-        foreach (var fieldName in allFieldNames)
+        foreach (var (fieldName, value) in localFlatEntry)
         {
-            var existsInLocal = localFlatEntry.TryGetValue(fieldName, out var localValue);
-            var existsInCloud = cloudFlatEntry.TryGetValue(fieldName, out var cloudValue);
+            if (fieldName.StartsWith("sys.")) continue;
 
-            if (existsInLocal)
+            string? oldValue = null;
+
+            if (cloudFlatEntry.TryGetValue(fieldName, out var oldValueObj))
             {
-                string? oldValue = cloudValue?.ToString();
-
-                var isFieldChanged = serializer.CompareAndUpdateEntry(cloudFlatEntry, fieldName, localValue, _appendFields);
-
-                if (isFieldChanged)
-                {
-                    changedFields.Add(fieldName, (oldValue, localValue));
-                    isChanged = true;
-                }
+                oldValue = cloudFlatEntry[fieldName]?.ToString();
             }
-            else if (existsInCloud && !string.IsNullOrEmpty(cloudValue?.ToString()))
+
+            var isFieldChanged = serializer.CompareAndUpdateEntry(cloudFlatEntry, fieldName, value, _appendFields);
+
+            if (isFieldChanged)
             {
-                changedFields.Add(fieldName, (cloudValue?.ToString(), null));
-                cloudFlatEntry.Remove(fieldName);
-                isChanged = true;
+                changedFields.Add(fieldName, (oldValue, value));
             }
+
+            isChanged = isFieldChanged || isChanged;
         }
 
         if (isChanged)
         {
-            var newEntryName = localFlatEntry.ContainsKey($"{contentDisplayField}.{defaultLocale}")
-                ? localFlatEntry[$"{contentDisplayField}.{defaultLocale}"]
-                : localFlatEntry[$"{_matchField}.{defaultLocale}"];
+            var newEntryName = localFlatEntry.ContainsKey($"{contentDisplayField}.{defaultLocale}") ? localFlatEntry[$"{contentDisplayField}.{defaultLocale}"] : localFlatEntry[$"{_matchField}.{defaultLocale}"];
 
             NotifyUserInterface($"'{_contentTypeId}' - '{newEntryName}' will be updated.", progressUpdater);
 
