@@ -4,6 +4,10 @@ namespace Cute.Lib.Contentful.CommandModels.Schedule
 {
     public class CuteSchedule : IContent
     {
+        public static readonly string RUNNING = "running";
+        public static readonly string SUCCESS = "success";
+        public static readonly string ERROR = "error";
+
         public SystemProperties Sys { get; set; } = default!;
         public string Id => Sys != null ? Sys.Id : "";
         public string Key { get; set; } = default!;

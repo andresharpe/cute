@@ -121,7 +121,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     public override void ConfigureWebApplication(WebApplication webApp)
     {
-        webApp.MapPost("/reload", RefreshSchedule).DisableAntiforgery();
+        webApp.MapPost("/run", RunCommand).DisableAntiforgery();
     }
 
     public override async Task RenderHomePageBody(HttpContext context)
@@ -143,35 +143,85 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         foreach (var (key, cronEntry) in _scheduledEntries.Where(k => nextRuns.ContainsKey(k.Key)).OrderBy(kv => nextRuns[kv.Key]))
         {
             var entry = cronEntry;
+            var runningEntry = GetRelatedRunningEntry(entry);
 
             while (entry is not null)
             {
-                await RenderHomePageTableLines(context, entry, nextRuns[key]);
+                await RenderHomePageTableLines(context, entry, cronEntry, runningEntry, nextRuns[key]);
                 entry = entry.RunNext;
             }
         }
 
         await context.Response.WriteAsync($"</table>");
-        await context.Response.WriteAsync($"<form action='{_baseUrl}/reload' method='POST' enctype='multipart/form-data'>");
+        await context.Response.WriteAsync($"<form action='{_baseUrl}/run' method='POST' enctype='multipart/form-data'>");
         await context.Response.WriteAsync($"<input type='hidden' name='command' value='reload'>");
         await context.Response.WriteAsync($"<button type='submit' style='width:100%'>Reload schedule from Contentful</button>");
         await context.Response.WriteAsync($"</form>");
+
+        await context.Response.WriteAsync($"<form action='{_baseUrl}/run' method='POST' enctype='multipart/form-data'>");
+        await context.Response.WriteAsync($"<input type='hidden' name='command' value='resume_chain'>");
+        await context.Response.WriteAsync($"<button type='submit' style='width:100%'>Resume chains</button>");
+        await context.Response.WriteAsync($"</form>");
+        await context.Response.WriteAsync($"<script>");
+        await context.Response.WriteAsync($"function toggleMenu(btn) {{");
+        await context.Response.WriteAsync($"  var menu = btn.nextElementSibling;");
+        await context.Response.WriteAsync($"  var allMenus = document.querySelectorAll('.context-menu');");
+        await context.Response.WriteAsync($"  allMenus.forEach(function(m) {{ if (m !== menu) m.style.display = 'none'; }});");
+        await context.Response.WriteAsync($"  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';");
+        await context.Response.WriteAsync($"}}");
+        await context.Response.WriteAsync($"document.addEventListener('click', function(e) {{");
+        await context.Response.WriteAsync($"  if (!e.target.matches('button')) {{");
+        await context.Response.WriteAsync($"    var menus = document.querySelectorAll('.context-menu');");
+        await context.Response.WriteAsync($"    menus.forEach(function(m) {{ m.style.display = 'none'; }});");
+        await context.Response.WriteAsync($"  }}");
+        await context.Response.WriteAsync($"}});");
+        await context.Response.WriteAsync($"</script>");
     }
 
-    private static async Task RenderHomePageTableLines(HttpContext context, ScheduledEntry entry, DateTime nextRunTime)
+    private async Task RenderHomePageTableLines(HttpContext context, ScheduledEntry entry, ScheduledEntry parentEntry, ScheduledEntry? runningEntry, DateTime nextRunTime)
     {
         string? lastRunStarted = entry.LastRunStarted?.ToString("R");
         string? lastRunFinished = entry.LastRunFinished?.ToString("R");
         string? status = entry.LastRunStatus;
         string? nextRun = nextRunTime.ToString("R");
 
+        string toRunningDiv = runningEntry == null ? string.Empty : $"<div><a href='#{runningEntry.Key}'>to running</a></div>";
+        string runningStyle = entry.LastRunStatus == ScheduledEntry.RUNNING ? "style='font-weight:bold;color: green'" : string.Empty;
+
         string? cronExpression = entry.IsRunAfter ? null : entry.Schedule?.ToCronExpression().ToString();
         var schedule = entry.IsRunAfter ? "Run after " + entry.RunAfter!.Key : entry.Schedule;
 
         await context.Response.WriteAsync($"<tr>");
-        await context.Response.WriteAsync($"<td>{entry.Key}</td>");
+        await context.Response.WriteAsync($"<td id='{entry.Key}' style='position:relative'><span {runningStyle}>{entry.Key}</span>");
+        await context.Response.WriteAsync($"<div style='position:absolute;top:5px;left:5px'>");
+        await context.Response.WriteAsync($"<button type='button' onclick='toggleMenu(this)' style='cursor:pointer;position:relative;top:5px;left:5px'>▼</button>");
+        await context.Response.WriteAsync($"<div class='context-menu' style='display:none;background:white;border:1px solid #ccc;box-shadow:0 2px 5px rgba(0,0,0,0.2);z-index:1000;min-width:120px;width:auto'>");
+
+        await context.Response.WriteAsync($"<form id='single_run_{entry.Key}' action='{_baseUrl}/run' method='POST' enctype='multipart/form-data'>");
+        await context.Response.WriteAsync($"<input type='hidden' name='command' value='run_single'>");
+        await context.Response.WriteAsync($"<input type='hidden' name='param' value='{entry.Id}'>");
+        await context.Response.WriteAsync($"<a href='javascript:{{}}' onclick=\"document.getElementById('single_run_{entry.Key}').submit();\" style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>Run single</a>");
+        await context.Response.WriteAsync($"</form>");
+
+        await context.Response.WriteAsync($"<form id='run_{entry.Key}' action='{_baseUrl}/run' method='POST' enctype='multipart/form-data'>");
+        await context.Response.WriteAsync($"<input type='hidden' name='command' value='run_chain'>");
+        await context.Response.WriteAsync($"<input type='hidden' name='param' value='{entry.Id}'>");
+        await context.Response.WriteAsync($"<a href='javascript:{{}}' onclick=\"document.getElementById('run_{entry.Key}').submit();\" style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>Run chain</a>");
+        await context.Response.WriteAsync($"</form>");
+
+        if (parentEntry.Key != entry.Key)
+        {
+            await context.Response.WriteAsync($"<a href='#{parentEntry.Key}' style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>To start</a>");
+        }
+        if(runningEntry != null && runningEntry.Key != entry.Key)
+        {
+            await context.Response.WriteAsync($"<a href='#{runningEntry.Key}' style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>To running</a>");
+        }
+        await context.Response.WriteAsync($"</div>");
+        await context.Response.WriteAsync($"</div>");
+        await context.Response.WriteAsync($"</td>");
         await context.Response.WriteAsync($"<td>{schedule}</td>");
-        await context.Response.WriteAsync($"<td>{cronExpression}</td>");
+        await context.Response.WriteAsync($"<td><div>{cronExpression}</div></td>");
         await context.Response.WriteAsync($"<td>");
 
         if (lastRunStarted is not null)
@@ -369,17 +419,106 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         }
     }
 
-    private void RefreshSchedule([FromForm] string command, HttpContext context)
+    private void RunCommand([FromForm] string command, [FromForm] string? param, HttpContext context)
     {
-        if (!command.Equals("reload")) return;
-
-        EnsureNewScheduler(_cronLogger);
-
-        UpdateScheduler();
-
-        _scheduler.Start();
+        ScheduledEntry? entry = null;
+        switch (command)
+        {
+            case "run_single":
+                entry = GetScheduleByKey(param!);
+                if (entry != null && entry.LastRunStatus != ScheduledEntry.RUNNING)
+                {
+                    _ = Task.Run(() => ProcessContentSyncApi(entry, true));
+                }
+                break;
+            case "run_chain":
+                entry = GetScheduleByKey(param!);
+                if (entry != null && GetRelatedRunningEntry(entry!) == null)
+                {
+                    _ = Task.Run(() => ProcessContentSyncApi(entry));
+                }
+                break;
+            case "reload":
+                EnsureNewScheduler(_cronLogger);
+                UpdateScheduler();
+                _scheduler.Start();
+                break;
+            case "resume_chain":
+                ResumeBrokenChains();
+                break;
+            default:
+                break;
+        }
 
         context.Response.Redirect($"{_baseUrl}/");
+    }
+
+    private void ResumeBrokenChains()
+    {
+        var nextRuns = _scheduler.GetNextOccurrences()
+            .SelectMany(i => i.ScheduledTasks, (i, j) => new { j.Id, i.NextOccurrence })
+            .ToDictionary(o => o.Id, o => o.NextOccurrence);
+
+        foreach (var (key, cronEntry) in _scheduledEntries.Where(k => nextRuns.ContainsKey(k.Key)).OrderBy(kv => nextRuns[kv.Key]))
+        {
+            var entry = cronEntry;
+
+            while (entry is not null)
+            {
+                //await RenderHomePageTableLines(context, entry, nextRuns[key]);
+                entry = entry.RunNext;
+            }
+        }
+
+        foreach (var nextRun in nextRuns)
+        {
+            var entry = _scheduledEntries[nextRun.Key];
+            var baseStartDate = entry.LastRunStarted;
+
+            while(entry != null && entry.LastRunStarted >= baseStartDate)
+            {
+                if (entry.LastRunStatus == CuteSchedule.RUNNING)
+                {
+                    entry = null;
+                    break;
+                }
+                entry = entry.RunNext;
+            }
+
+            if(entry != null)
+            {
+                _ = Task.Run(() => ProcessContentSyncApi(entry));
+            }
+        }
+    }
+
+    private ScheduledEntry? GetRelatedRunningEntry(ScheduledEntry entry)
+    {
+        string parentKey;
+        if (entry.RunAfter == null)
+        {
+            parentKey = entry.Key;
+        }
+        else
+        {
+            var parentSchedule = entry.RunAfter;
+            while (parentSchedule.RunAfter != null)
+            {
+                parentSchedule = parentSchedule.RunAfter;
+            }
+            parentKey = parentSchedule.Key;
+        }
+
+        var scheduledEntry = _scheduledEntries.Where(k => k.Value.Key ==  parentKey).FirstOrDefault().Value;
+
+        if (scheduledEntry.LastRunStatus == CuteSchedule.RUNNING) return scheduledEntry;
+        while(scheduledEntry.RunNext != null)
+        {
+            scheduledEntry = scheduledEntry.RunNext;
+            if (scheduledEntry.LastRunStatus == CuteSchedule.RUNNING) return scheduledEntry;
+        }
+
+        return null;
     }
 
     private async Task ProcessAndUpdateSchedule(ScheduledEntry entry)
@@ -402,11 +541,11 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         }
     }
 
-    private async Task ProcessContentSyncApi(ScheduledEntry CuteSchedule)
+    private async Task ProcessContentSyncApi(ScheduledEntry cuteSchedule, bool singleRun = false)
     {
         string verbosity = _settings?.Verbosity.ToString() ?? Verbosity.Normal.ToString();
 
-        var entry = CuteSchedule;
+        var entry = cuteSchedule;
 
         while (entry is not null)
         {
@@ -414,7 +553,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
             entry.LastRunStarted = DateTime.UtcNow;
             entry.LastRunFinished = null;
-            entry.LastRunStatus = "running";
+            entry.LastRunStatus = CuteSchedule.RUNNING;
             entry.LastRunErrorMessage = string.Empty;
 
             try
@@ -445,13 +584,13 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
                 await command.RunAsync(args);
 
-                entry.LastRunStatus = "success";
+                entry.LastRunStatus = CuteSchedule.SUCCESS;
                 entry.LastRunFinished = DateTime.UtcNow;
             }
             catch (Exception ex)
             {
                 _console.WriteException(ex);
-                entry.LastRunStatus = $"error";
+                entry.LastRunStatus = CuteSchedule.RUNNING;
                 entry.LastRunErrorMessage = $"Exception: {ex.Message} \nTrace: {ex.StackTrace}";
                 entry.LastRunFinished = DateTime.UtcNow;
             }
@@ -459,6 +598,11 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             {
                 _console.WriteNormal("Completed content sync-api for '{syncApiKey}'", entry.Key);
                 await UpdateScheduleEntry(entry);
+            }
+
+            if (singleRun)
+            {
+                break;
             }
 
             entry = entry.RunNext;
