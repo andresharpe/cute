@@ -27,7 +27,7 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
 
     private string HtmlHeader => $"""
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" style="scroll-behavior: smooth">
         <head>
         <meta charset="utf-8">
         <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/cute.png">
@@ -37,7 +37,7 @@ public abstract class BaseServerCommand<TSettings>(IConsoleWriter console, ILogg
         <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js"></script>
         {_prettifyColors}
         </head>
-        <body>
+        <body style='max-width:60%'>
     """;
 
     private static string HtmlFooter => $"""
