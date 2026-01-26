@@ -187,12 +187,13 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         string toRunningDiv = runningEntry == null ? string.Empty : $"<div><a href='#{runningEntry.Key}'>to running</a></div>";
         string runningStyle = entry.LastRunStatus == ScheduledEntry.RUNNING ? "style='font-weight:bold;color: green'" : string.Empty;
+        string parentStyle = entry.Key == parentEntry.Key ? "style='font-weight:bold; font-size:22px'" : string.Empty;
 
         string? cronExpression = entry.IsRunAfter ? null : entry.Schedule?.ToCronExpression().ToString();
         var schedule = entry.IsRunAfter ? "Run after " + entry.RunAfter!.Key : entry.Schedule;
 
         await context.Response.WriteAsync($"<tr>");
-        await context.Response.WriteAsync($"<td id='{entry.Key}' style='position:relative'><span {runningStyle}>{entry.Key}</span>");
+        await context.Response.WriteAsync($"<td id='{entry.Key}' style='position:relative'><span {runningStyle} {parentStyle}>{entry.Key}</span>");
         await context.Response.WriteAsync($"<div style='position:absolute;top:5px;left:5px'>");
         await context.Response.WriteAsync($"<button type='button' onclick='toggleMenu(this)' style='cursor:pointer;position:relative;top:5px;left:5px'>▼</button>");
         await context.Response.WriteAsync($"<div class='context-menu' style='display:none;background:white;border:1px solid #ccc;box-shadow:0 2px 5px rgba(0,0,0,0.2);z-index:1000;min-width:120px;width:auto'>");
@@ -200,22 +201,22 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         await context.Response.WriteAsync($"<form id='single_run_{entry.Key}' action='{_baseUrl}/run' method='POST' enctype='multipart/form-data'>");
         await context.Response.WriteAsync($"<input type='hidden' name='command' value='run_single'>");
         await context.Response.WriteAsync($"<input type='hidden' name='param' value='{entry.Id}'>");
-        await context.Response.WriteAsync($"<a href='javascript:{{}}' onclick=\"document.getElementById('single_run_{entry.Key}').submit();\" style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>Run single</a>");
+        await context.Response.WriteAsync($"<a href='javascript:{{}}' onclick=\"document.getElementById('single_run_{entry.Key}').submit();\" style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"' title='Run this job now, ignore chain'>▶ Run Solo</a>");
         await context.Response.WriteAsync($"</form>");
 
         await context.Response.WriteAsync($"<form id='run_{entry.Key}' action='{_baseUrl}/run' method='POST' enctype='multipart/form-data'>");
         await context.Response.WriteAsync($"<input type='hidden' name='command' value='run_chain'>");
         await context.Response.WriteAsync($"<input type='hidden' name='param' value='{entry.Id}'>");
-        await context.Response.WriteAsync($"<a href='javascript:{{}}' onclick=\"document.getElementById('run_{entry.Key}').submit();\" style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>Run chain</a>");
+        await context.Response.WriteAsync($"<a href='javascript:{{}}' onclick=\"document.getElementById('run_{entry.Key}').submit();\" style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"' title='Run from here through end of chain'>▶▶ Run Chain</a>");
         await context.Response.WriteAsync($"</form>");
 
         if (parentEntry.Key != entry.Key)
         {
-            await context.Response.WriteAsync($"<a href='#{parentEntry.Key}' style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>To start</a>");
+            await context.Response.WriteAsync($"<a href='#{parentEntry.Key}' style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"' title='Go to chain start'>↑ Parent</a>");
         }
         if(runningEntry != null && runningEntry.Key != entry.Key)
         {
-            await context.Response.WriteAsync($"<a href='#{runningEntry.Key}' style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"'>To running</a>");
+            await context.Response.WriteAsync($"<a href='#{runningEntry.Key}' style='display:block;padding:8px 12px;text-decoration:none;color:black;' onmouseover='this.style.background=\"#f0f0f0\"' onmouseout='this.style.background=\"white\"' title='Go to running job'>↗ Active</a>");
         }
         await context.Response.WriteAsync($"</div>");
         await context.Response.WriteAsync($"</div>");
