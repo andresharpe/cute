@@ -591,7 +591,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
             catch (Exception ex)
             {
                 _console.WriteException(ex);
-                entry.LastRunStatus = CuteSchedule.RUNNING;
+                entry.LastRunStatus = CuteSchedule.ERROR;
                 entry.LastRunErrorMessage = $"Exception: {ex.Message} \nTrace: {ex.StackTrace}";
                 entry.LastRunFinished = DateTime.UtcNow;
             }
