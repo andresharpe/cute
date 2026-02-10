@@ -255,6 +255,7 @@ public class CommandAppBuilder
         services.AddTransient<AzureOpenAiTranslator>();
         services.AddTransient<GoogleTranslator>();
         services.AddTransient<DeeplTranslator>();
+        services.AddTransient<TranslateGemmaTranslator>();
 
         services.AddTransient<HttpResponseFileCache>();
         services.AddTransient<SiteGenerator>();

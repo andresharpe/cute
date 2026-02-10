@@ -21,6 +21,8 @@ namespace Cute.Services.Translation.Factories
                     return _serviceProvider.GetRequiredService<DeeplTranslator>();
                 case TranslationService.AzureOpenAi:
                     return _serviceProvider.GetRequiredService<AzureOpenAiTranslator>();
+                case TranslationService.TranslateGemma:
+                    return _serviceProvider.GetRequiredService<TranslateGemmaTranslator>();
                 case TranslationService.Azure:
                 default:
                     return _serviceProvider.GetRequiredService<AzureTranslator>();

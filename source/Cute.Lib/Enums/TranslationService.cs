@@ -5,6 +5,7 @@
         Azure,
         Google,
         Deepl,
-        AzureOpenAi
+        AzureOpenAi,
+        TranslateGemma
     }
 }
