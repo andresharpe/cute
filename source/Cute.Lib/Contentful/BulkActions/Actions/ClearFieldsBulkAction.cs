@@ -45,7 +45,6 @@ namespace Cute.Lib.Contentful.BulkActions.Actions
 
             var queryBuilder = new EntryQuery.Builder()
                     .WithContentType(_contentType)
-                    .WithPageSize(1)
                     .WithLocale("*")
                     .WithIncludeLevels(0);
 

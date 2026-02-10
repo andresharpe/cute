@@ -97,6 +97,19 @@ public class ContentfulGraphQlClient
             if (responseObject is null)
                 yield break;
 
+            if (responseObject.SelectToken("errors") is JArray errors && errors.Count > 0)
+            {
+                if (retryCount < 10)
+                {
+                    retryCount++;
+                    postBody.variables["limit"] = (int)postBody.variables["limit"] / 2;
+                    continue;
+                }
+                var errorMessage = errors[0]["message"]?.ToString() ?? "Unknown GraphQL error";
+                var errorCode = errors[0].SelectToken("extensions.contentful.code")?.ToString();
+                throw new CliException($"GraphQL error: {errorMessage}" + (errorCode != null ? $" (Code: {errorCode})" : ""));
+            }
+
             if (responseObject.SelectToken(jsonResultsPath) is not JArray newRecords)
                 yield break;
 
