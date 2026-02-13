@@ -41,6 +41,10 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
         [CommandOption("--use-session")]
         [Description("Indicates whether to use session (eg: publish only entries modified by the command and not all the unpublished ones).")]
         public bool UseSession { get; set; } = false;
+
+        [CommandOption("--skip-existing")]
+        [Description("Indicates whether to skip joined entries that already exist in contentful.")]
+        public bool SkipExisting { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -92,7 +96,8 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
                             source2ContentType,
                             source3ContentType,
                             targetContentType,
-                            settings.Source2EntryId
+                            settings.Source2EntryId,
+                            settings.SkipExisting
                         ))
                     .WithVerbosity(settings.Verbosity)
                     .WithApplyChanges(settings.Apply),

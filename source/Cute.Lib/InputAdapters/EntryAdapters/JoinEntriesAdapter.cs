@@ -10,7 +10,7 @@ using Newtonsoft.Json.Linq;
 namespace Cute.Lib.InputAdapters.EntryAdapters;
 
 public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConnection contentfulConnection,
-    ContentLocales contentLocales, ContentType sourceContentType1, ContentType sourceContentType2, ContentType? sourceContentType3, ContentType targetContentType, string? source2EntryId)
+    ContentLocales contentLocales, ContentType sourceContentType1, ContentType sourceContentType2, ContentType? sourceContentType3, ContentType targetContentType, string? source2EntryId, bool skipExistingEntries = false)
     : InputAdapterBase(nameof(JoinEntriesAdapter))
 {
     private List<Dictionary<string, object?>> _results = default!;
@@ -27,6 +27,7 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
     private readonly ContentType _sourceContentType2 = sourceContentType2;
     private readonly ContentType? _sourceContentType3 = sourceContentType3;
     private readonly ContentType _targetContentType = targetContentType;
+    private readonly bool _skipExistingEntries = skipExistingEntries;
     private readonly string? _source2EntryId = source2EntryId;
 
     public override async Task<int> GetRecordCountAsync()
@@ -38,6 +39,16 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
         }
 
         List<Field> targetFieldsList = [];
+
+        var queryBuilder = _contentfulConnection.GraphQL.CreateAutoQueryBuilder().WithTemplateContent($"{{{{ {_targetContentType.Name}.key }}}}");
+        queryBuilder.TryBuildQuery(out string query);
+
+        var locale = await _contentfulConnection.GetDefaultLocaleAsync();
+
+        var existingEntryKeys = _skipExistingEntries ? _contentfulConnection.GraphQL.GetDataEnumerable(query, $"data.{queryBuilder.ContentTypeId}Collection.items", locale.Code, null, true)
+            .ToBlockingEnumerable()
+            .Select(e => e.SelectToken("key")?.Value<string>())
+            .ToHashSet() : new HashSet<string?>();
 
         var targetField1 = _targetContentType.Fields
             .Where(f => f.Validations.Any(v => v is LinkContentTypeValidator vLink && vLink.ContentTypeIds.Contains(_cuteContentJoin.SourceContentType1)))
@@ -120,6 +131,12 @@ public class JoinEntriesAdapter(CuteContentJoin cuteContentJoin, ContentfulConne
             if (depth == entriesList.Count)
             {
                 var joinKey = string.Join(".", currentEntries.Select(e => e.Fields.SelectToken($"key.{defaultLocale}")?.Value<string>()));
+
+                if (existingEntryKeys.Contains(joinKey))
+                {
+                    return;
+                }
+
                 var joinTitle = string.Join(" | ", currentEntries.Select(e => e.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()));//$"{entry1.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()} | {entry2.Fields.SelectToken($"title.{defaultLocale}")?.Value<string>()}";
                 var joinName = currentEntries.Last().Fields.SelectToken($"name.{defaultLocale}")?.Value<string>();
 
