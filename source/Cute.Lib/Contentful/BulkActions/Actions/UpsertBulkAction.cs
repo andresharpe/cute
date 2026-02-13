@@ -11,11 +11,13 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
 {
 
     private readonly bool _appendFields = false;
+    private readonly bool _skipCompare = false;
 
-    public UpsertBulkAction(ContentfulConnection contentfulConnection, HttpClient httpClient, bool appendFields)
+    public UpsertBulkAction(ContentfulConnection contentfulConnection, HttpClient httpClient, bool appendFields, bool skipCompare = false)
         : this(contentfulConnection, httpClient)
     {
         _appendFields = appendFields;
+        _skipCompare = skipCompare;
     }
 
     public override IList<ActionProgressIndicator> ActionProgressIndicators() =>
@@ -31,7 +33,15 @@ public class UpsertBulkAction(ContentfulConnection contentfulConnection, HttpCli
     {
         await GetNewAdapterEntries(progressUpdaters?[0], progressUpdaters?[1]);
 
-        await GetAllEntriesForComparison(progressUpdaters?[2]);
+        if (!_skipCompare)
+        {
+            await GetAllEntriesForComparison(progressUpdaters?[2]);
+        }
+        else
+        {
+            _forComparisonEntries = [];
+            NotifyUserInterface($"Skipping entry comparison", progressUpdaters?[4]);
+        }
 
         await CompareAndMergeEntries(progressUpdaters?[3]);
 

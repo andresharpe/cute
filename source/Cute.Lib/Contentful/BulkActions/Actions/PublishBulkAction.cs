@@ -11,15 +11,15 @@ public class PublishBulkAction(ContentfulConnection contentfulConnection, HttpCl
 
     public override async Task<IEnumerable<string>> ExecuteAsync(Action<BulkActionProgressEvent>[]? progressUpdaters = null)
     {
-        await GetWithEntries(progressUpdaters?[0]);
-
         if (_applyChanges)
         {
+            await GetWithEntries(progressUpdaters?[0]);
             await PublishWithEntries(progressUpdaters?[1]);
         }
         else
         {
             NotifyUserInterface($"Skipping publish step. Omit --no-publish to skip this step.", progressUpdaters?[1]);
+            return [];
         }
 
         return _withEntries!.Select(e => e.Sys.Id);
