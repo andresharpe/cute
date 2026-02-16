@@ -84,7 +84,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
 
         // Load Entries
         await PerformBulkOperations([
-            new UpsertBulkAction(ContentfulConnection, _httpClient)
+            new UpsertBulkAction(ContentfulConnection, _httpClient, false, settings.SkipExisting)
                     .WithContentType(targetContentType)
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithMatchField("key")
