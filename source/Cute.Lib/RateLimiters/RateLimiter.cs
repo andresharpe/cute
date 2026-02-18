@@ -102,7 +102,10 @@ public class RateLimiter
 
                 retryAttempt++;
 
-                errorNotifier?.Invoke($"{ex.Message} (Retry={retryAttempt})");
+                if (ex is not TaskCanceledException)
+                {
+                    errorNotifier?.Invoke($"{ex.Message} (Retry={retryAttempt})");
+                }
 
                 if (errorNotifier is null)
                 {
