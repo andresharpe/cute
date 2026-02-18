@@ -77,7 +77,11 @@ public class ContentfulGraphQlClient
                 $"",
                 (m) => { }, // suppress this message
                 (e) => {
-                    throw new CliException(e.ToString());
+                    var error = e.ToString();
+                    if (!error.StartsWith("The request was canceled due to the configured HttpClient.Timeout"))
+                    {
+                        throw new CliException(e.ToString());
+                    }
                 }
             );
 
@@ -174,7 +178,13 @@ public class ContentfulGraphQlClient
                 () => _httpClient.SendAsync(request),
                 $"",
                 (m) => { }, // suppress this message
-                (e) => throw new CliException(e.ToString())
+                (e) => {
+                    var error = e.ToString();
+                    if (!error.StartsWith("The request was canceled due to the configured HttpClient.Timeout"))
+                    {
+                        throw new CliException(e.ToString());
+                    }
+                }
             );
 
             if (!response.IsSuccessStatusCode)
