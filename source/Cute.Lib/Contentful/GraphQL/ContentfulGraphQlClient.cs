@@ -76,9 +76,7 @@ public class ContentfulGraphQlClient
                 () => _httpClient.SendAsync(request),
                 $"",
                 (m) => { }, // suppress this message
-                (e) => {
-                    throw new CliException(e.ToString());
-                }
+                (e) => { }
             );
 
             if(response.StatusCode == System.Net.HttpStatusCode.BadGateway && retryCount < 10)
@@ -174,7 +172,7 @@ public class ContentfulGraphQlClient
                 () => _httpClient.SendAsync(request),
                 $"",
                 (m) => { }, // suppress this message
-                (e) => throw new CliException(e.ToString())
+                (e) => { }
             );
 
             if (!response.IsSuccessStatusCode)
