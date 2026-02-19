@@ -78,17 +78,20 @@ public class ContentfulGraphQlClient
         var retryCount = 0;
         while (true)
         {
-            var request = new HttpRequestMessage()
+            HttpRequestMessage CreateRequest()
             {
-                RequestUri = _baseAddress,
-                Method = HttpMethod.Post,
-                Content = new StringContent(JsonConvert.SerializeObject(postBody), Encoding.UTF8, "application/json")
-            };
-
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                var request = new HttpRequestMessage()
+                {
+                    RequestUri = _baseAddress,
+                    Method = HttpMethod.Post,
+                    Content = new StringContent(JsonConvert.SerializeObject(postBody), Encoding.UTF8, "application/json")
+                };
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                return request;
+            }
 
             using var response = await ContentfulConnection.RateLimiter.SendRequestAsync(
-                () => _httpClient.SendAsync(request),
+                () => _httpClient.SendAsync(CreateRequest()),
                 $"",
                 (m) => { }, // suppress this message
                 (e) => Log.Warning("GraphQL request error (will be retried by RateLimiter): {Error}", e.ToString())
@@ -197,17 +200,20 @@ public class ContentfulGraphQlClient
         var retryCount = 0;
         while (true)
         {
-            var request = new HttpRequestMessage()
+            HttpRequestMessage CreateRequest()
             {
-                RequestUri = _baseAddress,
-                Method = HttpMethod.Post,
-                Content = new StringContent(JsonConvert.SerializeObject(postBody), Encoding.UTF8, "application/json")
-            };
-
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                var request = new HttpRequestMessage()
+                {
+                    RequestUri = _baseAddress,
+                    Method = HttpMethod.Post,
+                    Content = new StringContent(JsonConvert.SerializeObject(postBody), Encoding.UTF8, "application/json")
+                };
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                return request;
+            }
 
             using var response = await ContentfulConnection.RateLimiter.SendRequestAsync(
-                () => _httpClient.SendAsync(request),
+                () => _httpClient.SendAsync(CreateRequest()),
                 $"",
                 (m) => { }, // suppress this message
                 (e) => Log.Warning("Raw GraphQL request error (will be retried by RateLimiter): {Error}", e.ToString())
