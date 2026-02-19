@@ -1,6 +1,8 @@
 ﻿using Cute.Lib.Exceptions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Serilog;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 
@@ -8,6 +10,19 @@ namespace Cute.Lib.Contentful.GraphQL;
 
 public class ContentfulGraphQlClient
 {
+    private const int MaxRetryCount = 10;
+    private const int InitialRetryDelayMs = 1000;
+
+    private static readonly ILogger Log = Serilog.Log.ForContext<ContentfulGraphQlClient>();
+
+    private static readonly HashSet<HttpStatusCode> TransientStatusCodes =
+    [
+        HttpStatusCode.BadGateway,
+        HttpStatusCode.ServiceUnavailable,
+        HttpStatusCode.TooManyRequests,
+        HttpStatusCode.GatewayTimeout,
+    ];
+
     private readonly HttpClient _httpClient;
     private readonly Uri _baseAddress;
     private readonly string _managementApiLey;
@@ -76,15 +91,21 @@ public class ContentfulGraphQlClient
                 () => _httpClient.SendAsync(request),
                 $"",
                 (m) => { }, // suppress this message
-                (e) => {
-                    throw new CliException(e.ToString());
-                }
+                (e) => Log.Warning("GraphQL request error (will be retried by RateLimiter): {Error}", e.ToString())
             );
 
-            if(response.StatusCode == System.Net.HttpStatusCode.BadGateway && retryCount < 10)
+            if (TransientStatusCodes.Contains(response.StatusCode) && retryCount < MaxRetryCount)
             {
                 retryCount++;
-                postBody.variables["limit"] = (int)postBody.variables["limit"] / 2;
+                Log.Warning("GraphQL transient HTTP {StatusCode}, retry {RetryCount}/{MaxRetry} (limit={Limit})",
+                    (int)response.StatusCode, retryCount, MaxRetryCount, postBody.variables["limit"]);
+
+                if (response.StatusCode == HttpStatusCode.BadGateway)
+                {
+                    postBody.variables["limit"] = Math.Max(1, (int)postBody.variables["limit"] / 2);
+                }
+
+                await Task.Delay(InitialRetryDelayMs * retryCount);
                 continue;
             }
 
@@ -99,16 +120,30 @@ public class ContentfulGraphQlClient
 
             if (responseObject.SelectToken("errors") is JArray errors && errors.Count > 0)
             {
-                if (retryCount < 10)
+                if (retryCount < MaxRetryCount)
                 {
                     retryCount++;
-                    postBody.variables["limit"] = (int)postBody.variables["limit"] / 2;
+                    postBody.variables["limit"] = Math.Max(1, (int)postBody.variables["limit"] / 2);
+
+                    var errorMsg = errors[0]["message"]?.ToString() ?? "Unknown";
+                    Log.Warning("GraphQL error: {Error}, retry {RetryCount}/{MaxRetry} (limit={Limit})",
+                        errorMsg, retryCount, MaxRetryCount, postBody.variables["limit"]);
+
+                    await Task.Delay(InitialRetryDelayMs * retryCount);
                     continue;
                 }
                 var errorMessage = errors[0]["message"]?.ToString() ?? "Unknown GraphQL error";
                 var errorCode = errors[0].SelectToken("extensions.contentful.code")?.ToString();
+                Log.Error("GraphQL error after {MaxRetry} retries: {Error}", MaxRetryCount, errorMessage);
                 throw new CliException($"GraphQL error: {errorMessage}" + (errorCode != null ? $" (Code: {errorCode})" : ""));
             }
+
+            if (retryCount > 0)
+            {
+                Log.Debug("GraphQL request recovered after {RetryCount} retries", retryCount);
+            }
+
+            retryCount = 0;
 
             if (responseObject.SelectToken(jsonResultsPath) is not JArray newRecords)
                 yield break;
@@ -159,6 +194,7 @@ public class ContentfulGraphQlClient
             }
         };
 
+        var retryCount = 0;
         while (true)
         {
             var request = new HttpRequestMessage()
@@ -174,14 +210,38 @@ public class ContentfulGraphQlClient
                 () => _httpClient.SendAsync(request),
                 $"",
                 (m) => { }, // suppress this message
-                (e) => throw new CliException(e.ToString())
+                (e) => Log.Warning("Raw GraphQL request error (will be retried by RateLimiter): {Error}", e.ToString())
             );
+
+            if (TransientStatusCodes.Contains(response.StatusCode) && retryCount < MaxRetryCount)
+            {
+                retryCount++;
+                Log.Warning("Raw GraphQL transient HTTP {StatusCode}, retry {RetryCount}/{MaxRetry} (limit={Limit})",
+                    (int)response.StatusCode, retryCount, MaxRetryCount, postBody.variables["limit"]);
+
+                if (response.StatusCode == HttpStatusCode.BadGateway)
+                {
+                    postBody.variables["limit"] = Math.Max(1, (int)postBody.variables["limit"] / 2);
+                }
+
+                await Task.Delay(InitialRetryDelayMs * retryCount);
+                continue;
+            }
 
             if (!response.IsSuccessStatusCode)
             {
                 var message = await response.Content.ReadAsStringAsync();
+                Log.Error("Raw GraphQL request failed with HTTP {StatusCode}: {Message}",
+                    (int)response.StatusCode, message);
                 throw new CliException(message);
             }
+
+            if (retryCount > 0)
+            {
+                Log.Debug("Raw GraphQL request recovered after {RetryCount} retries", retryCount);
+            }
+
+            retryCount = 0;
 
             var responseString = await response.Content.ReadAsStringAsync();
 
