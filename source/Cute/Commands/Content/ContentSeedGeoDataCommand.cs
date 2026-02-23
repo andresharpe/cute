@@ -284,7 +284,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         var contentTypeId = await ResolveContentTypeId($"{prefix}Geo") ?? throw new CliException($"Content type '{prefix}Geo' not found.");
         var contentType = await GetContentTypeOrThrowError(contentTypeId);
         var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
-        var contentLocales = new ContentLocales([defaultLocale.Code], defaultLocale.Code);
+        var locales = await ContentfulConnection.GetLocalesAsync();
+        var contentLocales = new ContentLocales((await ContentfulConnection.GetContentLocalesAsync()).Locales, defaultLocale.Code);
         
         if (!ConfirmWithPromptChallenge($"update location counts for {updatedGeos.Count} geos in {contentTypeId}"))
         {
