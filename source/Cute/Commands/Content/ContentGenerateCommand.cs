@@ -96,23 +96,33 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
             .WithGenerateOperation(settings.Operation)
             .WithContentLocales(contentLocales);
 
-        await ProgressBars.Instance().StartAsync(async ctx =>
+        if (ConsoleWriter.EnableConsole)
         {
-            var taskGenerate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Generating[/]");
+            await ProgressBars.Instance().StartAsync(async ctx =>
+            {
+                var taskGenerate = ctx.AddTask($"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Generating[/]");
 
+                await _generBulkAction.GenerateContent(settings.Key,
+                    displayActions,
+                    (step, steps) =>
+                    {
+                        taskGenerate.MaxValue = steps;
+                        taskGenerate.Value = step;
+                        taskGenerate.Description = $"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Generating ({step}/{steps})[/]";
+                    },
+                    searchKey: settings.searchKey
+                );
+
+                taskGenerate.StopTask();
+            });
+        }
+        else
+        {
             await _generBulkAction.GenerateContent(settings.Key,
-                displayActions,
-                (step, steps) =>
-                {
-                    taskGenerate.MaxValue = steps;
-                    taskGenerate.Value = step;
-                    taskGenerate.Description = $"[{Globals.StyleNormal.Foreground}]{Emoji.Known.Robot}  Generating ({step}/{steps})[/]";
-                },
-                searchKey: settings.searchKey
-            );
-
-            taskGenerate.StopTask();
-        });
+                    displayActions,
+                    searchKey: settings.searchKey
+                );
+        }
 
         if (settings.Operation == GenerateOperation.ListBatches)
         {
