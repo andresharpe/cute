@@ -11,6 +11,7 @@ using Cute.Lib.Contentful;
 using Cute.Lib.Contentful.BulkActions.Actions;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
+using Cute.Lib.Serializers;
 using Cute.Lib.Utilities;
 using Cute.Services;
 using Cute.UiComponents;
@@ -291,6 +292,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         {
             return -1;
         }
+
+        var serializer = new EntrySerializer(contentType, new ContentLocales([defaultLocale.Code], defaultLocale.Code));
+        var newEntries = updatedGeos.Select(e => serializer.SerializeEntry(e)).ToList();
         
         await PerformBulkOperations([
             new UpsertBulkAction(ContentfulConnection, _httpClient)
