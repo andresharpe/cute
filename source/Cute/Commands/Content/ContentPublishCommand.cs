@@ -36,6 +36,10 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
         [CommandOption("--max-call-limit")]
         [Description("Specifies maximum limit of chunks sent at a time. Default is 5.")]
         public int MaxCallLimit { get; set; } = 5;
+
+        [CommandOption("--publish-singles")]
+        [Description("Specifies wheter to publish entries one by one instead of bulk action")]
+        public bool PublishSingles { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -57,7 +61,7 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
 
         await PerformBulkOperations(
             [
-                new PublishBulkAction(ContentfulConnection, _httpClient)
+                new PublishBulkAction(ContentfulConnection, _httpClient, settings.PublishSingles)
                     .WithContentType(contentType)
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
