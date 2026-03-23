@@ -38,7 +38,7 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
         public int MaxCallLimit { get; set; } = 5;
 
         [CommandOption("--publish-singles")]
-        [Description("Specifies wheter to publish entries one by one instead of bulk action")]
+        [Description("Specifies whether to publish entries one by one instead of bulk action")]
         public bool PublishSingles { get; set; } = false;
     }
 
