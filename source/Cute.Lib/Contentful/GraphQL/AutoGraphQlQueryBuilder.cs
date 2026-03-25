@@ -141,7 +141,7 @@ public class AutoGraphQlQueryBuilder(ContentfulConnection contentfulConnection)
 
     private static void ExtractScribanVariables(Template template, List<string[]> variableList)
     {
-        TraverseScriptNode(template.Page, variableList);
+        TraverseScriptNode(template.Page!, variableList);
     }
 
     private static string[] functionPrefixes = [
@@ -153,7 +153,7 @@ public class AutoGraphQlQueryBuilder(ContentfulConnection contentfulConnection)
     {
         if (node is ScriptMemberExpression globalVariable)
         {
-            if (functionPrefixes.Contains(globalVariable.Target.ToString())) return;
+            if (functionPrefixes.Contains(globalVariable.Target?.ToString())) return;
 
             variableList.Add(globalVariable.ToString().Split('.'));
             return;
