@@ -31,6 +31,6 @@ public class LoggedInSettings : CommonSettings
     public bool Force { get; set; }
 
     [CommandOption("--publish-error-threshold")]
-    [Description("Specified error threshold for publish using bulk actions. Switch to single entry publish when it is reached")]
+    [Description("Specifies error threshold for publish using bulk actions. Switches to single entry publish when it is reached.")]
     public int BulkPublishErrorThreshold { get; set; } = 10;
 }
