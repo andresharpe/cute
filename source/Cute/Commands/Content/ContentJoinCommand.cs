@@ -107,6 +107,7 @@ public class ContentJoinCommand(IConsoleWriter console, ILogger<ContentJoinComma
                     .WithVerbosity(settings.Verbosity)
                     .WithApplyChanges(!settings.NoPublish)
                     .WithUseSession(settings.UseSession)
+                    .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
 
         return 0;

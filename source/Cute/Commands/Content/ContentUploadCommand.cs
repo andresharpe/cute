@@ -110,6 +110,7 @@ public class ContentUploadCommand(IConsoleWriter console, ILogger<ContentUploadC
                 .WithVerbosity(settings.Verbosity)
                 .WithApplyChanges(!settings.NoPublish)
                 .WithUseSession(settings.UseSession)
+                .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
 
         return 0;

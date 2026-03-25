@@ -143,6 +143,7 @@ public class ContentSyncApiCommand(IConsoleWriter console, ILogger<ContentSyncAp
             .WithVerbosity(settings.Verbosity)
             .WithApplyChanges(!settings.NoPublish)
             .WithUseSession(settings.UseSession)
+            .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ], apiSyncEntry.Key);
 
         return 0;

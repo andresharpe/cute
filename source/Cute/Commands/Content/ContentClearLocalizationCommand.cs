@@ -88,6 +88,7 @@ public class ContentClearLocalizationCommand(IConsoleWriter console, ILogger<Con
                 .WithVerbosity(settings.Verbosity)
                 .WithApplyChanges(!settings.NoPublish)
                 .WithUseSession(settings.UseSession)
+                .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
 
         return 0;

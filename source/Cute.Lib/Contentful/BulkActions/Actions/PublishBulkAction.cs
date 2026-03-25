@@ -4,12 +4,6 @@ public class PublishBulkAction(ContentfulConnection contentfulConnection, HttpCl
     : BulkActionBase(contentfulConnection, httpClient)
 {
 
-    public PublishBulkAction(ContentfulConnection contentfulConnection, HttpClient httpClient, bool publishSingles)
-        : this(contentfulConnection, httpClient)
-    {
-        _publishSingles = publishSingles;
-    }
-
     public override IList<ActionProgressIndicator> ActionProgressIndicators() =>
     [
         new() { Intent = "Getting entries..." },

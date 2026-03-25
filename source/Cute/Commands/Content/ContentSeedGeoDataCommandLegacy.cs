@@ -155,6 +155,7 @@ public sealed class ContentSeedGeoDataCommandLegacy(IConsoleWriter console, ILog
                 .WithVerbosity(settings.Verbosity)
                 .WithApplyChanges(!settings.NoPublish)
                 .WithUseSession(settings.UseSession)
+                .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
 
         return 0;

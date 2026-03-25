@@ -61,13 +61,15 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
 
         await PerformBulkOperations(
             [
-                new PublishBulkAction(ContentfulConnection, _httpClient, settings.PublishSingles)
+                new PublishBulkAction(ContentfulConnection, _httpClient)
                     .WithContentType(contentType)
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithVerbosity(settings.Verbosity)
                     .WithApplyChanges(!settings.NoPublish)
                     .WithPublishChunkSize(settings.ChunkSize)
                     .WithBulkActionCallLimit(settings.MaxCallLimit)
+                    .WithPublishSingles(settings.PublishSingles)
+                    .WithErrorThreshold(settings.BulkPublishErrorThreshold)
             ]
         );
 

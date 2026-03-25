@@ -28,6 +28,8 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
     protected bool _publishSingles = false;
 
+    protected int _errorThreshold = 10;
+
     protected string? _contentTypeId;
 
     protected ContentType? _contentType;
@@ -107,6 +109,18 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
     public BulkActionBase WithConcurrentTaskLimit(int concurrentTaskLimit)
     {
         _concurrentTaskLimit = concurrentTaskLimit;
+        return this;
+    }
+
+    public BulkActionBase WithErrorThreshold(int errorThreshold)
+    {
+        _errorThreshold = errorThreshold;
+        return this;
+    }
+
+    public BulkActionBase WithPublishSingles(bool publishSingles)
+    {
+        _publishSingles = publishSingles;
         return this;
     }
 
@@ -242,6 +256,10 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         var totalCount = items.Count;
 
+        var errorCount = 0;
+
+        var exceptionFailedItems = new List<BulkItem>();
+
         var chunkQueue = new ConcurrentQueue<BulkItem[]>();
 
         foreach (var chunk in items.Chunk(_publishChunkSize))
@@ -251,17 +269,55 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         while (!chunkQueue.IsEmpty || bulkActionIds.Count != 0)
         {
+            if (errorCount >= _errorThreshold)
+            {
+                var remainingItems = new List<BulkItem>(exceptionFailedItems);
+
+                while (chunkQueue.TryDequeue(out var remainingChunk))
+                {
+                    remainingItems.AddRange(remainingChunk);
+                }
+
+                foreach (var pending in bulkActionIds)
+                {
+                    remainingItems.AddRange(pending.Value.Items);
+                }
+
+                bulkActionIds.Clear();
+
+                if (remainingItems.Count > 0)
+                {
+                    NotifyUserInterface($"Error threshold ({_errorThreshold}) reached with {errorCount} errors. Switching to single-entry {bulkAction.ToString().ToLower()} for {remainingItems.Count} remaining entries...", progressUpdater);
+
+                    await ChangePublishRequiredEntriesSingly(remainingItems, bulkAction, progressUpdater);
+                }
+
+                break;
+            }
+
             processed += _publishChunkSize;
 
             if (!chunkQueue.TryDequeue(out var chunk)) continue;
 
-            var bulkRequest = await BuildBulkRequest(chunk, bulkAction, progressUpdater);
+            try
+            {
+                var bulkRequest = await BuildBulkRequest(chunk, bulkAction, progressUpdater);
 
-            if (bulkRequest is null) continue;
+                if (bulkRequest is null) continue;
 
-            var (BulkRequestId, Response, Items) = bulkRequest.Value;
+                var (BulkRequestId, Response, Items) = bulkRequest.Value;
 
-            bulkActionIds.Add(BulkRequestId, new(Response.Sys.Status, Response, Items));
+                bulkActionIds.Add(BulkRequestId, new(Response.Sys.Status, Response, Items));
+            }
+            catch (Exception ex)
+            {
+                errorCount++;
+                exceptionFailedItems.AddRange(chunk);
+
+                NotifyUserInterfaceOfError($"Exception during bulk {bulkAction.ToString().ToLower()} request: {ex.Message}", progressUpdater);
+
+                continue;
+            }
 
             if (bulkActionIds.Count < _bulkActionCallLimit && !chunkQueue.IsEmpty)
             {
@@ -276,7 +332,22 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
                 {
                     delay += _millisecondsBetweenCalls;
 
-                    var bulkActionStatus = await SendBulkActionStatusRequestViaHttp(bulkActionId.Key, progressUpdater);
+                    BulkActionResponse bulkActionStatus;
+
+                    try
+                    {
+                        bulkActionStatus = await SendBulkActionStatusRequestViaHttp(bulkActionId.Key, progressUpdater);
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+
+                        NotifyUserInterfaceOfError($"Exception checking bulk action status '{bulkActionId.Key}': {ex.Message}", progressUpdater);
+
+                        if (errorCount >= _errorThreshold) break;
+
+                        continue;
+                    }
 
                     var status = bulkActionStatus.Sys.Status;
 
@@ -297,6 +368,8 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
                     }
                     else if (status == "failed")
                     {
+                        errorCount++;
+
                         NotifyUserInterfaceOfError($"Bulk action '{bulkActionId.Key}' failed. Reason:'{bulkActionStatus.Error?.Sys?.Id}'", progressUpdater);
 
                         bulkActionIds.Remove(bulkActionId.Key);
@@ -308,6 +381,8 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
                         chunkQueue.Enqueue(bulkActionId.Value.Items.Skip(retry1Count).ToArray());
                     }
                 }
+
+                if (errorCount >= _errorThreshold) break;
 
                 if (bulkActionIds.Count > 0)
                 {

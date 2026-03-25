@@ -120,6 +120,7 @@ public class ContentEditCommand(IConsoleWriter console, ILogger<ContentEditComma
             .WithVerbosity(settings.Verbosity)
             .WithApplyChanges(!settings.NoPublish)
             .WithUseSession(settings.UseSession)
+            .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
 
         return 0;
