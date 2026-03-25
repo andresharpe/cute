@@ -214,7 +214,11 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         var i = 0;
 
-        var query = new EntryQuery.Builder().WithContentType(contentTypeId).WithQueryString($"select=sys.id,sys.publishedAt,sys.publishedVersion,sys.archivedVersion,sys.version,fields.{displayField}").Build();
+        var query = new EntryQuery.Builder()
+            .WithContentType(contentTypeId)
+            .WithIncludeLevels(0)
+            .WithQueryString($"select=sys.id,sys.publishedAt,sys.publishedVersion,sys.archivedVersion,sys.version,fields.{displayField}")
+            .Build();
 
         await foreach (var (entry, total) in
             _contentfulConnection.GetManagementEntries<Entry<JObject>>(query))
