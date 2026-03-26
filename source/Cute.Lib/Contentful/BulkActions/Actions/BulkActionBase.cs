@@ -114,7 +114,10 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
     public BulkActionBase WithErrorThreshold(int errorThreshold)
     {
-        _errorThreshold = errorThreshold;
+        if (_errorThreshold > 0)
+        {
+            _errorThreshold = errorThreshold;
+        }
         return this;
     }
 
