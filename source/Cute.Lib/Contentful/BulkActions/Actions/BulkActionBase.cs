@@ -418,65 +418,64 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
         var totalSucceeded = 0;
         var totalFailed = 0;
 
-        using var semaphore = new SemaphoreSlim(_bulkActionCallLimit);
-
-        var tasks = items.Select(async item =>
+        // Process items in batches to avoid creating one Task per item up-front.
+        for (var i = 0; i < items.Count; i += _bulkActionCallLimit)
         {
-            await semaphore.WaitAsync();
-            try
+            var batch = items.Skip(i).Take(_bulkActionCallLimit).ToList();
+
+            var tasks = batch.Select(async item =>
             {
-                var entryId = item.Sys.Id;
-                var endpoint = new Uri($"https://api.contentful.com/spaces/{spaceId}/environments/{environmentId}/entries/{entryId}/published");
-
-                var method = bulkAction == BulkAction.Publish ? HttpMethod.Put : HttpMethod.Delete;
-
-                var request = new HttpRequestMessage
+                try
                 {
-                    RequestUri = endpoint,
-                    Method = method,
-                };
+                    var entryId = item.Sys.Id;
+                    var endpoint = new Uri($"https://api.contentful.com/spaces/{spaceId}/environments/{environmentId}/entries/{entryId}/published");
 
-                if (bulkAction == BulkAction.Publish)
-                {
-                    request.Headers.Add("X-Contentful-Version", (item.Sys.Version ?? 1).ToString());
+                    var method = bulkAction == BulkAction.Publish ? HttpMethod.Put : HttpMethod.Delete;
+
+                    var request = new HttpRequestMessage
+                    {
+                        RequestUri = endpoint,
+                        Method = method,
+                    };
+
+                    if (bulkAction == BulkAction.Publish)
+                    {
+                        request.Headers.Add("X-Contentful-Version", (item.Sys.Version ?? 1).ToString());
+                    }
+
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.ManagementApiKey);
+
+                    using var response = await ContentfulConnection.RateLimiter.SendRequestAsync(
+                        () => _httpClient.SendAsync(request),
+                        $"Sending single {bulkAction.ToString().ToLower()} request for entry '{entryId}'...",
+                        (m) => NotifyUserInterface(m),
+                        (m) => NotifyUserInterfaceOfError(m, progressUpdater)
+                    );
+
+                    if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                    {
+                        NotifyUserInterface($"Entry '{entryId}' skipped due to version conflict (409).", progressUpdater);
+                        return;
+                    }
+
+                    response.EnsureSuccessStatusCode();
+
+                    var succeeded = Interlocked.Increment(ref totalSucceeded);
+
+                    NotifyUserInterface($"Entry '{entryId}' {bulkAction.ToString().ToLower()}ed (Succeeded={succeeded}/{totalCount})", progressUpdater);
+
+                    progressUpdater?.Invoke(new(succeeded, totalCount, null, null));
                 }
-
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.ManagementApiKey);
-
-                using var response = await ContentfulConnection.RateLimiter.SendRequestAsync(
-                    () => _httpClient.SendAsync(request),
-                    $"Sending single {bulkAction.ToString().ToLower()} request for entry '{entryId}'...",
-                    (m) => NotifyUserInterface(m),
-                    (m) => NotifyUserInterfaceOfError(m, progressUpdater)
-                );
-
-                if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                catch (Exception ex)
                 {
-                    NotifyUserInterface($"Entry '{entryId}' skipped due to version conflict (409).", progressUpdater);
-                    return;
+                    Interlocked.Increment(ref totalFailed);
+
+                    NotifyUserInterfaceOfError($"Failed to {bulkAction.ToString().ToLower()} entry '{item.Sys.Id}': {ex.Message}", progressUpdater);
                 }
+            });
 
-                response.EnsureSuccessStatusCode();
-
-                var succeeded = Interlocked.Increment(ref totalSucceeded);
-
-                NotifyUserInterface($"Entry '{entryId}' {bulkAction.ToString().ToLower()}ed (Succeeded={succeeded}/{totalCount})", progressUpdater);
-
-                progressUpdater?.Invoke(new(succeeded, totalCount, null, null));
-            }
-            catch (Exception ex)
-            {
-                Interlocked.Increment(ref totalFailed);
-
-                NotifyUserInterfaceOfError($"Failed to {bulkAction.ToString().ToLower()} entry '{item.Sys.Id}': {ex.Message}", progressUpdater);
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        });
-
-        await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
+        }
 
         progressUpdater?.Invoke(new(totalSucceeded, totalCount, null, null));
     }
