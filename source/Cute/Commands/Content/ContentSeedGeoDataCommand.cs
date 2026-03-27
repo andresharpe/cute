@@ -168,6 +168,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 .WithVerbosity(settings.Verbosity)
                 .WithApplyChanges(!settings.NoPublish)
                 .WithUseSession(settings.UseSession)
+                .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
 
         return 0;
@@ -310,6 +311,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 .WithVerbosity(settings.Verbosity)
                 .WithApplyChanges(!settings.NoPublish)
                 .WithUseSession(settings.UseSession)
+                .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
         
         return 0;

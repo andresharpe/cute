@@ -136,6 +136,7 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
                         .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                         .WithVerbosity(settings.Verbosity)
                         .WithApplyChanges(!settings.NoPublish)
+                        .WithErrorThreshold(settings.BulkPublishErrorThreshold)
             ]
         );
 

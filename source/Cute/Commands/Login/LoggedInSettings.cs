@@ -29,4 +29,8 @@ public class LoggedInSettings : CommonSettings
     [CommandOption("--force")]
     [Description("Specifies whether warning prompts should be bypassed")]
     public bool Force { get; set; }
+
+    [CommandOption("--publish-error-threshold")]
+    [Description("Specifies error threshold for publish using bulk actions. Switches to single entry publish when it is reached.")]
+    public int BulkPublishErrorThreshold { get; set; } = 10;
 }

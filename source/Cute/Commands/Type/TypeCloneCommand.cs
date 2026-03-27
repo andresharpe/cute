@@ -124,6 +124,7 @@ public class TypeCloneCommand(IConsoleWriter console, ILogger<TypeCloneCommand> 
             .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
             .WithConcurrentTaskLimit(settings.EntriesPerBatch)
             .WithApplyChanges(settings.Publish)
+            .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         };
 
         await PerformBulkOperations(bulkActions.ToArray());

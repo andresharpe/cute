@@ -36,6 +36,10 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
         [CommandOption("--max-call-limit")]
         [Description("Specifies maximum limit of chunks sent at a time. Default is 5.")]
         public int MaxCallLimit { get; set; } = 5;
+
+        [CommandOption("--publish-singles")]
+        [Description("Specifies whether to publish entries one by one instead of bulk action")]
+        public bool PublishSingles { get; set; } = false;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -64,6 +68,8 @@ public class ContentPublishCommand(IConsoleWriter console, ILogger<ContentPublis
                     .WithApplyChanges(!settings.NoPublish)
                     .WithPublishChunkSize(settings.ChunkSize)
                     .WithBulkActionCallLimit(settings.MaxCallLimit)
+                    .WithPublishSingles(settings.PublishSingles)
+                    .WithErrorThreshold(settings.BulkPublishErrorThreshold)
             ]
         );
 

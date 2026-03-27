@@ -140,6 +140,7 @@ public class TypeRenameCommand(IConsoleWriter console, ILogger<TypeRenameCommand
                     .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                     .WithDisplayAction(m => _console.WriteNormalWithHighlights(m, Globals.StyleHeading))
                     .WithApplyChanges(settings.Publish)
+                    .WithErrorThreshold(settings.BulkPublishErrorThreshold)
             ]
         );
 

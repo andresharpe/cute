@@ -203,6 +203,7 @@ public class ContentSetDefaultValueCommand(IConsoleWriter console, ILogger<Conte
             .WithVerbosity(settings.Verbosity)
             .WithApplyChanges(!settings.NoPublish)
             .WithUseSession(settings.UseSession)
+            .WithErrorThreshold(settings.BulkPublishErrorThreshold)
         ]);
 
         return 0;

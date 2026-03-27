@@ -76,6 +76,7 @@ public class ContentTestDataCommand(IConsoleWriter console, ILogger<ContentTestD
                     .WithContentLocales(contentLocales)
                     .WithVerbosity(settings.Verbosity)
                     .WithApplyChanges(true)
+                    .WithErrorThreshold(settings.BulkPublishErrorThreshold)
 
             ]
         );

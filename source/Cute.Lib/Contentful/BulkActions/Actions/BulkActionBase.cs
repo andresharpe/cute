@@ -26,6 +26,10 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
     protected readonly HttpClient _httpClient = httpClient;
 
+    protected bool _publishSingles = false;
+
+    protected int _errorThreshold = 10;
+
     protected string? _contentTypeId;
 
     protected ContentType? _contentType;
@@ -105,6 +109,21 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
     public BulkActionBase WithConcurrentTaskLimit(int concurrentTaskLimit)
     {
         _concurrentTaskLimit = concurrentTaskLimit;
+        return this;
+    }
+
+    public BulkActionBase WithErrorThreshold(int errorThreshold)
+    {
+        if (_errorThreshold > 0)
+        {
+            _errorThreshold = errorThreshold;
+        }
+        return this;
+    }
+
+    public BulkActionBase WithPublishSingles(bool publishSingles)
+    {
+        _publishSingles = publishSingles;
         return this;
     }
 
@@ -198,8 +217,14 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         var i = 0;
 
+        var query = new EntryQuery.Builder()
+            .WithContentType(contentTypeId)
+            .WithIncludeLevels(0)
+            .WithQueryString($"select=sys.id,sys.publishedAt,sys.publishedVersion,sys.archivedVersion,sys.version,fields.{displayField}")
+            .Build();
+
         await foreach (var (entry, total) in
-            _contentfulConnection.GetManagementEntries<Entry<JObject>>(_contentType))
+            _contentfulConnection.GetManagementEntries<Entry<JObject>>(query))
         {
             var displayFieldValue = entry.Fields[displayField]?[_contentLocales.DefaultLocale]?.Value<string>() ?? string.Empty;
 
@@ -238,6 +263,10 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         var totalCount = items.Count;
 
+        var errorCount = 0;
+
+        var exceptionFailedItems = new List<BulkItem>();
+
         var chunkQueue = new ConcurrentQueue<BulkItem[]>();
 
         foreach (var chunk in items.Chunk(_publishChunkSize))
@@ -247,17 +276,55 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         while (!chunkQueue.IsEmpty || bulkActionIds.Count != 0)
         {
+            if (errorCount >= _errorThreshold)
+            {
+                var remainingItems = new List<BulkItem>(exceptionFailedItems);
+
+                while (chunkQueue.TryDequeue(out var remainingChunk))
+                {
+                    remainingItems.AddRange(remainingChunk);
+                }
+
+                foreach (var pending in bulkActionIds)
+                {
+                    remainingItems.AddRange(pending.Value.Items);
+                }
+
+                bulkActionIds.Clear();
+
+                if (remainingItems.Count > 0)
+                {
+                    NotifyUserInterface($"Error threshold ({_errorThreshold}) reached with {errorCount} errors. Switching to single-entry {bulkAction.ToString().ToLower()} for {remainingItems.Count} remaining entries...", progressUpdater);
+
+                    await ChangePublishRequiredEntriesSingly(remainingItems, bulkAction, progressUpdater);
+                }
+
+                break;
+            }
+
             processed += _publishChunkSize;
 
             if (!chunkQueue.TryDequeue(out var chunk)) continue;
 
-            var bulkRequest = await BuildBulkRequest(chunk, bulkAction, progressUpdater);
+            try
+            {
+                var bulkRequest = await BuildBulkRequest(chunk, bulkAction, progressUpdater);
 
-            if (bulkRequest is null) continue;
+                if (bulkRequest is null) continue;
 
-            var (BulkRequestId, Response, Items) = bulkRequest.Value;
+                var (BulkRequestId, Response, Items) = bulkRequest.Value;
 
-            bulkActionIds.Add(BulkRequestId, new(Response.Sys.Status, Response, Items));
+                bulkActionIds.Add(BulkRequestId, new(Response.Sys.Status, Response, Items));
+            }
+            catch (Exception ex)
+            {
+                errorCount++;
+                exceptionFailedItems.AddRange(chunk);
+
+                NotifyUserInterfaceOfError($"Exception during bulk {bulkAction.ToString().ToLower()} request: {ex.Message}", progressUpdater);
+
+                continue;
+            }
 
             if (bulkActionIds.Count < _bulkActionCallLimit && !chunkQueue.IsEmpty)
             {
@@ -272,7 +339,22 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
                 {
                     delay += _millisecondsBetweenCalls;
 
-                    var bulkActionStatus = await SendBulkActionStatusRequestViaHttp(bulkActionId.Key, progressUpdater);
+                    BulkActionResponse bulkActionStatus;
+
+                    try
+                    {
+                        bulkActionStatus = await SendBulkActionStatusRequestViaHttp(bulkActionId.Key, progressUpdater);
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+
+                        NotifyUserInterfaceOfError($"Exception checking bulk action status '{bulkActionId.Key}': {ex.Message}", progressUpdater);
+
+                        if (errorCount >= _errorThreshold) break;
+
+                        continue;
+                    }
 
                     var status = bulkActionStatus.Sys.Status;
 
@@ -293,6 +375,8 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
                     }
                     else if (status == "failed")
                     {
+                        errorCount++;
+
                         NotifyUserInterfaceOfError($"Bulk action '{bulkActionId.Key}' failed. Reason:'{bulkActionStatus.Error?.Sys?.Id}'", progressUpdater);
 
                         bulkActionIds.Remove(bulkActionId.Key);
@@ -305,6 +389,13 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
                     }
                 }
 
+                if (errorCount >= _errorThreshold) break;
+
+                if (bulkActionIds.Count > 0)
+                {
+                    await Task.Delay(Math.Max(delay, _millisecondsBetweenCalls));
+                }
+
                 progressUpdater?.Invoke(new(totalSucceded, totalCount, null, null));
 
                 if (bulkActionIds.Count < _bulkActionCallLimit && !chunkQueue.IsEmpty)
@@ -315,6 +406,78 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
         }
 
         progressUpdater?.Invoke(new(totalSucceded, totalCount, null, null));
+    }
+
+    protected async Task ChangePublishRequiredEntriesSingly(List<BulkItem> items, BulkAction bulkAction,
+        Action<BulkActionProgressEvent>? progressUpdater)
+    {
+        var spaceId = (await _contentfulConnection.GetDefaultSpaceAsync()).SystemProperties.Id;
+        var environmentId = (await _contentfulConnection.GetDefaultEnvironmentAsync()).SystemProperties.Id;
+
+        var totalCount = items.Count;
+        var totalSucceeded = 0;
+        var totalFailed = 0;
+
+        // Process items in batches to avoid creating one Task per item up-front.
+        for (var i = 0; i < items.Count; i += _bulkActionCallLimit)
+        {
+            var batch = items.Skip(i).Take(_bulkActionCallLimit).ToList();
+
+            var tasks = batch.Select(async item =>
+            {
+                try
+                {
+                    var entryId = item.Sys.Id;
+                    var endpoint = new Uri($"https://api.contentful.com/spaces/{spaceId}/environments/{environmentId}/entries/{entryId}/published");
+
+                    var method = bulkAction == BulkAction.Publish ? HttpMethod.Put : HttpMethod.Delete;
+
+                    var request = new HttpRequestMessage
+                    {
+                        RequestUri = endpoint,
+                        Method = method,
+                    };
+
+                    if (bulkAction == BulkAction.Publish)
+                    {
+                        request.Headers.Add("X-Contentful-Version", (item.Sys.Version ?? 1).ToString());
+                    }
+
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _contentfulConnection.ManagementApiKey);
+
+                    using var response = await ContentfulConnection.RateLimiter.SendRequestAsync(
+                        () => _httpClient.SendAsync(request),
+                        $"Sending single {bulkAction.ToString().ToLower()} request for entry '{entryId}'...",
+                        (m) => NotifyUserInterface(m),
+                        (m) => NotifyUserInterfaceOfError(m, progressUpdater)
+                    );
+
+                    if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                    {
+                        NotifyUserInterface($"Entry '{entryId}' skipped due to version conflict (409).", progressUpdater);
+                        return;
+                    }
+
+                    response.EnsureSuccessStatusCode();
+
+                    var succeeded = Interlocked.Increment(ref totalSucceeded);
+
+                    NotifyUserInterface($"Entry '{entryId}' {bulkAction.ToString().ToLower()}ed (Succeeded={succeeded}/{totalCount})", progressUpdater);
+
+                    progressUpdater?.Invoke(new(succeeded, totalCount, null, null));
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref totalFailed);
+
+                    NotifyUserInterfaceOfError($"Failed to {bulkAction.ToString().ToLower()} entry '{item.Sys.Id}': {ex.Message}", progressUpdater);
+                }
+            });
+
+            await Task.WhenAll(tasks);
+        }
+
+        progressUpdater?.Invoke(new(totalSucceeded, totalCount, null, null));
     }
 
     private async Task<(string BulkRequestId, BulkActionResponse Response, BulkItem[] Items)?> BuildBulkRequest(BulkItem[] chunk,
@@ -435,7 +598,14 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
 
         progressUpdater?.Invoke(new(0, count, $"Publishing {entries.Count} entries...", null));
 
-        await ChangePublishRequiredEntries(entries, BulkAction.Publish, progressUpdater);
+        if (_publishSingles)
+        {
+            await ChangePublishRequiredEntriesSingly(entries, BulkAction.Publish, progressUpdater);
+        }
+        else
+        {
+            await ChangePublishRequiredEntries(entries, BulkAction.Publish, progressUpdater);
+        }
 
         count = Math.Max(count, 1);
 

@@ -281,7 +281,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         .WithContentType(contentType)
                         .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
                         .WithVerbosity(settings.Verbosity)
-                        .WithApplyChanges(!settings.NoPublish),
+                        .WithApplyChanges(!settings.NoPublish)
+                        .WithErrorThreshold(settings.BulkPublishErrorThreshold),
                 ]
             );
 

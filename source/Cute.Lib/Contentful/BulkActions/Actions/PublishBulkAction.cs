@@ -3,6 +3,7 @@
 public class PublishBulkAction(ContentfulConnection contentfulConnection, HttpClient httpClient)
     : BulkActionBase(contentfulConnection, httpClient)
 {
+
     public override IList<ActionProgressIndicator> ActionProgressIndicators() =>
     [
         new() { Intent = "Getting entries..." },
