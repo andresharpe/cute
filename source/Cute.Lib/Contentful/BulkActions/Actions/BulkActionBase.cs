@@ -226,6 +226,12 @@ public abstract class BulkActionBase(ContentfulConnection contentfulConnection, 
         await foreach (var (entry, total) in
             _contentfulConnection.GetManagementEntries<Entry<JObject>>(query))
         {
+            // Skip empty entries
+            if (entry.Fields == null || entry.Fields.Count == 0)
+            {
+                continue;
+            }
+
             var displayFieldValue = entry.Fields[displayField]?[_contentLocales.DefaultLocale]?.Value<string>() ?? string.Empty;
 
             allItems.Add(new BulkItem()
