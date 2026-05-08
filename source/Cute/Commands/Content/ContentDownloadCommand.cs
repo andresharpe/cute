@@ -31,6 +31,14 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
         [CommandOption("-p|--path <PATH>")]
         [Description("The output path and filename for the download operation")]
         public string? Path { get; set; }
+
+        [CommandOption("--filter-field")]
+        [Description("The field to update.")]
+        public string FilterField { get; set; } = null!;
+
+        [CommandOption("--filter-field-value")]
+        [Description("The value to update it with. Can contain an expression.")]
+        public string FilterFieldValue { get; set; } = null!;
     }
 
     public override ValidationResult Validate(CommandContext context, Settings settings)
@@ -75,6 +83,19 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
             _ => throw new NotImplementedException(),
         };
 
+        string queryString = string.Empty;
+        if (!string.IsNullOrEmpty(settings.FilterField))
+        {
+            if (string.IsNullOrEmpty(settings.FilterFieldValue))
+            {
+                throw new CliException($"The filter field value is required when using the filter field.");
+            }
+            else
+            {
+                queryString = $"fields.{settings.FilterField}={settings.FilterFieldValue}";
+            }
+        }
+
         await ProgressBars.Instance()
             .AutoClear(false)
             .StartAsync(async ctx =>
@@ -98,7 +119,20 @@ public class ContentDownloadCommand(IConsoleWriter console, ILogger<ContentDownl
 
                 taskExtract.MaxValue = 1;
 
-                var enumerable = ContentfulConnection.GetManagementEntries<Entry<JObject>>(contentType);
+
+                var queryBuilder = new EntryQuery.Builder()
+                    .WithContentType(settings.ContentTypeId)
+                    .WithPageSize(100)
+                    .WithLocale("*")
+                    .WithIncludeLevels(0);
+
+                if (!string.IsNullOrEmpty(queryString))
+                {
+                    queryBuilder.WithQueryString(queryString);
+                }
+
+                var enumerable = ContentfulConnection.GetManagementEntries<Entry<JObject>>(queryBuilder.Build());
+
 
                 await foreach (var (entry, total) in enumerable)
                 {
