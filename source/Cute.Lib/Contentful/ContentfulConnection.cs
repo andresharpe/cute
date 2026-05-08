@@ -14,9 +14,11 @@ namespace Cute.Lib.Contentful;
 public class ContentfulConnection
 {
     public ContentfulConnection(HttpClient httpClient,
+        IContentfulClientFactory clientFactory,
         IContentfulOptionsProvider contentfulOptionsProvider)
     {
-        _httpClient = httpClient;
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         _contentfulOptions = contentfulOptionsProvider.GetContentfulOptions();
         Builder.InitializeLazies(this);
     }
@@ -27,10 +29,11 @@ public class ContentfulConnection
     private static readonly RateLimiter rateLimiter = new(requestsPerBatch: 7);
 
     private HttpClient _httpClient = null!;
+    private IContentfulClientFactory _clientFactory = null!;
     private ContentfulOptions _contentfulOptions = null!;
-    private ContentfulClient _contentfulDeliveryClient = null!;
-    private ContentfulClient _contentfulPreviewClient = null!;
-    private ContentfulManagementClient _contentfulManagementClient = null!;
+    private IContentfulClient _contentfulDeliveryClient = null!;
+    private IContentfulClient _contentfulPreviewClient = null!;
+    private IContentfulManagementClient _contentfulManagementClient = null!;
 
     private Lazy<Task<IEnumerable<ContentType>>> _contentTypes = null!;
     private Lazy<Task<IEnumerable<Locale>>> _locales = null!;
@@ -330,6 +333,17 @@ public class ContentfulConnection
         _contentTypes = new(GetContentTypes, true);
     }
 
+    /// <summary>
+    /// Reconfigures the connection with a new set of options (e.g. after a successful login)
+    /// and rebuilds the underlying SDK clients via the existing <see cref="IContentfulClientFactory"/>.
+    /// All lazy caches are reset.
+    /// </summary>
+    public void ReconfigureWith(ContentfulOptions contentfulOptions)
+    {
+        _contentfulOptions = contentfulOptions ?? throw new ArgumentNullException(nameof(contentfulOptions));
+        Builder.InitializeLazies(this);
+    }
+
     public class Builder
     {
         private readonly ContentfulConnection _contentfulConnection = new();
@@ -337,6 +351,12 @@ public class ContentfulConnection
         public Builder WithHttpClient(HttpClient httpClient)
         {
             _contentfulConnection._httpClient = httpClient;
+            return this;
+        }
+
+        public Builder WithClientFactory(IContentfulClientFactory clientFactory)
+        {
+            _contentfulConnection._clientFactory = clientFactory;
             return this;
         }
 
@@ -360,6 +380,10 @@ public class ContentfulConnection
             _ = _contentfulConnection._contentfulOptions
                 ?? throw new ArgumentNullException($"Call '{nameof(WithOptionsProvider)}' before calling '{nameof(Build)}'.");
 
+            // Fall back to the default factory if a custom one wasn't supplied.
+            // This keeps existing call sites working while allowing tests to inject a mock factory.
+            _contentfulConnection._clientFactory ??= new ContentfulClientFactory(_contentfulConnection._httpClient);
+
             InitializeLazies(_contentfulConnection);
 
             return _contentfulConnection;
@@ -367,18 +391,18 @@ public class ContentfulConnection
 
         internal static void InitializeLazies(ContentfulConnection contentfulConnection)
         {
+            var factory = contentfulConnection._clientFactory
+                ?? throw new InvalidOperationException(
+                    $"{nameof(IContentfulClientFactory)} has not been configured on the connection.");
+
             contentfulConnection._contentfulManagementClient =
-                new ContentfulManagementClient(contentfulConnection._httpClient, contentfulConnection._contentfulOptions);
+                factory.CreateManagementClient(contentfulConnection._contentfulOptions);
 
             contentfulConnection._contentfulDeliveryClient =
-                new ContentfulClient(contentfulConnection._httpClient, contentfulConnection._contentfulOptions);
-
-            var previewOptions = contentfulConnection.Options;
-            //previewOptions.DeliveryApiKey = previewOptions.PreviewApiKey;
-            previewOptions.UsePreviewApi = true;
+                factory.CreateDeliveryClient(contentfulConnection._contentfulOptions);
 
             contentfulConnection._contentfulPreviewClient =
-                new ContentfulClient(contentfulConnection._httpClient, previewOptions);
+                factory.CreatePreviewClient(contentfulConnection._contentfulOptions);
 
             contentfulConnection._contentTypes =
                 new(contentfulConnection.GetContentTypes, true);

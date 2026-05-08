@@ -248,6 +248,7 @@ public class CommandAppBuilder
         services.AddSingleton(_appSettings);
         services.AddSingleton(_appSettings.GetSettings());
         services.AddSingleton<IContentfulOptionsProvider>(_appSettings);
+        services.AddSingleton<IContentfulClientFactory, ContentfulClientFactory>();
         services.AddTransient<ContentfulConnection>();
         services.AddSingleton<IAzureOpenAiOptionsProvider>(_appSettings);
         services.AddSingleton<TranslateFactory>();

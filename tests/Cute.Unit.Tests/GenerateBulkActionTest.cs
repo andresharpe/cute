@@ -31,7 +31,11 @@ public class GenerateBulkActionTest
             .LoadAsync(Globals.AppName)
             .Result!;
 
-        _contentfulConnection = new ContentfulConnection(new HttpClient(), _appSettings);
+        var contentfulHttpClient = new HttpClient();
+        _contentfulConnection = new ContentfulConnection(
+            contentfulHttpClient,
+            new ContentfulClientFactory(contentfulHttpClient),
+            _appSettings);
 
         _openAiEndpoint = _appSettings.OpenAiEndpoint;
 

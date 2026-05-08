@@ -24,14 +24,18 @@ public class AutoGraphQlQueryBuilderTests
             .LoadAsync(Globals.AppName)
             .Result!;
 
-        _contentfulConnection = new ContentfulConnection(new HttpClient(), _appSettings);
+        var httpClient = new HttpClient();
+        _contentfulConnection = new ContentfulConnection(
+            httpClient,
+            new ContentfulClientFactory(httpClient),
+            _appSettings);
     }
 
     [Fact]
     public void ExtractScribanVariablesFromQuery_Returns_ExtractedVariables()
     {
         string templateContent = """
-            {{contentGeo.name}} Widgets to buy in {{contentGeo.dataGeoEntry.title}} - {{ contentGeo.dataBrandEntry.key }} | Blah, blah, blah
+            {{contentGeo.name}} Widgets to buy in {{contentGeo.dataGeoEntry.name}} - {{ contentGeo.dataBrandEntry.key }} | Blah, blah, blah
             """;
 
         var builder = new AutoGraphQlQueryBuilder(_contentfulConnection)
@@ -47,7 +51,7 @@ public class AutoGraphQlQueryBuilderTests
                   name
                   dataGeoEntry {
                     sys { id }
-                    title
+                    name
                   }
                   dataBrandEntry {
                     sys { id }
