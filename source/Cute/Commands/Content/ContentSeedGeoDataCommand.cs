@@ -18,6 +18,7 @@ using Cute.UiComponents;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
+using SharpCompress.Archives;
 using SharpCompress.Archives.SevenZip;
 using SharpCompress.Readers;
 using Spectre.Console;
@@ -333,7 +334,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             }
 
             var readerOptions = new ReaderOptions { Password = password };
-            var archive = SevenZipArchive.Open(tempFilePath, readerOptions);
+            var archive = SevenZipArchive.OpenArchive(tempFilePath, readerOptions);
 
             foreach (var entry in archive.Entries)
             {
@@ -361,9 +362,9 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
     private class TemporaryFileStreamReader : StreamReader
     {
         private readonly string _tempFilePath;
-        private readonly SevenZipArchive _archive;
+        private readonly IArchive _archive;
 
-        public TemporaryFileStreamReader(Stream stream, string tempFilePath, SevenZipArchive archive) : base(stream)
+        public TemporaryFileStreamReader(Stream stream, string tempFilePath, IArchive archive) : base(stream)
         {
             _tempFilePath = tempFilePath;
             _archive = archive;
