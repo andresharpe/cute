@@ -167,9 +167,9 @@ public class HttpInputAdapter(
 
             if (_adapter.Pagination is not null)
             {
-                getParameters = $"&{_adapter.Pagination.SkipKey}={skipTotal}&{_adapter.Pagination.LimitKey}={_adapter.Pagination.LimitMax}";
+                getParameters = $"&{_adapter.Pagination.SkipKey}={skipTotal}&{_adapter.Pagination.LimitKey}={_adapter.Pagination.PageSize}";
 
-                skipTotal += _adapter.Pagination.LimitMax;
+                skipTotal += _adapter.Pagination.PageSize;
             }
 
             var requestUri = baseAddress + getParameters;
