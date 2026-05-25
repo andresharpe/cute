@@ -58,7 +58,9 @@ namespace Cute.Lib.InputAdapters.Base
                 return null;
             }
 
-            var result = _serializer.CreateNewFlatEntry(_results[_currentRecordIndex]);
+            var overrides = _adapter.Mapping.ToDictionary(k => k.FieldName, k => k.OverwriteNull);
+
+            var result = _serializer.CreateNewFlatEntry(_results[_currentRecordIndex], overrides);
 
             _currentRecordIndex++;
 
