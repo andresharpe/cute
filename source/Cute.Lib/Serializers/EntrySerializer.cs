@@ -87,14 +87,16 @@ public class EntrySerializer
         };
     }
 
-    public IDictionary<string, object?> CreateNewFlatEntry(IDictionary<string, string> flatEntryDefaults)
+    public IDictionary<string, object?> CreateNewFlatEntry(IDictionary<string, string> flatEntryDefaults, Dictionary<string, bool>? fieldOverrides = null)
     {
         var flatEntry = CreateNewFlatEntry();
         foreach (var (key, value) in flatEntryDefaults)
         {
             flatEntry[key] = value;
         }
-        return SerializeEntry(DeserializeEntry(flatEntry)).Where(o => o.Key.StartsWith("sys.") || o.Value is not null).ToDictionary();
+        return SerializeEntry(DeserializeEntry(flatEntry))
+            .Where(o => o.Key.StartsWith("sys.") || o.Value is not null || (fieldOverrides?.GetValueOrDefault(o.Key) == true))
+            .ToDictionary();
     }
 
     public IDictionary<string, object?> SerializeEntry(Entry<JObject> entry, bool includeMissingFieldsInEntry = true)
