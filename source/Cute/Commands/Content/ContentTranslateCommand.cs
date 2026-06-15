@@ -384,15 +384,15 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     continue;
                 }
 
-                foreach (var targetLocale in entryTargetLocales)
+                foreach (var entryTargetLocale in entryTargetLocales)
                 {
-                    if (!translationConfiguration.TryGetValue(targetLocale.Code, out CuteLanguage? cuteLanguage) || cuteLanguage == null)
+                    if (!translationConfiguration.TryGetValue(entryTargetLocale.Code, out CuteLanguage? cuteLanguage) || cuteLanguage == null)
                     {
-                        _console.WriteAlert($"No translation configuration found for locale {targetLocale.Code}");
+                        _console.WriteAlert($"No translation configuration found for locale {entryTargetLocale.Code}");
                         continue;
                     }
 
-                    var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{targetLocale.Code}");
+                    var targetLocaleFieldName = defaultLocaleFieldName.Replace($".{defaultLocale.Code}", $".{entryTargetLocale.Code}");
                     
                     if (!flatEntry.TryGetValue(targetLocaleFieldName, out var flatEntryTargetLocaleValue) || 
                         flatEntryTargetLocaleValue is null || 
