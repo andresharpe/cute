@@ -770,153 +770,169 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             .AutoClear(false)
             .StartAsync(async ctx =>
             {
-                // --- Cache 1: country -> locales ---
-                var taskCountry = ctx.AddTask($"{Emoji.Known.GlobeShowingEuropeAfrica}  Caching country locales (0 fetched)...");
-                taskCountry.IsIndeterminate = true;
-
-                var countryQuery = @"
-                    query GetContent($locale: String, $preview: Boolean, $skip: Int, $limit: Int) {
-                      dataCountryCollection(locale: $locale, preview: $preview, skip: $skip, limit: $limit) {
-                        items {
-                          sys { id }
-                          dataLanguageEntriesCollection {
-                            items {
-                              iso2Code
-                            }
-                          }
-                        }
-                      }
-                    }";
-
-                _countryLocaleCache = new Dictionary<string, List<string>>();
-                int countryCount = 0;
-
-                await foreach (var country in ContentfulConnection.GraphQL.GetDataEnumerable(
-                    countryQuery,
-                    "data.dataCountryCollection.items",
-                    defaultLocaleCode,
-                    preview: true,
-                    pageSize: 500))
-                {
-                    countryCount++;
-                    var countryId = country.SelectToken("sys.id")?.Value<string>();
-                    if (string.IsNullOrEmpty(countryId)) continue;
-
-                    var languageItems = country.SelectToken("dataLanguageEntriesCollection.items") as JArray;
-                    if (languageItems == null) continue;
-
-                    var validIso2Codes = new List<string>();
-                    foreach (var lang in languageItems)
-                    {
-                        var iso2Code = lang.SelectToken("iso2Code")?.Value<string>();
-                        if (string.IsNullOrEmpty(iso2Code)) continue;
-
-                        if (translationConfiguration.TryGetValue(iso2Code, out var cuteLanguage) && cuteLanguage.IsContentfulLocale)
-                        {
-                            validIso2Codes.Add(iso2Code);
-                        }
-                    }
-
-                    _countryLocaleCache[countryId] = validIso2Codes;
-                    taskCountry.Description = $"{Emoji.Known.GlobeShowingEuropeAfrica}  Caching country locales ({countryCount} fetched)...";
-                }
-
-                taskCountry.Description = $"{Emoji.Known.GlobeShowingEuropeAfrica}  Cached {_countryLocaleCache.Count} country locale mappings";
-                taskCountry.IsIndeterminate = false;
-                taskCountry.Value = 100;
-                taskCountry.MaxValue = 100;
-                taskCountry.StopTask();
-
-                // --- Cache 2: entry -> country locales ---
-                var taskEntries = ctx.AddTask($"{Emoji.Known.Link}  Caching entry country mappings (0 fetched)...");
-                taskEntries.IsIndeterminate = true;
-
-                var entryQuerySb = new StringBuilder();
-                entryQuerySb.AppendLine("query GetContent($locale: String, $preview: Boolean, $skip: Int, $limit: Int) {");
-                entryQuerySb.AppendLine($"  {settings.ContentTypeId}Collection(locale: $locale, preview: $preview, skip: $skip, limit: $limit) {{");
-                entryQuerySb.AppendLine("    items {");
-                entryQuerySb.AppendLine("      sys { id }");
-
-                var indent = "      ";
-                for (int i = 0; i < pathToCountry.Count; i++)
-                {
-                    var (fieldId, isArray, _) = pathToCountry[i];
-                    if (isArray)
-                    {
-                        entryQuerySb.AppendLine($"{indent}{fieldId}Collection {{");
-                        entryQuerySb.AppendLine($"{indent}  items {{");
-                        indent += "    ";
-                    }
-                    else
-                    {
-                        entryQuerySb.AppendLine($"{indent}{fieldId} {{");
-                        indent += "  ";
-                    }
-
-                    if (i == pathToCountry.Count - 1)
-                    {
-                        entryQuerySb.AppendLine($"{indent}sys {{ id }}");
-                    }
-                }
-
-                for (int i = pathToCountry.Count - 1; i >= 0; i--)
-                {
-                    var (_, isArray, _) = pathToCountry[i];
-                    if (isArray)
-                    {
-                        indent = indent[..^4];
-                        entryQuerySb.AppendLine($"{indent}  }}");
-                        entryQuerySb.AppendLine($"{indent}}}");
-                    }
-                    else
-                    {
-                        indent = indent[..^2];
-                        entryQuerySb.AppendLine($"{indent}}}");
-                    }
-                }
-
-                entryQuerySb.AppendLine("    }");
-                entryQuerySb.AppendLine("  }");
-                entryQuerySb.AppendLine("}");
-
-                _entryCountryLocaleCache = new Dictionary<string, List<string>>();
-                int entryCount = 0;
-
-                await foreach (var entry in ContentfulConnection.GraphQL.GetDataEnumerable(
-                    entryQuerySb.ToString(),
-                    $"data.{settings.ContentTypeId}Collection.items",
-                    defaultLocaleCode,
-                    preview: true,
-                    pageSize: 500))
-                {
-                    entryCount++;
-                    var entryId = entry.SelectToken("sys.id")?.Value<string>();
-                    if (string.IsNullOrEmpty(entryId)) continue;
-
-                    var countryIds = ExtractCountryIds(entry, pathToCountry, 0);
-                    var entryLocales = new HashSet<string>();
-
-                    foreach (var countryId in countryIds)
-                    {
-                        if (_countryLocaleCache.TryGetValue(countryId, out var locales))
-                        {
-                            foreach (var locale in locales)
-                            {
-                                entryLocales.Add(locale);
-                            }
-                        }
-                    }
-
-                    _entryCountryLocaleCache[entryId] = entryLocales.ToList();
-                    taskEntries.Description = $"{Emoji.Known.Link}  Caching entry country mappings ({entryCount} fetched)...";
-                }
-
-                taskEntries.Description = $"{Emoji.Known.Link}  Cached {_entryCountryLocaleCache.Count} entry locale mappings";
-                taskEntries.IsIndeterminate = false;
-                taskEntries.Value = 100;
-                taskEntries.MaxValue = 100;
-                taskEntries.StopTask();
+                await BuildCountryLocaleCacheAsync(ctx, translationConfiguration, defaultLocaleCode);
+                await BuildEntryCountryLocaleCacheAsync(ctx, settings, pathToCountry, defaultLocaleCode);
             });
+    }
+
+    private async Task BuildCountryLocaleCacheAsync(
+        ProgressContext ctx,
+        Dictionary<string, CuteLanguage> translationConfiguration,
+        string defaultLocaleCode)
+    {
+        // --- Cache 1: country -> locales ---
+        var taskCountry = ctx.AddTask($"{Emoji.Known.GlobeShowingEuropeAfrica}  Caching country locales (0 fetched)...");
+        taskCountry.IsIndeterminate = true;
+
+        var countryQuery = @"
+            query GetContent($locale: String, $preview: Boolean, $skip: Int, $limit: Int) {
+              dataCountryCollection(locale: $locale, preview: $preview, skip: $skip, limit: $limit) {
+                items {
+                  sys { id }
+                  dataLanguageEntriesCollection {
+                    items {
+                      iso2Code
+                    }
+                  }
+                }
+              }
+            }";
+
+        _countryLocaleCache = new Dictionary<string, List<string>>();
+        int countryCount = 0;
+
+        await foreach (var country in ContentfulConnection.GraphQL.GetDataEnumerable(
+            countryQuery,
+            "data.dataCountryCollection.items",
+            defaultLocaleCode,
+            preview: true,
+            pageSize: 500))
+        {
+            countryCount++;
+            var countryId = country.SelectToken("sys.id")?.Value<string>();
+            if (string.IsNullOrEmpty(countryId)) continue;
+
+            var languageItems = country.SelectToken("dataLanguageEntriesCollection.items") as JArray;
+            if (languageItems == null) continue;
+
+            var validIso2Codes = new List<string>();
+            foreach (var lang in languageItems)
+            {
+                var iso2Code = lang.SelectToken("iso2Code")?.Value<string>();
+                if (string.IsNullOrEmpty(iso2Code)) continue;
+
+                if (translationConfiguration.TryGetValue(iso2Code, out var cuteLanguage) && cuteLanguage.IsContentfulLocale)
+                {
+                    validIso2Codes.Add(iso2Code);
+                }
+            }
+
+            _countryLocaleCache[countryId] = validIso2Codes;
+            taskCountry.Description = $"{Emoji.Known.GlobeShowingEuropeAfrica}  Caching country locales ({countryCount} fetched)...";
+        }
+
+        taskCountry.Description = $"{Emoji.Known.GlobeShowingEuropeAfrica}  Cached {_countryLocaleCache.Count} country locale mappings";
+        taskCountry.IsIndeterminate = false;
+        taskCountry.Value = 100;
+        taskCountry.MaxValue = 100;
+        taskCountry.StopTask();
+    }
+
+    private async Task BuildEntryCountryLocaleCacheAsync(
+        ProgressContext ctx,
+        Settings settings,
+        List<(string FieldId, bool IsArray, string LinkedContentTypeId)> pathToCountry,
+        string defaultLocaleCode)
+    {
+        // --- Cache 2: entry -> country locales ---
+        var taskEntries = ctx.AddTask($"{Emoji.Known.Link}  Caching entry country mappings (0 fetched)...");
+        taskEntries.IsIndeterminate = true;
+
+        var entryQuerySb = new StringBuilder();
+        entryQuerySb.AppendLine("query GetContent($locale: String, $preview: Boolean, $skip: Int, $limit: Int) {");
+        entryQuerySb.AppendLine($"  {settings.ContentTypeId}Collection(locale: $locale, preview: $preview, skip: $skip, limit: $limit) {{");
+        entryQuerySb.AppendLine("    items {");
+        entryQuerySb.AppendLine("      sys { id }");
+
+        var indent = "      ";
+        for (int i = 0; i < pathToCountry.Count; i++)
+        {
+            var (fieldId, isArray, _) = pathToCountry[i];
+            if (isArray)
+            {
+                entryQuerySb.AppendLine($"{indent}{fieldId}Collection {{");
+                entryQuerySb.AppendLine($"{indent}  items {{");
+                indent += "    ";
+            }
+            else
+            {
+                entryQuerySb.AppendLine($"{indent}{fieldId} {{");
+                indent += "  ";
+            }
+
+            if (i == pathToCountry.Count - 1)
+            {
+                entryQuerySb.AppendLine($"{indent}sys {{ id }}");
+            }
+        }
+
+        for (int i = pathToCountry.Count - 1; i >= 0; i--)
+        {
+            var (_, isArray, _) = pathToCountry[i];
+            if (isArray)
+            {
+                indent = indent[..^4];
+                entryQuerySb.AppendLine($"{indent}  }}");
+                entryQuerySb.AppendLine($"{indent}}}");
+            }
+            else
+            {
+                indent = indent[..^2];
+                entryQuerySb.AppendLine($"{indent}}}");
+            }
+        }
+
+        entryQuerySb.AppendLine("    }");
+        entryQuerySb.AppendLine("  }");
+        entryQuerySb.AppendLine("}");
+
+        _entryCountryLocaleCache = new Dictionary<string, List<string>>();
+        int entryCount = 0;
+
+        await foreach (var entry in ContentfulConnection.GraphQL.GetDataEnumerable(
+            entryQuerySb.ToString(),
+            $"data.{settings.ContentTypeId}Collection.items",
+            defaultLocaleCode,
+            preview: true,
+            pageSize: 500))
+        {
+            entryCount++;
+            var entryId = entry.SelectToken("sys.id")?.Value<string>();
+            if (string.IsNullOrEmpty(entryId)) continue;
+
+            var countryIds = ExtractCountryIds(entry, pathToCountry, 0);
+            var entryLocales = new HashSet<string>();
+
+            foreach (var countryId in countryIds)
+            {
+                if (_countryLocaleCache!.TryGetValue(countryId, out var locales))
+                {
+                    foreach (var locale in locales)
+                    {
+                        entryLocales.Add(locale);
+                    }
+                }
+            }
+
+            _entryCountryLocaleCache[entryId] = entryLocales.ToList();
+            taskEntries.Description = $"{Emoji.Known.Link}  Caching entry country mappings ({entryCount} fetched)...";
+        }
+
+        taskEntries.Description = $"{Emoji.Known.Link}  Cached {_entryCountryLocaleCache.Count} entry locale mappings";
+        taskEntries.IsIndeterminate = false;
+        taskEntries.Value = 100;
+        taskEntries.MaxValue = 100;
+        taskEntries.StopTask();
     }
 
     private static List<string> ExtractCountryIds(
