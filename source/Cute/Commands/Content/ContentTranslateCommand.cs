@@ -159,11 +159,11 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     continue;
                 }
 
-                foreach (var targetLocale in glossaryLocales)
+                foreach (var glossaryLocale in glossaryLocales)
                 {
-                    if (entry.Fields.Title.TryGetValue(targetLocale.Code, out var value) && !string.IsNullOrEmpty(value))
+                    if (entry.Fields.Title.TryGetValue(glossaryLocale.Code, out var value) && !string.IsNullOrEmpty(value))
                     {
-                        glossary[targetLocale.Code][key] = value;
+                        glossary[glossaryLocale.Code][key] = value;
                     }
                 }
             }
@@ -189,7 +189,6 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 {
                     var taskTranslate = ctx.AddTask($"{Emoji.Known.Robot}  Translating (0 symbols translated)");
 
-                    var targetLocaleCodes = targetLocales.Select(tl => tl.Code).ToArray();
                     var serializer = new EntrySerializer(contentType, allContentLocales);
                     var fieldMappings = BuildFieldMappings(defaultLocale.Code, targetLocales, fieldsToTranslate);
                     var progressLocaleCount = settings.UseCountryLocale ? allNonDefaultLocales.Count : targetLocales.Count;
@@ -226,11 +225,9 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         {
                             var (batchSymbols, batchNeedsPublish, batchFailures) = await ProcessEntryBatch(
                                 entryBatch, 
-                                serializer, 
-                                fieldMappings, 
+                                serializer,  
                                 fieldsToTranslate, 
                                 targetLocales, 
-                                targetLocaleCodes, 
                                 defaultLocale, 
                                 translationConfiguration, 
                                 settings, 
@@ -262,10 +259,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                         var (batchSymbols, batchNeedsPublish, batchFailures) = await ProcessEntryBatch(
                             entryBatch, 
                             serializer, 
-                            fieldMappings, 
                             fieldsToTranslate, 
                             targetLocales, 
-                            targetLocaleCodes, 
                             defaultLocale, 
                             translationConfiguration, 
                             settings, 
@@ -329,10 +324,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
     private async Task<(long symbols, bool needsPublish, Dictionary<string, List<string>> failures)> ProcessEntryBatch(
         List<Entry<JObject>> entries,
         EntrySerializer serializer,
-        Dictionary<string, string> fieldMappings,
         List<Field> fieldsToTranslate,
         dynamic targetLocales,
-        string[] targetLocaleCodes,
         dynamic defaultLocale,
         Dictionary<string, CuteLanguage> translationConfiguration,
         Settings settings,
@@ -498,7 +491,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 if (entryChanged)
                 {
                     needsPublish = true;
-                    var perEntryLocaleCodes = entryResolvedLocaleCodes.TryGetValue(entryId, out var codes) ? codes : targetLocaleCodes;
+                    var perEntryLocaleCodes = entryResolvedLocaleCodes[entryId];
                     updateTasks.Add(UpdateEntryAsync(entryId, originalEntry, flatEntry, serializer, fieldsToTranslate, perEntryLocaleCodes, throttler));
                 }
             }
