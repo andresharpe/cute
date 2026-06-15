@@ -1,4 +1,5 @@
 using Contentful.Core.Models;
+using Contentful.Core.Models.Management;
 using Cute.Commands.BaseCommands;
 using Cute.Config;
 using Cute.Lib.Contentful;
@@ -12,11 +13,13 @@ using Cute.Services;
 using Cute.Services.Translation.Factories;
 using Cute.Services.Translation.Interfaces;
 using Cute.UiComponents;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Linq;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Text;
 
 namespace Cute.Commands.Content;
 
@@ -28,6 +31,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
     private readonly ConcurrentDictionary<TranslationService, ITranslator> _translatorCache = new();
     private readonly List<(string entryId, Entry<dynamic> entry, int version)> _pendingUpdates = new();
     private bool useCustomModel = false;
+    private Dictionary<string, List<string>>? _countryLocaleCache;
+    private Dictionary<string, List<string>>? _entryCountryLocaleCache;
 
     public class Settings : ContentCommandSettings
     {
@@ -62,6 +67,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("--fallback-service")]
         [Description("Fallback translation service (Azure, Google, Deepl, GPT4o), in case configured one doesn't return a value. Will translate without a custom model and glossary")]
         public TranslationService? FallbackService { get; set; } = null;
+
+        [CommandOption("--use-country-locale")]
+        [Description("When enabled, determines target locales per entry based on its linked dataCountry")]
+        public bool UseCountryLocale { get; set; } = false;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
@@ -78,11 +87,14 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         var contentLocales = await ContentfulConnection.GetLocalesAsync();
         var allContentLocales = new ContentLocales(contentLocales.Select(c => c.Code).ToArray(), defaultLocale.Code);
 
-        var targetLocales = (contentLocales).Where(k => k.Code != defaultLocale.Code).ToList();
+        var allNonDefaultLocales = contentLocales.Where(k => k.Code != defaultLocale.Code).ToList();
+        var targetLocales = new List<Locale>(allNonDefaultLocales);
         if(settings.Locales?.Length > 0)
         {
             targetLocales = targetLocales.Where(k => settings.Locales.Contains(k.Code)).ToList();
         }
+
+        var localesExplicitlyPassed = targetLocales.Count != allNonDefaultLocales.Count;
 
         var invalidFields = settings.Fields?.Except(fieldsToTranslate.Select(f => f.Id)).ToList();
         var invalidLocales = settings.Locales?.Except(targetLocales.Select(k => k.Code)).ToList();
@@ -126,13 +138,19 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 x => x
             );
 
+        if (settings.UseCountryLocale)
+        {
+            await BuildCountryLocaleCachesAsync(settings, translationConfiguration, defaultLocale.Code);
+        }
+
         Dictionary<string, Dictionary<string, string>>? glossary = null;
 
         if (settings.UseGlossary)
         {
             var glossaryEnumerator = ContentfulConnection.GetManagementEntries<Entry<CuteTranslationGlossary>>("cuteTranslationGlossary");
 
-            glossary = targetLocales.ToDictionary(x => x.Code, x => new Dictionary<string, string>());
+            var glossaryLocales = settings.UseCountryLocale ? allNonDefaultLocales : targetLocales;
+            glossary = glossaryLocales.ToDictionary(x => x.Code, x => new Dictionary<string, string>());
 
             await foreach (var (entry, total) in glossaryEnumerator!)
             {
@@ -141,7 +159,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     continue;
                 }
 
-                foreach (var targetLocale in targetLocales)
+                foreach (var targetLocale in glossaryLocales)
                 {
                     if (entry.Fields.Title.TryGetValue(targetLocale.Code, out var value) && !string.IsNullOrEmpty(value))
                     {
@@ -174,6 +192,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     var targetLocaleCodes = targetLocales.Select(tl => tl.Code).ToArray();
                     var serializer = new EntrySerializer(contentType, allContentLocales);
                     var fieldMappings = BuildFieldMappings(defaultLocale.Code, targetLocales, fieldsToTranslate);
+                    var progressLocaleCount = settings.UseCountryLocale ? allNonDefaultLocales.Count : targetLocales.Count;
 
                     var queryBuilder = new EntryQuery.Builder()
                         .WithContentType(settings.ContentTypeId)
@@ -197,7 +216,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     {
                         if (taskTranslate.MaxValue == 1)
                         {
-                            taskTranslate.MaxValue = total * targetLocales.Count * fieldsToTranslate.Count;
+                            taskTranslate.MaxValue = total * progressLocaleCount * fieldsToTranslate.Count;
                             totalEntries = total;
                         }
 
@@ -217,7 +236,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                                 settings, 
                                 throttler,
                                 taskTranslate,
-                                glossary);
+                                glossary,
+                                allNonDefaultLocales,
+                                localesExplicitlyPassed,
+                                progressLocaleCount);
                             
                             symbols += batchSymbols;
                             needToPublish = needToPublish || batchNeedsPublish;
@@ -249,7 +271,10 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                             settings, 
                             throttler,
                             taskTranslate,
-                            glossary);
+                            glossary,
+                            allNonDefaultLocales,
+                            localesExplicitlyPassed,
+                            progressLocaleCount);
                         
                         symbols += batchSymbols;
                         needToPublish = needToPublish || batchNeedsPublish;
@@ -313,13 +338,20 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         Settings settings,
         SemaphoreSlim throttler,
         ProgressTask taskTranslate,
-        Dictionary<string, Dictionary<string, string>>? glossary = null)
+        Dictionary<string, Dictionary<string, string>>? glossary = null,
+        List<Locale>? allNonDefaultLocales = null,
+        bool localesExplicitlyPassed = false,
+        int progressLocaleCount = 0)
     {
         long symbols = 0;
         bool needsPublish = false;
         var failures = new Dictionary<string, List<string>>();
         var allTranslationRequests = new List<(string text, string sourceLocale, CuteLanguage targetLanguage, string targetField, TranslationService service, TranslationService? fallbackService, string entryId, string requestId)>();
         var entryFlatData = new Dictionary<string, (Entry<JObject> originalEntry, Dictionary<string, object?> flatEntry)>();
+        var entryResolvedLocaleCodes = new Dictionary<string, string[]>();
+
+        var useCountryLocale = _entryCountryLocaleCache != null && allNonDefaultLocales != null;
+        var maxLocaleCount = progressLocaleCount > 0 ? progressLocaleCount : ((List<Locale>)targetLocales).Count;
 
         // First pass: collect all translation requests
         foreach (var entry in entries)
@@ -327,6 +359,19 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             var entryId = entry.SystemProperties.Id;
             var flatEntry = serializer.SerializeEntry(entry);
             entryFlatData[entryId] = (entry, new Dictionary<string, object?>(flatEntry));
+
+            // Resolve per-entry target locales
+            var entryTargetLocales = useCountryLocale
+                ? GetTargetLocalesForEntry(entryId, (List<Locale>)targetLocales, allNonDefaultLocales!, localesExplicitlyPassed)
+                : (List<Locale>)targetLocales;
+
+            if (entryTargetLocales.IsNullOrEmpty())
+            {
+                taskTranslate.Increment(maxLocaleCount);
+                continue;
+            }
+
+            entryResolvedLocaleCodes[entryId] = entryTargetLocales.Select(l => l.Code).ToArray();
 
             var defaultLocaleFieldNames = flatEntry.Keys
                 .Where(k => k.Contains($".{defaultLocale.Code}"))
@@ -342,11 +387,11 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
                 if (flatEntryDefaultLocaleValue is not string || string.IsNullOrEmpty(defaultLocaleFieldValue))
                 {
-                    taskTranslate.Increment(targetLocales.Count);
+                    taskTranslate.Increment(maxLocaleCount);
                     continue;
                 }
 
-                foreach (var targetLocale in targetLocales)
+                foreach (var targetLocale in entryTargetLocales)
                 {
                     if (!translationConfiguration.TryGetValue(targetLocale.Code, out CuteLanguage? cuteLanguage) || cuteLanguage == null)
                     {
@@ -381,6 +426,13 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     }
                     
                     taskTranslate.Increment(1);
+                }
+
+                // Pad progress for entries with fewer locales
+                var localeDiff = maxLocaleCount - entryTargetLocales.Count;
+                if (localeDiff > 0)
+                {
+                    taskTranslate.Increment(localeDiff);
                 }
             }
         }
@@ -446,7 +498,8 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 if (entryChanged)
                 {
                     needsPublish = true;
-                    updateTasks.Add(UpdateEntryAsync(entryId, originalEntry, flatEntry, serializer, fieldsToTranslate, targetLocaleCodes, throttler));
+                    var perEntryLocaleCodes = entryResolvedLocaleCodes.TryGetValue(entryId, out var codes) ? codes : targetLocaleCodes;
+                    updateTasks.Add(UpdateEntryAsync(entryId, originalEntry, flatEntry, serializer, fieldsToTranslate, perEntryLocaleCodes, throttler));
                 }
             }
 
@@ -647,5 +700,299 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
         await Task.WhenAll(batchTasks);
         return allResults.ToList();
+    }
+
+    private async Task<List<(string FieldId, bool IsArray, string LinkedContentTypeId)>?> FindPathToDataCountry(string startContentTypeId)
+    {
+        var contentTypes = (await ContentfulConnection.GetContentTypesAsync())
+            .ToDictionary(ct => ct.SystemProperties.Id);
+
+        var visited = new HashSet<string> { startContentTypeId };
+        var queue = new Queue<(string ContentTypeId, List<(string FieldId, bool IsArray, string LinkedContentTypeId)> Path)>();
+        queue.Enqueue((startContentTypeId, new List<(string, bool, string)>()));
+
+        while (queue.Count > 0)
+        {
+            var (currentTypeId, currentPath) = queue.Dequeue();
+
+            if (!contentTypes.TryGetValue(currentTypeId, out var currentType))
+                continue;
+
+            foreach (var field in currentType.Fields)
+            {
+                var linkedTypeIds = new List<string>();
+                bool isArray = false;
+
+                if (field.Type == "Link" && field.LinkType == "Entry")
+                {
+                    linkedTypeIds.AddRange(field.Validations
+                        .OfType<LinkContentTypeValidator>()
+                        .SelectMany(v => v.ContentTypeIds));
+                }
+                else if (field.Type == "Array" && field.Items?.LinkType == "Entry")
+                {
+                    isArray = true;
+                    linkedTypeIds.AddRange(field.Items.Validations
+                        .OfType<LinkContentTypeValidator>()
+                        .SelectMany(v => v.ContentTypeIds));
+                }
+
+                foreach (var linkedTypeId in linkedTypeIds)
+                {
+                    var newPath = new List<(string, bool, string)>(currentPath)
+                    {
+                        (field.Id, isArray, linkedTypeId)
+                    };
+
+                    if (linkedTypeId == "dataCountry")
+                    {
+                        return newPath;
+                    }
+
+                    if (!visited.Contains(linkedTypeId))
+                    {
+                        visited.Add(linkedTypeId);
+                        queue.Enqueue((linkedTypeId, newPath));
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private async Task BuildCountryLocaleCachesAsync(
+        Settings settings,
+        Dictionary<string, CuteLanguage> translationConfiguration,
+        string defaultLocaleCode)
+    {
+        var pathToCountry = await FindPathToDataCountry(settings.ContentTypeId);
+        if (pathToCountry == null || pathToCountry.Count == 0)
+        {
+            _console.WriteAlert($"No relation to dataCountry found for content type '{settings.ContentTypeId}'. UseCountryLocale will be ignored.");
+            return;
+        }
+
+        await ProgressBars.Instance()
+            .AutoClear(false)
+            .StartAsync(async ctx =>
+            {
+                // --- Cache 1: country -> locales ---
+                var taskCountry = ctx.AddTask($"{Emoji.Known.GlobeShowingEuropeAfrica}  Caching country locales (0 fetched)...");
+                taskCountry.IsIndeterminate = true;
+
+                var countryQuery = @"
+                    query GetContent($locale: String, $preview: Boolean, $skip: Int, $limit: Int) {
+                      dataCountryCollection(locale: $locale, preview: $preview, skip: $skip, limit: $limit) {
+                        items {
+                          sys { id }
+                          dataLanguageEntriesCollection {
+                            items {
+                              iso2Code
+                            }
+                          }
+                        }
+                      }
+                    }";
+
+                _countryLocaleCache = new Dictionary<string, List<string>>();
+                int countryCount = 0;
+
+                await foreach (var country in ContentfulConnection.GraphQL.GetDataEnumerable(
+                    countryQuery,
+                    "data.dataCountryCollection.items",
+                    defaultLocaleCode,
+                    preview: true,
+                    pageSize: 500))
+                {
+                    countryCount++;
+                    var countryId = country.SelectToken("sys.id")?.Value<string>();
+                    if (string.IsNullOrEmpty(countryId)) continue;
+
+                    var languageItems = country.SelectToken("dataLanguageEntriesCollection.items") as JArray;
+                    if (languageItems == null) continue;
+
+                    var validIso2Codes = new List<string>();
+                    foreach (var lang in languageItems)
+                    {
+                        var iso2Code = lang.SelectToken("iso2Code")?.Value<string>();
+                        if (string.IsNullOrEmpty(iso2Code)) continue;
+
+                        if (translationConfiguration.TryGetValue(iso2Code, out var cuteLanguage) && cuteLanguage.IsContentfulLocale)
+                        {
+                            validIso2Codes.Add(iso2Code);
+                        }
+                    }
+
+                    _countryLocaleCache[countryId] = validIso2Codes;
+                    taskCountry.Description = $"{Emoji.Known.GlobeShowingEuropeAfrica}  Caching country locales ({countryCount} fetched)...";
+                }
+
+                taskCountry.Description = $"{Emoji.Known.GlobeShowingEuropeAfrica}  Cached {_countryLocaleCache.Count} country locale mappings";
+                taskCountry.IsIndeterminate = false;
+                taskCountry.Value = 100;
+                taskCountry.MaxValue = 100;
+                taskCountry.StopTask();
+
+                // --- Cache 2: entry -> country locales ---
+                var taskEntries = ctx.AddTask($"{Emoji.Known.Link}  Caching entry country mappings (0 fetched)...");
+                taskEntries.IsIndeterminate = true;
+
+                var entryQuerySb = new StringBuilder();
+                entryQuerySb.AppendLine("query GetContent($locale: String, $preview: Boolean, $skip: Int, $limit: Int) {");
+                entryQuerySb.AppendLine($"  {settings.ContentTypeId}Collection(locale: $locale, preview: $preview, skip: $skip, limit: $limit) {{");
+                entryQuerySb.AppendLine("    items {");
+                entryQuerySb.AppendLine("      sys { id }");
+
+                var indent = "      ";
+                for (int i = 0; i < pathToCountry.Count; i++)
+                {
+                    var (fieldId, isArray, _) = pathToCountry[i];
+                    if (isArray)
+                    {
+                        entryQuerySb.AppendLine($"{indent}{fieldId}Collection {{");
+                        entryQuerySb.AppendLine($"{indent}  items {{");
+                        indent += "    ";
+                    }
+                    else
+                    {
+                        entryQuerySb.AppendLine($"{indent}{fieldId} {{");
+                        indent += "  ";
+                    }
+
+                    if (i == pathToCountry.Count - 1)
+                    {
+                        entryQuerySb.AppendLine($"{indent}sys {{ id }}");
+                    }
+                }
+
+                for (int i = pathToCountry.Count - 1; i >= 0; i--)
+                {
+                    var (_, isArray, _) = pathToCountry[i];
+                    if (isArray)
+                    {
+                        indent = indent[..^4];
+                        entryQuerySb.AppendLine($"{indent}  }}");
+                        entryQuerySb.AppendLine($"{indent}}}");
+                    }
+                    else
+                    {
+                        indent = indent[..^2];
+                        entryQuerySb.AppendLine($"{indent}}}");
+                    }
+                }
+
+                entryQuerySb.AppendLine("    }");
+                entryQuerySb.AppendLine("  }");
+                entryQuerySb.AppendLine("}");
+
+                _entryCountryLocaleCache = new Dictionary<string, List<string>>();
+                int entryCount = 0;
+
+                await foreach (var entry in ContentfulConnection.GraphQL.GetDataEnumerable(
+                    entryQuerySb.ToString(),
+                    $"data.{settings.ContentTypeId}Collection.items",
+                    defaultLocaleCode,
+                    preview: true,
+                    pageSize: 500))
+                {
+                    entryCount++;
+                    var entryId = entry.SelectToken("sys.id")?.Value<string>();
+                    if (string.IsNullOrEmpty(entryId)) continue;
+
+                    var countryIds = ExtractCountryIds(entry, pathToCountry, 0);
+                    var entryLocales = new HashSet<string>();
+
+                    foreach (var countryId in countryIds)
+                    {
+                        if (_countryLocaleCache.TryGetValue(countryId, out var locales))
+                        {
+                            foreach (var locale in locales)
+                            {
+                                entryLocales.Add(locale);
+                            }
+                        }
+                    }
+
+                    _entryCountryLocaleCache[entryId] = entryLocales.ToList();
+                    taskEntries.Description = $"{Emoji.Known.Link}  Caching entry country mappings ({entryCount} fetched)...";
+                }
+
+                taskEntries.Description = $"{Emoji.Known.Link}  Cached {_entryCountryLocaleCache.Count} entry locale mappings";
+                taskEntries.IsIndeterminate = false;
+                taskEntries.Value = 100;
+                taskEntries.MaxValue = 100;
+                taskEntries.StopTask();
+            });
+    }
+
+    private static List<string> ExtractCountryIds(
+        JToken token,
+        List<(string FieldId, bool IsArray, string LinkedContentTypeId)> path,
+        int depth)
+    {
+        if (depth >= path.Count)
+        {
+            var id = token.SelectToken("sys.id")?.Value<string>();
+            return id != null ? [id] : [];
+        }
+
+        var (fieldId, isArray, _) = path[depth];
+        var result = new List<string>();
+
+        if (isArray)
+        {
+            if (token.SelectToken($"{fieldId}Collection.items") is JArray items)
+            {
+                foreach (var item in items)
+                {
+                    result.AddRange(ExtractCountryIds(item, path, depth + 1));
+                }
+            }
+        }
+        else
+        {
+            var child = token.SelectToken(fieldId);
+            if (child != null && child.Type != JTokenType.Null)
+            {
+                result.AddRange(ExtractCountryIds(child, path, depth + 1));
+            }
+        }
+
+        return result;
+    }
+
+    private List<Locale> GetTargetLocalesForEntry(
+        string entryId,
+        List<Locale> targetLocales,
+        List<Locale> allNonDefaultLocales,
+        bool localesExplicitlyPassed)
+    {
+        if (_entryCountryLocaleCache == null || !_entryCountryLocaleCache.TryGetValue(entryId, out var countryLocaleCodes))
+        {
+            return targetLocales;
+        }
+
+        var countryLocales = allNonDefaultLocales
+            .Where(l => countryLocaleCodes.Contains(l.Code))
+            .ToList();
+
+        if (!localesExplicitlyPassed)
+        {
+            // Locales were not explicitly passed — use only country-specific locales
+            return countryLocales;
+        }
+
+        // Merge: targetLocales UNION country-specific locales
+        var merged = new List<Locale>(targetLocales);
+        foreach (var locale in countryLocales)
+        {
+            if (!merged.Any(l => l.Code == locale.Code))
+            {
+                merged.Add(locale);
+            }
+        }
+
+        return merged;
     }
 }
