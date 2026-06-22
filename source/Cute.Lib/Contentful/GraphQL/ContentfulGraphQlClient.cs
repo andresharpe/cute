@@ -57,7 +57,7 @@ public class ContentfulGraphQlClient
 
     public async IAsyncEnumerable<JObject> GetDataEnumerable(string query,
         string jsonResultsPath, string locale,
-        int? limit = null, bool preview = false)
+        int? limit = null, bool preview = false, int pageSize = 1000)
     {
         var apiKey = preview ? _previewApiKey : _deliveryApiKey;
 
@@ -71,7 +71,7 @@ public class ContentfulGraphQlClient
                 ["preview"] = preview,
                 ["locale"] = locale,
                 ["skip"] = 0,
-                ["limit"] = limit ?? 1000,
+                ["limit"] = pageSize,
             }
         };
 
