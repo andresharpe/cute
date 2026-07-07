@@ -24,8 +24,7 @@ jobs:
         id:   gitversion # id to later be referenced
         uses: gittools/actions/gitversion/execute@v4
         with:
-          useConfigFile: true
-          additionalArguments: '/updateprojectfiles'
+          updateProjectFiles: true
   
       - name: Display GitVersion outputs (step output)
         run: |
