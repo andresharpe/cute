@@ -333,7 +333,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                 await response.Content.CopyToAsync(fileStream);
             }
 
-            var readerOptions = new ReaderOptions { Password = password };
+            var readerOptions = new ReaderOptions { Password = password, LeaveStreamOpen = false };
             var archive = SevenZipArchive.OpenArchive(tempFilePath, readerOptions);
 
             foreach (var entry in archive.Entries)
@@ -435,6 +435,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             .ToBlockingEnumerable()
             .Select(e => new
             {
+                Id = e.Entry.SelectToken("sys.id")?.Value<string>(),
                 CountryCode = e.Entry.SelectToken($"{prefix}CountryEntry.iso2Code")?.Value<string>(),
                 Lat = e.Entry.SelectToken("latLon.lat")?.Value<double>() ?? 0.0f,
                 Lon = e.Entry.SelectToken("latLon.lon")?.Value<double>() ?? 0.0f,
@@ -557,10 +558,11 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
                     var boundingBoxNear = Haversine.GetBoundingBox(record.Lon, record.Lat, settings.LargeKilometerRadius);
 
-                    var nearLocations = dataLocations
-                        .Any(l => boundingBoxNear.Contains(l.Lon, l.Lat));
+                    var nearestLocation = dataLocations
+                        .Where(l => boundingBoxNear.Contains(l.Lon, l.Lat))
+                        .MinBy(l => Haversine.DistanceInKm(record.Lon, l.Lon, record.Lat, l.Lat));
 
-                    if (!nearLocations) continue;
+                    if (nearestLocation is null) continue;
 
                     if (record.Population is null || record.Population < settings.LargePopulation)
                     {
@@ -578,11 +580,15 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
 
                     var (tzStandardOffset, tzDaylightSavingOffset) = record.Timezone.ToTimeZoneOffsets();
 
+                    var nearestLocationChanged = false;
+
                     if (cityToGeoId.TryGetValue(record.Id, out GeoFormat? existingEntry))
                     {
                         existingEntry.Count++;
 
-                        if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId) && existingEntry.DataCountryEntry is not null)
+                        nearestLocationChanged = existingEntry.NearestLocationEntry?.Sys?.Id != nearestLocation.Id;
+
+                        if (!string.IsNullOrEmpty(existingEntry.GooglePlacesId) && existingEntry.DataCountryEntry is not null && existingEntry.DataCountryEntry is not null && !nearestLocationChanged)
                         {
                             continue;
                         }
@@ -598,6 +604,23 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                     if (!string.IsNullOrEmpty(parentName)) keyParts.Add(parentName.ToPascalCase());
                     if (!string.IsNullOrEmpty(cityName)) keyParts.Add(cityName.ToPascalCase());
                     var hierarchicalKey = string.Join(".", keyParts);
+
+                    // Represent the nearest location as a GeoFormat reference (only sys.id is
+                    // required for the Contentful link; revisit with a dedicated type if needed).
+                    var nearestLocationEntry = new GeoFormat
+                    {
+                        Sys = new() { Id = nearestLocation.Id! },
+                        LatLon = new() { Lat = nearestLocation.Lat, Lon = nearestLocation.Lon },
+                    };
+
+                    var networkEvaluation = existingEntry?.NetworkEvaluation;
+
+                    // Only re-evaluate the route when the nearest location actually changed.
+                    if (nearestLocationChanged)
+                    {
+                        networkEvaluation = await GetNetworkEvaluation(record.Lat, record.Lon, nearestLocation.Lat, nearestLocation.Lon, record.Timezone)
+                            ?? networkEvaluation;
+                    }
 
                     var newRecord = new GeoFormat()
                     {
@@ -620,6 +643,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
                         GooglePlacesId = existingEntry?.GooglePlacesId ?? await GetGooglePlacesId($"{record.CityName}, {record.AdminName}, {record.CountryName}"),
                         DataCountryEntry = countryCodeToInfo[record.CountryIso2],
+                        NearestLocationEntry = nearestLocationEntry,
+                        NetworkEvaluation = networkEvaluation!,
                     };
 
                     _newRecords.Add(newRecord);
@@ -875,6 +900,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public GeoFormat DataCountryEntry { get; set; } = default!;
         public int? RadiusKilometers { get; set; } = default;
         public int? DataLocationCount { get; set; } = 0;
+        public GeoFormat NearestLocationEntry { get; set; } = default!;
+        public string NetworkEvaluation { get; set; } = default!;
     }
 
     public class GeoInfoCompact
@@ -1036,5 +1063,172 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             _console.WriteNormalWithHighlights($"Google Places API request failed for '{placeName}': {ex.Message}. {ex.InnerException?.Message}", Globals.StyleHeading);
         }
         return "[todo]";
+    }
+
+    private async Task<string?> GetNetworkEvaluation(double originLat, double originLon, double destinationLat, double destinationLon, string? timeZoneName)
+    {
+        var timeZone = ResolveTimeZone(timeZoneName);
+
+        // Peak: next Monday 08:00 local. Off-peak: next Sunday 08:00 local. Both must be in the future.
+        var peakDepartureUtc = NextDepartureUtc(timeZone, DayOfWeek.Monday, 8);
+        var offPeakDepartureUtc = NextDepartureUtc(timeZone, DayOfWeek.Sunday, 8);
+
+        var peak = await ComputeRoute(originLat, originLon, destinationLat, destinationLon, peakDepartureUtc);
+        var offPeak = await ComputeRoute(originLat, originLon, destinationLat, destinationLon, offPeakDepartureUtc);
+
+        if (peak is null && offPeak is null)
+        {
+            return null;
+        }
+
+        var distanceMeters = peak?.DistanceMeters ?? offPeak?.DistanceMeters;
+        var peakSeconds = peak?.DurationSeconds;
+        var offPeakSeconds = offPeak?.DurationSeconds;
+
+        var evaluation = new
+        {
+            distance = distanceMeters is null ? null : FormatDistance(distanceMeters.Value),
+            peakTime = peakSeconds is null ? null : FormatDuration(peakSeconds.Value),
+            offPeakTime = offPeakSeconds is null ? null : FormatDuration(offPeakSeconds.Value),
+        };
+
+        return JsonConvert.SerializeObject(evaluation);
+    }
+
+    private async Task<RouteResult?> ComputeRoute(double originLat, double originLon, double destinationLat, double destinationLon, DateTime departureTimeUtc)
+    {
+        var retries = 0;
+        var success = false;
+
+        try
+        {
+            var url = "https://routes.googleapis.com/directions/v2:computeRoutes";
+
+            var requestBody = JsonConvert.SerializeObject(new
+            {
+                origin = new { location = new { latLng = new { latitude = originLat, longitude = originLon } } },
+                destination = new { location = new { latLng = new { latitude = destinationLat, longitude = destinationLon } } },
+                travelMode = "DRIVE",
+                routingPreference = "TRAFFIC_AWARE",
+                departureTime = departureTimeUtc.ToString("yyyy-MM-ddTHH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            });
+
+            while (!success)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Content = new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json"),
+                };
+                request.Headers.Add("X-Goog-Api-Key", _googleApiKey);
+                request.Headers.Add("X-Goog-FieldMask", "routes.duration,routes.distanceMeters");
+
+                var response = await _googleClient.SendAsync(request);
+
+                success = response.IsSuccessStatusCode;
+
+                if (!success)
+                {
+                    if (++retries < 4)
+                    {
+                        await Task.Delay(1000);
+                        continue;
+                    }
+                    throw new CliException($"Google Routes API request failed with status code {response.StatusCode}");
+                }
+
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                var route = (JObject.Parse(responseBody)["routes"] as JArray)?.FirstOrDefault();
+
+                if (route is null) return null;
+
+                return new RouteResult
+                {
+                    DistanceMeters = route["distanceMeters"]?.Value<long>(),
+                    DurationSeconds = ParseDurationSeconds(route["duration"]?.Value<string>()),
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _console.WriteNormalWithHighlights($"Google Routes API request failed: {ex.Message}. {ex.InnerException?.Message}", Globals.StyleHeading);
+        }
+
+        return null;
+    }
+
+    private static TimeZoneInfo ResolveTimeZone(string? timeZoneName)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneName)) return TimeZoneInfo.Utc;
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneName);
+        }
+        catch
+        {
+            return TimeZoneInfo.Utc;
+        }
+    }
+
+    private static DateTime NextDepartureUtc(TimeZoneInfo timeZone, DayOfWeek dayOfWeek, int hour)
+    {
+        var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone).DateTime;
+
+        var daysUntil = ((int)dayOfWeek - (int)nowLocal.DayOfWeek + 7) % 7;
+
+        var candidate = DateTime.SpecifyKind(nowLocal.Date.AddDays(daysUntil).AddHours(hour), DateTimeKind.Unspecified);
+
+        if (candidate <= nowLocal)
+        {
+            candidate = candidate.AddDays(7);
+        }
+
+        return TimeZoneInfo.ConvertTimeToUtc(candidate, timeZone);
+    }
+
+    private static int? ParseDurationSeconds(string? duration)
+    {
+        if (string.IsNullOrWhiteSpace(duration)) return null;
+
+        var trimmed = duration.TrimEnd('s', 'S');
+
+        if (double.TryParse(trimmed, NumberStyles.Any, CultureInfo.InvariantCulture, out var seconds))
+        {
+            return (int)Math.Round(seconds);
+        }
+
+        return null;
+    }
+
+    private static string FormatDuration(int totalSeconds)
+    {
+        var timeSpan = TimeSpan.FromSeconds(totalSeconds);
+
+        if (timeSpan.TotalHours >= 1)
+        {
+            var hours = (int)timeSpan.TotalHours;
+            return timeSpan.Minutes > 0 ? $"{hours} hr {timeSpan.Minutes} min" : $"{hours} hr";
+        }
+
+        if (timeSpan.TotalMinutes >= 1)
+        {
+            return $"{timeSpan.Minutes} min";
+        }
+
+        return $"{timeSpan.Seconds} sec";
+    }
+
+    private static string FormatDistance(long meters)
+    {
+        return meters >= 1000
+            ? $"{meters / 1000.0:0.0} km"
+            : $"{meters} m";
+    }
+
+    private sealed class RouteResult
+    {
+        public long? DistanceMeters { get; init; }
+        public int? DurationSeconds { get; init; }
     }
 }
