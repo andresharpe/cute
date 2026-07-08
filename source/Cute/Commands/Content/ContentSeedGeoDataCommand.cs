@@ -1073,28 +1073,26 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         var peakDepartureUtc = NextDepartureUtc(timeZone, DayOfWeek.Monday, 8);
         var offPeakDepartureUtc = NextDepartureUtc(timeZone, DayOfWeek.Sunday, 8);
 
-        return await Task.FromResult(string.Empty);
+        var peak = await ComputeRoute(originLat, originLon, destinationLat, destinationLon, peakDepartureUtc);
+        var offPeak = await ComputeRoute(originLat, originLon, destinationLat, destinationLon, offPeakDepartureUtc);
 
-        //var peak = await ComputeRoute(originLat, originLon, destinationLat, destinationLon, peakDepartureUtc);
-        //var offPeak = await ComputeRoute(originLat, originLon, destinationLat, destinationLon, offPeakDepartureUtc);
+        if (peak is null && offPeak is null)
+        {
+            return null;
+        }
 
-        //if (peak is null && offPeak is null)
-        //{
-        //    return null;
-        //}
+        var distanceMeters = peak?.DistanceMeters ?? offPeak?.DistanceMeters;
+        var peakSeconds = peak?.DurationSeconds;
+        var offPeakSeconds = offPeak?.DurationSeconds;
 
-        //var distanceMeters = peak?.DistanceMeters ?? offPeak?.DistanceMeters;
-        //var peakSeconds = peak?.DurationSeconds;
-        //var offPeakSeconds = offPeak?.DurationSeconds;
+        var evaluation = new
+        {
+            distance = distanceMeters is null ? null : FormatDistance(distanceMeters.Value),
+            peakTime = peakSeconds is null ? null : FormatDuration(peakSeconds.Value),
+            offPeakTime = offPeakSeconds is null ? null : FormatDuration(offPeakSeconds.Value),
+        };
 
-        //var evaluation = new
-        //{
-        //    distance = distanceMeters is null ? null : FormatDistance(distanceMeters.Value),
-        //    peakTime = peakSeconds is null ? null : FormatDuration(peakSeconds.Value),
-        //    offPeakTime = offPeakSeconds is null ? null : FormatDuration(offPeakSeconds.Value),
-        //};
-
-        //return JsonConvert.SerializeObject(evaluation);
+        return JsonConvert.SerializeObject(evaluation);
     }
 
     private async Task<RouteResult?> ComputeRoute(double originLat, double originLon, double destinationLat, double destinationLon, DateTime departureTimeUtc)
@@ -1159,7 +1157,6 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         return null;
     }
 
-    private static HashSet<string> defectTimezones = new HashSet<string>();
     private static TimeZoneInfo ResolveTimeZone(string? timeZoneName)
     {
         if (string.IsNullOrWhiteSpace(timeZoneName)) return TimeZoneInfo.Utc;
@@ -1170,7 +1167,6 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         }
         catch
         {
-            defectTimezones.Add(timeZoneName);
             return TimeZoneInfo.Utc;
         }
     }
