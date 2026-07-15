@@ -296,13 +296,13 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         }
 
         var serializer = new EntrySerializer(contentType, new ContentLocales([defaultLocale.Code], defaultLocale.Code));
-        var newEntries = updatedGeos.Select(e => serializer.SerializeEntry(e)).ToList();
+        var newEntries = updatedGeos.Select(e => serializer.SerializeEntry(e, false)).ToList();
         
         await PerformBulkOperations([
             new UpsertBulkAction(ContentfulConnection, _httpClient)
                 .WithContentType(contentType)
                 .WithContentLocales(contentLocales)
-                .WithNewEntries(updatedGeos, "Location Count Calculation")
+                .WithNewEntries(newEntries, "Location Count Calculation")
                 .WithMatchField(nameof(GeoFormat.SeedKey).ToCamelCase())
                 .WithApplyChanges(settings.Apply)
                 .WithVerbosity(settings.Verbosity),
@@ -901,7 +901,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public int? RadiusKilometers { get; set; } = default;
         public int? DataLocationCount { get; set; } = 0;
         public GeoFormat NearestLocationEntry { get; set; } = default!;
-        public string NetworkEvaluation { get; set; } = default!;
+        public JObject? NetworkEvaluation { get; set; } = default!;
     }
 
     public class GeoInfoCompact
@@ -1065,7 +1065,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         return "[todo]";
     }
 
-    private async Task<string?> GetNetworkEvaluation(double originLat, double originLon, double destinationLat, double destinationLon, string? timeZoneName)
+    private async Task<JObject?> GetNetworkEvaluation(double originLat, double originLon, double destinationLat, double destinationLon, string? timeZoneName)
     {
         var timeZone = ResolveTimeZone(timeZoneName);
 
@@ -1092,7 +1092,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             offPeakTime = offPeakSeconds is null ? null : FormatDuration(offPeakSeconds.Value),
         };
 
-        return JsonConvert.SerializeObject(evaluation);
+        return JObject.FromObject(evaluation);
     }
 
     private async Task<RouteResult?> ComputeRoute(double originLat, double originLon, double destinationLat, double destinationLon, DateTime departureTimeUtc)
