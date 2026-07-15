@@ -113,6 +113,10 @@ internal class EntryFieldSerializer
                 {
                     prop = obj;
                 }
+                else if (_contentfulType == FieldType.Object && obj["peakTime"] != null && obj["offPeakTime"] != null)
+                {
+                    prop = obj;
+                }
                 else
                 {
                     return null;
