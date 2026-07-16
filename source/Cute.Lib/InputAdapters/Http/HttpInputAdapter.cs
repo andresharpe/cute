@@ -196,11 +196,12 @@ public class HttpInputAdapter(
                 throw new CliException($"The result of the endpoint call is not a valid json object or array."); ;
             }
 
+            var returnedCount = rootArray.Count;
+
             if (_adapter.FilterExpression is not null)
             {
-                var count = rootArray.Count;
                 rootArray = FilterResultValues(rootArray);
-                filterTotal += count - rootArray.Count;
+                filterTotal += returnedCount - rootArray.Count;
             }
 
             ActionNotifier?.Invoke($"...'{requestUri.Snip(40)}' returned {rootArray.Count + returnValue.Count + filterTotal} entries (Filtered={filterTotal})...");
@@ -211,7 +212,7 @@ public class HttpInputAdapter(
 
             if (_adapter.Pagination is not null)
             {
-                if (rootArray.Count < _adapter.Pagination.LimitMax)
+                if (rootArray.Count < _adapter.Pagination.LimitMax || returnedCount < _adapter.Pagination.PageSize)
                 {
                     break;
                 }
