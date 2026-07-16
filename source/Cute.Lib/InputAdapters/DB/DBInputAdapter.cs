@@ -73,7 +73,7 @@ namespace Cute.Lib.InputAdapters.DB
                 var query = queryDict["query"];
 
                 var hasRows = false;
-                foreach (var row in connection.Query(query, buffered: false))
+                foreach (var row in connection.Query(query, buffered: !adapter.stream))
                 {
                     hasRows = true;
                     returnValue.AddRange(MapResultValues(JArray.FromObject(new[] { JObject.FromObject(row) })));
