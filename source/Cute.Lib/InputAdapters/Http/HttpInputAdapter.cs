@@ -169,7 +169,7 @@ public class HttpInputAdapter(
             {
                 getParameters = $"&{_adapter.Pagination.SkipKey}={skipTotal}&{_adapter.Pagination.LimitKey}={_adapter.Pagination.PageSize}";
 
-                skipTotal += _adapter.Pagination.PageSize;
+                skipTotal ++;
             }
 
             var requestUri = baseAddress + getParameters;
@@ -196,6 +196,13 @@ public class HttpInputAdapter(
                 throw new CliException($"The result of the endpoint call is not a valid json object or array."); ;
             }
 
+            int? totalPages = null;
+            if (_adapter.ResultsTotalPagesPath is not null)
+            {
+                var selectedToken = ((JObject)results.ResponseContent!).SelectToken($"$.{_adapter.ResultsTotalPagesPath}");
+                totalPages = selectedToken?.Value<int>() ?? throw new CliException($"The json path '{_adapter.ResultsTotalPagesPath}' does not exist or is not an integer.");
+            }
+
             var returnedCount = rootArray.Count;
 
             if (_adapter.FilterExpression is not null)
@@ -212,7 +219,18 @@ public class HttpInputAdapter(
 
             if (_adapter.Pagination is not null)
             {
-                if (rootArray.Count < _adapter.Pagination.LimitMax || returnedCount < _adapter.Pagination.PageSize)
+                if (rootArray.Count < _adapter.Pagination.LimitMax)
+                {
+                    break;
+                }
+                if (totalPages != null)
+                {
+                    if (skipTotal >= totalPages)
+                    {
+                        break;
+                    }
+                }
+                else if (returnedCount < _adapter.Pagination.PageSize)
                 {
                     break;
                 }
