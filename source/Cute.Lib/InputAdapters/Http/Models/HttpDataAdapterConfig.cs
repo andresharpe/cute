@@ -12,4 +12,5 @@ public class HttpDataAdapterConfig : DataAdapterConfigBase
     public ResultsFormat ResultsFormat { get; set; } = ResultsFormat.Json;
     public string ResultsSecret { get; set; } = default!;
     public string ResultsJsonPath { get; set; } = default!;
+    public string ResultsTotalPagesPath { get; set; } = default!;
 }
