@@ -25,6 +25,14 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         [CommandOption("-k|--key")]
         [Description("CuteSchedule key.")]
         public string Key { get; set; } = default!;
+
+        [CommandOption("-r|--resume-chains")]
+        [Description("Specifies whether to resume broken chains during start. Default is false.")]
+        public bool ResumeChains { get; set; } = false;
+
+        [CommandOption("--resume-threshold-hours")]
+        [Description("Specifies the threshold, in hours, before a chain's next scheduled run. If the next scheduled run is within this many hours, resuming that chain is skipped to avoid an overlap.")]
+        public int ResumeThresholdHours { get; set; }
     }
 
     private class ScheduledEntry : CuteSchedule
@@ -99,6 +107,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private static readonly ConcurrentDictionary<Guid, ScheduledEntry> _scheduledEntries = [];
 
+    private static readonly ConcurrentDictionary<Guid, (Task Task, CancellationTokenSource Cts)> _resumedChainTasks = [];
+
     private readonly string? _baseUrl = appSettings.GetSettings().ContainsKey("Cute__SchedulerBaseUrl") ? appSettings.GetSettings()["Cute__SchedulerBaseUrl"] : default!;
 
     private static ScheduledEntry? GetScheduleByKey(string id) =>
@@ -114,6 +124,11 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         _scheduler.Start();
 
+        if (settings.ResumeChains)
+        {
+            ResumeBrokenChains();
+        }
+
         await StartWebServer(settings);
 
         return 0;
@@ -124,9 +139,35 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         webApp.MapPost("/run", RunCommand).DisableAntiforgery();
     }
 
+    private static readonly (string Value, string Label)[] ScheduleTableFilters =
+    [
+        ("all", "All"),
+        ("parents", "Parents"),
+        ("running", "Running")
+    ];
+
     public override async Task RenderHomePageBody(HttpContext context)
     {
+        var filter = context.Request.Query["filter"].ToString();
+        if (string.IsNullOrWhiteSpace(filter) || !ScheduleTableFilters.Any(f => f.Value.Equals(filter, StringComparison.OrdinalIgnoreCase)))
+        {
+            filter = "all";
+        }
+        filter = filter.ToLowerInvariant();
+
         await context.Response.WriteAsync($"<h4>Scheduled Tasks</h4>");
+
+        await context.Response.WriteAsync($"<form action='{_baseUrl}/' method='GET' style='margin-bottom:10px'>");
+        await context.Response.WriteAsync($"<label for='filter'>Show:</label>&nbsp;");
+        await context.Response.WriteAsync($"<select name='filter' id='filter' onchange='this.form.submit()'>");
+        foreach (var (value, label) in ScheduleTableFilters)
+        {
+            var selected = filter == value ? " selected" : string.Empty;
+            await context.Response.WriteAsync($"<option value='{value}'{selected}>{label}</option>");
+        }
+        await context.Response.WriteAsync($"</select>");
+        await context.Response.WriteAsync($"<noscript><button type='submit'>Filter</button></noscript>");
+        await context.Response.WriteAsync($"</form>");
 
         await context.Response.WriteAsync($"<table>");
         await context.Response.WriteAsync($"<tr>");
@@ -147,7 +188,18 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
             while (entry is not null)
             {
-                await RenderHomePageTableLines(context, entry, cronEntry, runningEntry, nextRuns[key]);
+                bool shouldRender = filter switch
+                {
+                    "parents" => entry.Key == cronEntry.Key,
+                    "running" => entry.LastRunStatus == ScheduledEntry.RUNNING,
+                    _ => true
+                };
+
+                if (shouldRender)
+                {
+                    await RenderHomePageTableLines(context, entry, cronEntry, runningEntry, nextRuns[key]);
+                }
+
                 entry = entry.RunNext;
             }
         }
@@ -403,6 +455,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
     {
         lock (_schedulerLock)
         {
+            AbortResumedChainTasks();
+
             if (_scheduler is not null && _scheduler.IsRunning)
             {
                 _scheduler.Stop();
@@ -456,6 +510,8 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
     private void ResumeBrokenChains()
     {
+        AbortResumedChainTasks();
+
         var nextRuns = _scheduler.GetNextOccurrences()
             .SelectMany(i => i.ScheduledTasks, (i, j) => new { j.Id, i.NextOccurrence })
             .ToDictionary(o => o.Id, o => o.NextOccurrence);
@@ -474,6 +530,14 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         foreach (var nextRun in nextRuns)
         {
             var entry = _scheduledEntries[nextRun.Key];
+
+            var hoursUntilNextRun = (nextRun.Value - DateTime.UtcNow).TotalHours;
+            if (hoursUntilNextRun <= (_settings?.ResumeThresholdHours ?? 0))
+            {
+                _console.WriteNormal("Skipping resume for chain '{syncApiKey}' - next scheduled run at {nextRun} is within the resume threshold", entry.Key, nextRun.Value.ToString("R"));
+                continue;
+            }
+
             var baseStartDate = entry.LastRunStarted;
 
             while(entry != null && entry.LastRunStarted >= baseStartDate)
@@ -488,7 +552,35 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
             if(entry != null)
             {
-                _ = Task.Run(() => ProcessContentSyncApi(entry));
+                TrackResumedChainTask(entry);
+            }
+        }
+    }
+
+    private void TrackResumedChainTask(ScheduledEntry entry)
+    {
+        var taskId = Guid.NewGuid();
+        var cts = new CancellationTokenSource();
+
+        var task = Task.Run(() => ProcessContentSyncApi(entry, cancellationToken: cts.Token), cts.Token);
+
+        _resumedChainTasks[taskId] = (task, cts);
+
+        _ = task.ContinueWith(completedTask =>
+        {
+            _resumedChainTasks.TryRemove(taskId, out _);
+            cts.Dispose();
+        }, TaskScheduler.Default);
+    }
+
+    private static void AbortResumedChainTasks()
+    {
+        foreach (var (taskId, (_, cts)) in _resumedChainTasks)
+        {
+            if (_resumedChainTasks.TryRemove(taskId, out _))
+            {
+                cts.Cancel();
+                cts.Dispose();
             }
         }
     }
@@ -542,7 +634,7 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         }
     }
 
-    private async Task ProcessContentSyncApi(ScheduledEntry cuteSchedule, bool singleRun = false)
+    private async Task ProcessContentSyncApi(ScheduledEntry cuteSchedule, bool singleRun = false, CancellationToken cancellationToken = default)
     {
         string verbosity = _settings?.Verbosity.ToString() ?? Verbosity.Normal.ToString();
 
@@ -550,6 +642,12 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
         while (entry is not null)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                _console.WriteNormal("Aborted content sync-api chain at '{syncApiKey}'", entry.Key);
+                break;
+            }
+
             _console.WriteNormal("Started content sync-api for '{syncApiKey}'", entry.Key);
 
             entry.LastRunStarted = DateTime.UtcNow;
