@@ -139,9 +139,35 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
         webApp.MapPost("/run", RunCommand).DisableAntiforgery();
     }
 
+    private static readonly (string Value, string Label)[] ScheduleTableFilters =
+    [
+        ("all", "All"),
+        ("parents", "Parents"),
+        ("running", "Running")
+    ];
+
     public override async Task RenderHomePageBody(HttpContext context)
     {
+        var filter = context.Request.Query["filter"].ToString();
+        if (string.IsNullOrWhiteSpace(filter) || !ScheduleTableFilters.Any(f => f.Value.Equals(filter, StringComparison.OrdinalIgnoreCase)))
+        {
+            filter = "all";
+        }
+        filter = filter.ToLowerInvariant();
+
         await context.Response.WriteAsync($"<h4>Scheduled Tasks</h4>");
+
+        await context.Response.WriteAsync($"<form action='{_baseUrl}/' method='GET' style='margin-bottom:10px'>");
+        await context.Response.WriteAsync($"<label for='filter'>Show:</label>&nbsp;");
+        await context.Response.WriteAsync($"<select name='filter' id='filter' onchange='this.form.submit()'>");
+        foreach (var (value, label) in ScheduleTableFilters)
+        {
+            var selected = filter == value ? " selected" : string.Empty;
+            await context.Response.WriteAsync($"<option value='{value}'{selected}>{label}</option>");
+        }
+        await context.Response.WriteAsync($"</select>");
+        await context.Response.WriteAsync($"<noscript><button type='submit'>Filter</button></noscript>");
+        await context.Response.WriteAsync($"</form>");
 
         await context.Response.WriteAsync($"<table>");
         await context.Response.WriteAsync($"<tr>");
@@ -162,7 +188,18 @@ public class ServerSchedulerCommand(IConsoleWriter console, ILogger<ServerSchedu
 
             while (entry is not null)
             {
-                await RenderHomePageTableLines(context, entry, cronEntry, runningEntry, nextRuns[key]);
+                bool shouldRender = filter switch
+                {
+                    "parents" => entry.Key == cronEntry.Key,
+                    "running" => entry.LastRunStatus == ScheduledEntry.RUNNING,
+                    _ => true
+                };
+
+                if (shouldRender)
+                {
+                    await RenderHomePageTableLines(context, entry, cronEntry, runningEntry, nextRuns[key]);
+                }
+
                 entry = entry.RunNext;
             }
         }
