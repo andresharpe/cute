@@ -10,6 +10,7 @@ using Cute.Lib.Enums;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Serializers;
 using Cute.Services;
+using Cute.Services.Translation;
 using Cute.Services.Translation.Factories;
 using Cute.Services.Translation.Interfaces;
 using Cute.UiComponents;
@@ -28,9 +29,9 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 {    
     private readonly TranslateFactory _translateFactory = translateFactory;
     private readonly HttpClient _httpClient = httpClient;
-    private readonly ConcurrentDictionary<TranslationService, ITranslator> _translatorCache = new();
     private readonly List<(string entryId, Entry<dynamic> entry, int version)> _pendingUpdates = new();
     private bool useCustomModel = false;
+    private bool noMaxTokenCount = false;
     private Dictionary<string, List<string>>? _countryLocaleCache;
     private Dictionary<string, List<string>>? _entryCountryLocaleCache;
 
@@ -71,12 +72,17 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         [CommandOption("--use-country-locale")]
         [Description("When enabled, determines target locales per entry based on its linked dataCountry")]
         public bool UseCountryLocale { get; set; } = false;
+
+        [CommandOption("--no-max-token-count")]
+        [Description("Send Azure OpenAI translation requests without cute's default 4096 output token cap. Needed for large fields, whose responses are otherwise truncated and discarded.")]
+        public bool NoMaxTokenCount { get; set; } = false;
     }
     public override async Task<int> ExecuteCommandAsync(CommandContext context, Settings settings)
     {
         var contentType = await GetContentTypeOrThrowError(settings.ContentTypeId);
         var defaultLocale = await ContentfulConnection.GetDefaultLocaleAsync();
         useCustomModel = settings.UseCustomModel;
+        noMaxTokenCount = settings.NoMaxTokenCount;
 
         var fieldsToTranslate = contentType.Fields.Where(f => f.Localized).ToList();
         if(settings.Fields?.Length > 0)
@@ -289,23 +295,28 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                     taskTranslate.StopTask();
                 });
 
-            if (!needToPublish)
+            if (needToPublish)
+            {
+                await PerformBulkOperations(
+                    [
+                        new PublishBulkAction(ContentfulConnection, _httpClient)
+                            .WithContentType(contentType)
+                            .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
+                            .WithVerbosity(settings.Verbosity)
+                            .WithApplyChanges(!settings.NoPublish)
+                            .WithErrorThreshold(settings.BulkPublishErrorThreshold),
+                    ]
+                );
+            }
+            else if (failedEntryIds.Count == 0)
             {
                 Console.WriteLine("There are no entries to translate.");
-                return 0;
             }
 
-            await PerformBulkOperations(
-                [
-                    new PublishBulkAction(ContentfulConnection, _httpClient)
-                        .WithContentType(contentType)
-                        .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
-                        .WithVerbosity(settings.Verbosity)
-                        .WithApplyChanges(!settings.NoPublish)
-                        .WithErrorThreshold(settings.BulkPublishErrorThreshold),
-                ]
-            );
-
+            // Reported after the publish step rather than instead of it, so a partial failure still
+            // publishes what succeeded. Previously a run where *every* translation failed left
+            // needToPublish false, and an early return above this check reported the run as
+            // "There are no entries to translate." with exit code 0, discarding this list entirely.
             if(failedEntryIds.Count > 0)
             {
                 throw new CliException($"Failed to translate following entries:\n{string.Join("\n", failedEntryIds.Select(x => $"{x.Key} ({string.Join(", ", x.Value)})"))}");
@@ -539,11 +550,29 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         }
     }
 
-    private async Task<TranslationResponse[]?> TranslateTextMultiLanguage(string text, string from, TranslationService service, List<CuteLanguage> targetLanguages, TranslationService? fallbackService = null, Dictionary<string, Dictionary<string, string>>? glossaries = null)
+    private static string DescribeContext(string? context)
+    {
+        return string.IsNullOrEmpty(context) ? string.Empty : $"{context} ";
+    }
+
+    private ITranslator CreateTranslator(TranslationService service)
+    {
+        var translator = _translateFactory.Create(service);
+
+        // Only the Azure OpenAI translator has an output token cap to lift.
+        if (translator is AzureOpenAiTranslator azureOpenAiTranslator)
+        {
+            azureOpenAiTranslator.NoMaxTokenCount = noMaxTokenCount;
+        }
+
+        return translator;
+    }
+
+    private async Task<TranslationResponse[]?> TranslateTextMultiLanguage(string text, string from, TranslationService service, List<CuteLanguage> targetLanguages, TranslationService? fallbackService = null, Dictionary<string, Dictionary<string, string>>? glossaries = null, string? context = null)
     {
         // Create a NEW translator instance for each call to avoid state issues with concurrent requests
         // The ChatClient may have state that gets confused with concurrent requests
-        var translator = _translateFactory.Create(service);
+        var translator = CreateTranslator(service);
         TranslationResponse[]? translations = null;
         
         try
@@ -560,8 +589,9 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
         }
         catch (Exception ex)
         {
-            _console.WriteAlert($"Error translating text to multiple languages: {ex.Message}");
-            return translations;
+            _console.WriteAlert($"Error translating {DescribeContext(context)}to {targetLanguages.Count} language(s): {ex.Message}");
+            // Deliberately no early return here - a primary service that threw is exactly when the
+            // fallback service below should get its turn.
         }
 
         // Try fallback service if primary failed
@@ -571,15 +601,25 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             {
                 var translatedLanguages = translations?.Select(t => t.TargetLanguage).ToHashSet() ?? new HashSet<string>();
 
-                var fallbackTranslator = _translateFactory.Create(fallbackService.Value);
+                var fallbackTranslator = CreateTranslator(fallbackService.Value);
                 var languageCodes = targetLanguages.Where(l => !translatedLanguages.Contains(l.Iso2Code)).Select(l => l.Iso2Code).ToArray();
                 var fallBackTranslations = await fallbackTranslator.Translate(text, from, languageCodes);
                 translations = (fallBackTranslations ?? Array.Empty<TranslationResponse>()).Concat(translations ?? Array.Empty<TranslationResponse>()).ToArray();
             }
             catch (Exception ex)
             {
-                _console.WriteAlert($"Error translating text with fallback service: {ex.Message}");
+                _console.WriteAlert($"Error translating {DescribeContext(context)}with fallback service {fallbackService}: {ex.Message}");
             }
+        }
+
+        // The translator reports failures per locale and has no idea which entry or field it was given,
+        // so tie the two together here - this is the line that says what actually has to be fixed.
+        if (!string.IsNullOrEmpty(context) && (translations?.Length ?? 0) != targetLanguages.Count)
+        {
+            var translated = translations?.Select(t => t.TargetLanguage).ToHashSet() ?? new HashSet<string>();
+            var missing = targetLanguages.Select(l => l.Iso2Code).Where(c => !translated.Contains(c)).ToArray();
+
+            _console.WriteAlert($"No translation for {context}: {string.Join(", ", missing)}.");
         }
 
         return translations;
@@ -655,6 +695,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
             var fallbackTranslationService = group.Key.fallbackService; // Create local copy
             
             var entryIds = string.Join(", ", requests.Select(r => r.entryId).Distinct());
+            var translationContext = $"'{group.Key.fieldBaseName}' ({textToTranslate.Length} characters) on entry {entryIds}";
 
             // Translate to all target languages at once
             batchTasks.Add(Task.Run(async () =>
@@ -662,7 +703,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 await throttler.WaitAsync();
                 try
                 {
-                    var translations = await TranslateTextMultiLanguage(textToTranslate, sourceLocaleCode, translationService, targetLanguages, fallbackTranslationService, glossaries);
+                    var translations = await TranslateTextMultiLanguage(textToTranslate, sourceLocaleCode, translationService, targetLanguages, fallbackTranslationService, glossaries, translationContext);
                     
                     // Map translations back to request IDs - each request gets its own translation
                     foreach (var request in requests)
@@ -676,7 +717,7 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
                 }
                 catch (Exception ex)
                 {
-                    _console.WriteAlert($"Error in multi-language translation: {ex.Message}");
+                    _console.WriteAlert($"Error translating {translationContext}: {ex.Message}");
                     
                     // Add failed results for all requests in this group
                     foreach (var request in requests)

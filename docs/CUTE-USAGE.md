@@ -439,6 +439,7 @@ Translate content using an LLM or Translation Service.
 | --management-token <TOKEN> | Your Contentful Management API (CMA) token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --max-concurrency | Indicates how many concurrent calls can be made to a translation service for a single entry. Default is 10 |
 | --no-banner | Do not display the startup banner or the copyright message. |
+| --no-max-token-count | Send Azure OpenAI translation requests without cute's default 4096 output token cap. Needed for large fields, whose responses are otherwise truncated and discarded. |
 | --no-publish | Specifies whether to skip publish for modified entries |
 | --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --publish-error-threshold | Specifies error threshold for publish using bulk actions. Switches to single entry publish when it is reached. |
@@ -809,6 +810,8 @@ Schedule and run cuteContentSyncApi entries.
 | --port, -p | The port to listen on |
 | --preview-token <TOKEN> | Your Contentful Content Preview API token. See https://www.contentful.com/developers/docs/references/authentication/ |
 | --publish-error-threshold | Specifies error threshold for publish using bulk actions. Switches to single entry publish when it is reached. |
+| --resume-chains, -r | Specifies whether to resume broken chains during start. Default is false. |
+| --resume-threshold-hours | Specifies the threshold, in hours, before a chain's next scheduled run. If the next scheduled run is within this many hours, resuming that chain is skipped to avoid an overlap. |
 | --space-id, -s <ID> | The Contentful space identifier. See https://www.contentful.com/help/spaces-and-organizations/ |
 | --verbosity <LEVEL> | Sets the output verbosity level. Allowed values are (q)uiet, (m)inimal, (n)ormal, (de)tailed and (di)agnostic. |
 
