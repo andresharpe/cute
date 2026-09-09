@@ -643,6 +643,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
                         TimeZoneDaylightSavingsOffset = tzDaylightSavingOffset,
                         GooglePlacesId = existingEntry?.GooglePlacesId ?? await GetGooglePlacesId($"{record.CityName}, {record.AdminName}, {record.CountryName}"),
                         DataCountryEntry = countryCodeToInfo[record.CountryIso2],
+                        DataGeoCountryEntry = ToGeoLink(countryToGeoId[record.CountryIso2]),
                         NearestLocationEntry = nearestLocationEntry,
                         NetworkEvaluation = networkEvaluation!,
                     };
@@ -678,6 +679,16 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             });
 
         return;
+    }
+
+    /// <summary>
+    /// Builds a reference to another geo carrying only its id. A Contentful link needs nothing else,
+    /// and returning the full object would serialize the whole country - and everything it links to -
+    /// into the payload of every state and city that points at it.
+    /// </summary>
+    private static GeoFormat ToGeoLink(GeoFormat geo)
+    {
+        return new GeoFormat { Sys = new() { Id = geo.Sys.Id } };
     }
 
     private async Task<string> WriteCountryEntryIfMissing(string countryCode,
@@ -774,7 +785,8 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
             GeoSubType = record.AdminType,
             LatLon = existingEntry?.LatLon ?? new() { Lat = record.Lat, Lon = record.Lon },
             GooglePlacesId = existingEntry?.GooglePlacesId,
-            DataCountryEntry = countryInfo
+            DataCountryEntry = countryInfo,
+            DataGeoCountryEntry = ToGeoLink(parentGeo!),
         };
 
         if (existingEntry is null)
@@ -898,6 +910,7 @@ public sealed class ContentSeedGeoDataCommand(IConsoleWriter console, ILogger<Co
         public string? GooglePlacesId { get; set; } = default!;
         public int Count { get; set; } = 0;
         public GeoFormat DataCountryEntry { get; set; } = default!;
+        public GeoFormat DataGeoCountryEntry { get; set; } = default!;
         public int? RadiusKilometers { get; set; } = default;
         public int? DataLocationCount { get; set; } = 0;
         public GeoFormat NearestLocationEntry { get; set; } = default!;
