@@ -118,13 +118,6 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
 
         foreach (var prop in properties)
         {
-            if (prop.Name.Contains("password", StringComparison.OrdinalIgnoreCase)
-                || prop.Name.Contains("token", StringComparison.OrdinalIgnoreCase))
-            {
-                // don't output these...
-                continue;
-            }
-
             var attr = prop.GetAttributes<CommandOptionAttribute>()
                 .FirstOrDefault()?
                 .LongNames.ToArray();
@@ -135,6 +128,18 @@ public abstract class BaseLoggedInCommand<TSettings>(IConsoleWriter console, ILo
                 if (option != null)
                 {
                     var value = prop.GetValue(settings);
+
+                    // Secrets are always strings, so only redact by name when the property could hold
+                    // one. Matching on the name alone hid unrelated options that merely mention a
+                    // token, like '--no-max-token-count'.
+                    if (prop.PropertyType == typeof(string)
+                        && (prop.Name.Contains("password", StringComparison.OrdinalIgnoreCase)
+                            || prop.Name.Contains("token", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        // don't output these...
+                        continue;
+                    }
+
                     returnDict.Add(option, value);
                 }
             }
