@@ -570,13 +570,17 @@ public class ContentTranslateCommand(IConsoleWriter console, ILogger<ContentTran
 
     private async Task<TranslationResponse[]?> TranslateTextMultiLanguage(string text, string from, TranslationService service, List<CuteLanguage> targetLanguages, TranslationService? fallbackService = null, Dictionary<string, Dictionary<string, string>>? glossaries = null, string? context = null)
     {
-        // Create a NEW translator instance for each call to avoid state issues with concurrent requests
-        // The ChatClient may have state that gets confused with concurrent requests
-        var translator = CreateTranslator(service);
         TranslationResponse[]? translations = null;
-        
+
         try
         {
+            // Create a NEW translator instance for each call to avoid state issues with concurrent requests
+            // The ChatClient may have state that gets confused with concurrent requests. Constructing it
+            // inside the try is deliberate: the Azure OpenAI translator builds its client in its constructor,
+            // so a missing key or malformed endpoint throws here - which is exactly when the fallback
+            // service below should get its turn, rather than the exception escaping this method.
+            var translator = CreateTranslator(service);
+
             if (useCustomModel)
             {
                 // Use the multi-language translation method

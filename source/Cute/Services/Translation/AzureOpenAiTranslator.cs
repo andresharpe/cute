@@ -446,13 +446,25 @@ Text to translate:
                 return Array.Empty<TranslationResponse>();
             }
 
-            // Validate that we got translations for ALL expected languages
+            // Validate that we got translations for ALL expected languages. A locale with no key at all
+            // and a locale whose key holds an empty string are different mistakes and are reported
+            // separately - lumping them together produces the contradictory "no translation for 'de',
+            // keys returned were 'de'".
             var results = new List<TranslationResponse>();
-            var missingLanguages = new List<string>();
+            var languagesWithNoKey = new List<string>();
+            var languagesWithEmptyValue = new List<string>();
 
             foreach (var targetLanguage in targetLanguages)
             {
-                if (translations.TryGetValue(targetLanguage, out var translatedText) && !string.IsNullOrEmpty(translatedText))
+                if (!translations.TryGetValue(targetLanguage, out var translatedText))
+                {
+                    languagesWithNoKey.Add(targetLanguage);
+                }
+                else if (string.IsNullOrEmpty(translatedText))
+                {
+                    languagesWithEmptyValue.Add(targetLanguage);
+                }
+                else
                 {
                     results.Add(new TranslationResponse
                     {
@@ -460,16 +472,20 @@ Text to translate:
                         TargetLanguage = targetLanguage
                     });
                 }
-                else
-                {
-                    missingLanguages.Add(targetLanguage);
-                }
             }
 
-            if (missingLanguages.Count > 0)
+            if (languagesWithNoKey.Count > 0)
             {
-                _console.WriteAlert($"The model returned valid JSON but no usable translation for: {string.Join(", ", missingLanguages)}. " +
+                // Naming the keys that did come back is what identifies the mistake - a locale variant
+                // ('de-DE' where 'de' was asked for), or a literal key such as 'locale' or 'translation'.
+                _console.WriteAlert($"The model's response for {targets} contains no key for: {string.Join(", ", languagesWithNoKey)}. " +
                     $"Keys returned were: {(translations.Count == 0 ? "(none)" : string.Join(", ", translations.Keys))}.");
+            }
+
+            if (languagesWithEmptyValue.Count > 0)
+            {
+                _console.WriteAlert($"The model returned an empty translation for: {string.Join(", ", languagesWithEmptyValue)}. " +
+                    $"No translation was written for {(languagesWithEmptyValue.Count == 1 ? "this locale" : "these locales")}.");
             }
 
             return results.ToArray();
