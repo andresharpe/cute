@@ -1,5 +1,6 @@
 ﻿using Contentful.Core.Models;
 using Cute.Lib.Cache;
+using Cute.Lib.Config;
 using Cute.Lib.Contentful;
 using Cute.Lib.Exceptions;
 using Cute.Lib.Extensions;
@@ -30,11 +31,25 @@ public class HttpInputAdapter(
 
     private HttpResponseFileCache? _httpResponseFileCache;
 
+    public const string UserAgentEnvironmentVariable = "CUTE_HTTP_USER_AGENT";
+
     public HttpInputAdapter WithHttpResponseFileCache(HttpResponseFileCache? httpResponseFileCache)
     {
         _httpResponseFileCache = httpResponseFileCache;
 
         return this;
+    }
+
+    // Set CUTE_HTTP_USER_AGENT to identify this deployment with a real contact address.
+    public static string ResolveUserAgent()
+    {
+        var configured = EnvironmentVars.Instance[UserAgentEnvironmentVariable];
+
+        if (!string.IsNullOrWhiteSpace(configured)) return configured.Trim();
+
+        var version = typeof(HttpInputAdapter).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+
+        return $"cute/{version} (+https://github.com/andresharpe/cute)";
     }
 
     public override async Task<int> GetRecordCountAsync()
@@ -147,6 +162,12 @@ public class HttpInputAdapter(
             {
                 _httpClient.DefaultRequestHeaders.Add(key, value);
             }
+        }
+
+        // Wikimedia (and others) reject requests that don't identify themselves. See https://w.wiki/4wJS
+        if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(ResolveUserAgent());
         }
 
         var returnValue = new List<Dictionary<string, string>>();
