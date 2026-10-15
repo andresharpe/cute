@@ -1423,14 +1423,15 @@ public class GenerateBulkAction(
 
         JToken? replaceValue = fieldDefinition.Type switch
         {
-            "Symbol" or "Text" => promptResult,
+            "Symbol" => ToSingleLine(promptResult),
+            "Text" => promptResult,
             "Object" => ToObject(promptResult, displayActions),
             "RichText" => ToRichText(promptResult),
             "Array" => ToArray(promptResult, fieldDefinition.Items, fieldId, fieldDefinition),
             _ => throw new CliException($"Field '{fieldId}' is of type '{fieldDefinition.Type}' which can't store prompt results."),
         };
 
-        if (replaceValue is null)
+        if (replaceValue is null || (fieldDefinition.Type == "Symbol" && string.IsNullOrWhiteSpace(replaceValue.ToString())))
         {
             _displayAction?.Invoke($"The AI result for entry '{id}' could not be converted to '{fieldDefinition.Type}' for field '{fieldId}'. ('{promptResult}')");
             return;
@@ -1441,6 +1442,22 @@ public class GenerateBulkAction(
         await _contentfulConnection.CreateOrUpdateEntryAsync(obj, obj.SystemProperties.Version,
             errorNotifier: (m) => displayActions?.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
+    }
+
+    // Symbol fields hold a single short value (a name, a title). Models sometimes wrap the
+    // answer in quotes or add a trailing explanation line - keep only the value itself.
+    internal static string ToSingleLine(string promptResult)
+    {
+        var line = promptResult
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault() ?? string.Empty;
+
+        if (line.Length >= 2 && (line[0], line[^1]) is ('"', '"') or ('\'', '\'') or ('\u201C', '\u201D') or ('\u2018', '\u2019'))
+        {
+            line = line[1..^1].Trim();
+        }
+
+        return line;
     }
 
     private static JToken? ToObject(string promptResult, DisplayActions displayActions)
@@ -1540,6 +1557,11 @@ public class GenerateBulkAction(
         ScriptObject? scriptObject = [];
 
         CuteFunctions.ContentfulConnection = _contentfulConnection;
+
+        if (_appSettings.TryGetValue("Cute__GoogleApiKey", out var googleApiKey) && !string.IsNullOrWhiteSpace(googleApiKey))
+        {
+            CuteFunctions.GoogleApiKey = googleApiKey;
+        }
 
         scriptObject.SetValue("cute", new CuteFunctions(), true);
 

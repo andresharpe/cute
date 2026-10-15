@@ -816,6 +816,23 @@ If it's the first time you're using the content generation feature of ***cute***
 
 ![contentful cuteSchedule model screenshot](https://raw.githubusercontent.com/andresharpe/cute/master/docs/images/contentful-cuteContentGenerate-model.png)
 
+### Google Places functions for prompts
+
+Prompts can call two Google-backed functions so the model works from verified places and walking distances rather than its own memory. Both need `Cute__GoogleApiKey` with **Places API (New)** and **Routes API** enabled (Geocoding API is optional and only adds the district name).
+
+| Function | What it returns |
+|---|---|
+| `{{ cute.nearby_places lat lon [radius_m=500] [transit_radius_m=1500] [language_code] }}` | The district, then the most-reviewed landmarks inside `radius_m` plus the nearest stations inside `transit_radius_m`, each with type, Google review count and walking distance. Large areas (parks, campuses, stadiums) are flagged because Google measures to a pin in the middle. |
+| `{{ cute.nearby_unique_names lat lon [radius_km=25] [exclude_entry_id] }}` | The `uniqueName` values already used by other `dataLocation` entries within `radius_km` (read through the Management API, so draft names written earlier in the same run are included). |
+
+The `DataLocation.AllLocations.UniqueName` generate entry uses both to give each new centre a single, unique, place-based `uniqueName`:
+
+```powershell
+cute content generate --key DataLocation.AllLocations.UniqueName --operation GenerateSingle --apply
+```
+
+Use `GenerateSingle` for this job: entries are processed one at a time, so each new name is visible to the uniqueness check for the next centre. Only entries with an empty `uniqueName` are processed.
+
 ## Configuring `cuteLanguage` and `cuteContentTypeTranslation`
 
 If it's the first time you're using the content translation features of ***cute*** you will require translation content types in your Contentful space. Firstly, define `cuteLanguage` as per the attached screenshots below:

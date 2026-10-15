@@ -12,7 +12,7 @@ using System.Text;
 
 namespace Cute.Lib.Scriban;
 
-public class CuteFunctions : ScriptObject
+public partial class CuteFunctions : ScriptObject
 {
     [ScriptMemberIgnore]
     public static ContentfulConnection ContentfulConnection { get; set; } = default!;

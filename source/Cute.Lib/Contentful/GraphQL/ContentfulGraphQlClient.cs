@@ -112,9 +112,21 @@ public class ContentfulGraphQlClient
                 continue;
             }
 
-            response.EnsureSuccessStatusCode();
-
             var responseString = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                // Surface Contentful's reason (e.g. invalid filter, query too complex) instead of a bare status code.
+                string? reason = null;
+                try
+                {
+                    reason = JObject.Parse(responseString).SelectToken("errors[0].message")?.ToString();
+                }
+                catch (JsonException)
+                {
+                }
+                throw new CliException($"GraphQL request failed with {(int)response.StatusCode} ({response.StatusCode}): {reason ?? responseString}");
+            }
 
             var responseObject = JsonConvert.DeserializeObject<JObject>(responseString);
 
