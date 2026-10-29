@@ -7,6 +7,7 @@ using Scriban.Runtime;
 
 namespace Cute.Unit.Tests;
 
+[Collection("CuteFunctions.GoogleApiKey")]
 public class CuteFunctionsPlacesTests
 {
     private static string Render(string template, JObject dataLocation)

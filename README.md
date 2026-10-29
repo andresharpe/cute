@@ -824,6 +824,7 @@ Prompts can call two Google-backed functions so the model works from verified pl
 |---|---|
 | `{{ cute.nearby_places lat lon [radius_m=500] [transit_radius_m=1500] [language_code] }}` | The district, then the most-reviewed landmarks inside `radius_m` plus the nearest stations inside `transit_radius_m`, each with type, Google review count and walking distance. Large areas (parks, campuses, stadiums) are flagged because Google measures to a pin in the middle. |
 | `{{ cute.nearby_unique_names lat lon [radius_km=25] [exclude_entry_id] }}` | The `uniqueName` values already used by other `dataLocation` entries within `radius_km` (read through the Management API, so draft names written earlier in the same run are included). |
+| `{{ cute.nearby_car_parks lat lon [radius_m=3219] [language_code] }}` | Up to 12 operational car parks within `radius_m` (2 miles maximum, straight-line), nearest walk first, each with its Google place id, type, address, walking distance and time to the centre, and review count. |
 
 The `DataLocation.AllLocations.UniqueName` generate entry uses both to give each new centre a single, unique, place-based `uniqueName`:
 
@@ -832,6 +833,40 @@ cute content generate --key DataLocation.AllLocations.UniqueName --operation Gen
 ```
 
 Use `GenerateSingle` for this job: entries are processed one at a time, so each new name is visible to the uniqueness check for the next centre. Only entries with an empty `uniqueName` are processed.
+
+### Nearby car parks (`nearbyCarParks`)
+
+The `DataLocation.AllLocations.NearbyCarParks` generate entry fills the `nearbyCarParks` JSON (Object) field with up to 5 car parks no more than 2 miles from each centre:
+
+```powershell
+cute content generate --key DataLocation.AllLocations.NearbyCarParks --operation GenerateSingle --apply
+```
+
+Google supplies every fact; the model only decides. `cute.nearby_car_parks` lists the candidates, the model drops private or restricted car parks (residents, staff, permit holders, hotel guests), merges duplicate pins for the same car park, tidies the names and replies with place ids only:
+
+```json
+{"carParks":[{"placeId":"ChIJ...","name":"NCP London Euston"}]}
+```
+
+Before the value is saved, any place id Google didn't return is dropped, the address, coordinates and distances are taken from Google, and the list is sorted by walking distance and capped at 5. This step runs automatically for any generate entry whose prompt calls `cute.nearby_car_parks`. The stored value looks like this:
+
+```json
+{
+  "source": "google_places",
+  "generatedAt": "2026-10-29T15:40:00Z",
+  "maxRadiusMiles": 2,
+  "carParks": [
+    {
+      "placeId": "ChIJ...", "name": "NCP London Euston", "address": "Euston Rd, London NW1 2RT, UK",
+      "lat": 51.5281, "lng": -0.1337,
+      "distanceMetres": 420, "distanceMiles": 0.26, "distanceType": "walking",
+      "walkingMinutes": 6, "straightLineMetres": 350
+    }
+  ]
+}
+```
+
+`distanceType` is `straight_line` when Google has no walking route. A centre with no car parks stores `"carParks": []`, so it isn't picked up again on the next run. To refresh a centre, clear its `nearbyCarParks` value.
 
 ## Configuring `cuteLanguage` and `cuteContentTypeTranslation`
 

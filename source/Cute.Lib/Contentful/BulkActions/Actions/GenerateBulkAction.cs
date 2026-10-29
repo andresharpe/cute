@@ -1431,6 +1431,12 @@ public class GenerateBulkAction(
             _ => throw new CliException($"Field '{fieldId}' is of type '{fieldDefinition.Type}' which can't store prompt results."),
         };
 
+        // Car park job: the model only picks Google place ids - rebuild the stored value from Google's data.
+        if (replaceValue is not null && fieldDefinition.Type == "Object" && UsesNearbyCarParks(cuteContentGenerateEntry))
+        {
+            replaceValue = HydrateNearbyCarParks(replaceValue, entry);
+        }
+
         if (replaceValue is null || (fieldDefinition.Type == "Symbol" && string.IsNullOrWhiteSpace(replaceValue.ToString())))
         {
             _displayAction?.Invoke($"The AI result for entry '{id}' could not be converted to '{fieldDefinition.Type}' for field '{fieldId}'. ('{promptResult}')");
@@ -1460,11 +1466,48 @@ public class GenerateBulkAction(
         return line;
     }
 
+    internal static bool UsesNearbyCarParks(CuteContentGenerate cuteContentGenerateEntry) =>
+        cuteContentGenerateEntry.Prompt?.Contains("cute.nearby_car_parks", StringComparison.Ordinal) == true;
+
+    private JObject HydrateNearbyCarParks(JToken modelResult, JObject entry)
+    {
+        var lat = entry.SelectToken("latLon.lat")?.Value<double?>();
+        var lon = entry.SelectToken("latLon.lon")?.Value<double?>();
+
+        if (lat is null || lon is null)
+        {
+            throw new CliException("The car park job needs the query to return 'latLon { lat lon }' for each entry.");
+        }
+
+        // Batch results can be processed in a later run, before any prompt has been rendered.
+        ConfigureGoogleApiKey();
+
+        return CuteFunctions.BuildNearbyCarParksField(modelResult, lat.Value, lon.Value);
+    }
+
+    // Models sometimes wrap JSON in a ```json ... ``` block - keep only what's inside.
+    internal static string StripCodeFence(string promptResult)
+    {
+        var text = promptResult.Trim();
+
+        if (!text.StartsWith("```", StringComparison.Ordinal)) return text;
+
+        var firstLineEnd = text.IndexOf('\n');
+
+        if (firstLineEnd < 0) return text.Trim('`').Trim();
+
+        text = text[(firstLineEnd + 1)..].TrimEnd();
+
+        if (text.EndsWith("```", StringComparison.Ordinal)) text = text[..^3];
+
+        return text.Trim();
+    }
+
     private static JToken? ToObject(string promptResult, DisplayActions displayActions)
     {
         try
         {
-            return JsonConvert.DeserializeObject<JToken>(promptResult);
+            return JsonConvert.DeserializeObject<JToken>(StripCodeFence(promptResult));
         }
         catch (Exception ex)
         {
@@ -1552,16 +1595,21 @@ public class GenerateBulkAction(
         return sb.ToString();
     }
 
+    private void ConfigureGoogleApiKey()
+    {
+        if (_appSettings.TryGetValue("Cute__GoogleApiKey", out var googleApiKey) && !string.IsNullOrWhiteSpace(googleApiKey))
+        {
+            CuteFunctions.GoogleApiKey = googleApiKey;
+        }
+    }
+
     private ScriptObject CreateScriptObject()
     {
         ScriptObject? scriptObject = [];
 
         CuteFunctions.ContentfulConnection = _contentfulConnection;
 
-        if (_appSettings.TryGetValue("Cute__GoogleApiKey", out var googleApiKey) && !string.IsNullOrWhiteSpace(googleApiKey))
-        {
-            CuteFunctions.GoogleApiKey = googleApiKey;
-        }
+        ConfigureGoogleApiKey();
 
         scriptObject.SetValue("cute", new CuteFunctions(), true);
 
