@@ -824,7 +824,7 @@ Prompts can call two Google-backed functions so the model works from verified pl
 |---|---|
 | `{{ cute.nearby_places lat lon [radius_m=500] [transit_radius_m=1500] [language_code] }}` | The district, then the most-reviewed landmarks inside `radius_m` plus the nearest stations inside `transit_radius_m`, each with type, Google review count and walking distance. Large areas (parks, campuses, stadiums) are flagged because Google measures to a pin in the middle. |
 | `{{ cute.nearby_unique_names lat lon [radius_km=25] [exclude_entry_id] }}` | The `uniqueName` values already used by other `dataLocation` entries within `radius_km` (read through the Management API, so draft names written earlier in the same run are included). |
-| `{{ cute.nearby_car_parks lat lon [radius_m=3219] [language_code] }}` | Up to 12 operational car parks within `radius_m` (2 miles maximum, straight-line), nearest walk first, each with its Google place id, type, address, walking distance and time to the centre, and review count. |
+| `{{ cute.nearby_car_parks lat lon [radius_m=3219] [language_code] }}` | Up to 12 operational car parks within `radius_m` (2 miles maximum, straight-line), nearest walk first, each with its Google place id, type, address, and walking distance and time to the centre. |
 
 The `DataLocation.AllLocations.UniqueName` generate entry uses both to give each new centre a single, unique, place-based `uniqueName`:
 

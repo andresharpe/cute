@@ -38,9 +38,12 @@ public partial class CuteFunctions
 
     private static readonly ConcurrentDictionary<string, CarParkSearchResult> _carParkCache = [];
 
+    private static bool _carParkTypesRejected;
+
     /// <summary>
     /// Returns a plain-text list of candidate car parks near a point, nearest walk first, with Google
-    /// place ids, addresses and walking distances. Scriban: {{ cute.nearby_car_parks lat lon }}
+    /// place ids, addresses and walking distances. Fields are kept to the Nearby Search Pro SKU
+    /// (no rating / userRatingCount, which would bill as Enterprise). Scriban: {{ cute.nearby_car_parks lat lon }}
     /// </summary>
     /// <param name="latitude">Latitude of the centre.</param>
     /// <param name="longitude">Longitude of the centre.</param>
@@ -82,13 +85,22 @@ public partial class CuteFunctions
     private static async Task<CarParkSearchResult> SearchCarParksAsync(string apiKey, double lat, double lon, int radiusMeters, string? languageCode)
     {
         List<CarParkCandidate> found;
-        try
-        {
-            found = await SearchNearbyCarParks(apiKey, lat, lon, radiusMeters, _carParkTypes, languageCode);
-        }
-        catch (GoogleApiException ex) when (ex.StatusCode == 400)
+        if (_carParkTypesRejected)
         {
             found = await SearchNearbyCarParks(apiKey, lat, lon, radiusMeters, _carParkTypesSafe, languageCode);
+        }
+        else
+        {
+            try
+            {
+                found = await SearchNearbyCarParks(apiKey, lat, lon, radiusMeters, _carParkTypes, languageCode);
+            }
+            catch (GoogleApiException ex) when (ex.StatusCode == 400)
+            {
+                // Remember for the rest of the run, so each centre isn't billed for two searches.
+                _carParkTypesRejected = true;
+                found = await SearchNearbyCarParks(apiKey, lat, lon, radiusMeters, _carParkTypesSafe, languageCode);
+            }
         }
 
         foreach (var c in found)
@@ -140,7 +152,7 @@ public partial class CuteFunctions
         var json = await PostGoogle(apiKey,
             "https://places.googleapis.com/v1/places:searchNearby",
             body.ToString(Formatting.None),
-            "places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.primaryTypeDisplayName,places.types,places.businessStatus,places.userRatingCount");
+            "places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.primaryTypeDisplayName,places.types,places.businessStatus");
 
         var places = JObject.Parse(json)["places"] as JArray ?? new JArray();
 
@@ -156,7 +168,6 @@ public partial class CuteFunctions
                 PrimaryTypeDisplay = p.SelectToken("primaryTypeDisplayName.text")?.Value<string>(),
                 Types = p["types"]?.Values<string>().Where(t => t is not null).Cast<string>().ToList() ?? [],
                 BusinessStatus = p["businessStatus"]?.Value<string>(),
-                UserRatingCount = p["userRatingCount"]?.Value<int?>(),
                 Lat = p.SelectToken("location.latitude")!.Value<double>(),
                 Lon = p.SelectToken("location.longitude")?.Value<double>() ?? lon,
             })
@@ -241,7 +252,7 @@ public partial class CuteFunctions
             : "Distances: walking routes were NOT available - straight-line only.");
 
         sb.AppendLine();
-        sb.AppendLine("Candidates (placeId | Google name | Google type | address | distance | Google reviews):");
+        sb.AppendLine("Candidates (placeId | Google name | Google type | address | distance):");
 
         if (search.Candidates.Count == 0)
         {
@@ -260,8 +271,7 @@ public partial class CuteFunctions
               .Append(c.Name).Append(" | ")
               .Append(c.PrimaryTypeDisplay ?? c.PrimaryType ?? "parking").Append(" | ")
               .Append(c.Address ?? "(no address)").Append(" | ")
-              .Append(distance).Append(" | ")
-              .Append(c.UserRatingCount?.ToString("N0", CultureInfo.InvariantCulture) ?? "0")
+              .Append(distance)
               .AppendLine();
         }
 
@@ -357,7 +367,6 @@ public partial class CuteFunctions
         public string? PrimaryTypeDisplay { get; init; }
         public List<string> Types { get; init; } = [];
         public string? BusinessStatus { get; init; }
-        public int? UserRatingCount { get; init; }
         public double Lat { get; init; }
         public double Lon { get; init; }
         public int StraightLineMeters { get; set; }

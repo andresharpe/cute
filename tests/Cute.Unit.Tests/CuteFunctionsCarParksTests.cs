@@ -134,7 +134,7 @@ public class CuteFunctionsCarParksTests
     {
         var text = CuteFunctions.FormatCarParkBriefing(Search(Candidate("far", 900, 1200), Candidate("near", 300, 400)));
 
-        text.Should().Contain("- near | Google near | parking | near Street, London | walk 400 m, 5 min (300 m) | 0");
+        text.Should().Contain("- near | Google near | parking | near Street, London | walk 400 m, 5 min (300 m)");
         text.IndexOf("- near", StringComparison.Ordinal).Should().BeLessThan(text.IndexOf("- far", StringComparison.Ordinal));
     }
 
