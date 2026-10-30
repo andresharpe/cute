@@ -68,12 +68,7 @@ public partial class CuteFunctions
 
         if (_carParkCache.TryGetValue(cacheKey, out var cached)) return cached;
 
-        var apiKey = GoogleApiKey;
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("Google API key not configured. Set 'Cute__GoogleApiKey' (Places API (New) and Routes API enabled).");
-        }
+        var apiKey = RequireGoogleApiKey();
 
         var result = SearchCarParksAsync(apiKey, lat, lon, radiusMeters, languageCode).GetAwaiter().GetResult();
 
@@ -179,53 +174,17 @@ public partial class CuteFunctions
     {
         if (candidates.Count == 0) return true;
 
-        static JObject Waypoint(double la, double lo) => new()
+        var routes = await ComputeWalkingRoutesToCentre(apiKey, lat, lon, candidates.Select(c => (c.Lat, c.Lon)).ToList());
+
+        if (routes is null) return false;
+
+        for (var i = 0; i < candidates.Count && i < routes.Count; i++)
         {
-            ["waypoint"] = new JObject
-            {
-                ["location"] = new JObject
-                {
-                    ["latLng"] = new JObject { ["latitude"] = la, ["longitude"] = lo },
-                },
-            },
-        };
-
-        var body = new JObject
-        {
-            ["origins"] = new JArray(candidates.Select(c => Waypoint(c.Lat, c.Lon))),
-            ["destinations"] = new JArray(Waypoint(lat, lon)),
-            ["travelMode"] = "WALK",
-        };
-
-        try
-        {
-            var json = await PostGoogle(apiKey,
-                "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix",
-                body.ToString(Formatting.None),
-                "originIndex,destinationIndex,distanceMeters,duration,condition");
-
-            var token = JToken.Parse(json);
-
-            var elements = token as JArray ?? (token["elements"] as JArray) ?? new JArray();
-
-            foreach (var element in elements.OfType<JObject>())
-            {
-                var index = element["originIndex"]?.Value<int?>() ?? -1;
-
-                if (index < 0 || index >= candidates.Count) continue;
-
-                if (element["condition"]?.Value<string>() is string condition && condition != "ROUTE_EXISTS") continue;
-
-                candidates[index].WalkingMeters = element["distanceMeters"]?.Value<int?>();
-                candidates[index].WalkingMinutes = ParseDurationMinutes(element["duration"]?.Value<string>());
-            }
-
-            return candidates.Any(c => c.WalkingMeters is not null);
+            candidates[i].WalkingMeters = routes[i]?.Meters;
+            candidates[i].WalkingMinutes = routes[i]?.Minutes;
         }
-        catch (GoogleApiException)
-        {
-            return false;
-        }
+
+        return candidates.Any(c => c.WalkingMeters is not null);
     }
 
     // Routes API durations are strings like "345s".

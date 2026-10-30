@@ -825,6 +825,7 @@ Prompts can call two Google-backed functions so the model works from verified pl
 | `{{ cute.nearby_places lat lon [radius_m=500] [transit_radius_m=1500] [language_code] }}` | The district, then the most-reviewed landmarks inside `radius_m` plus the nearest stations inside `transit_radius_m`, each with type, Google review count and walking distance. Large areas (parks, campuses, stadiums) are flagged because Google measures to a pin in the middle. |
 | `{{ cute.nearby_unique_names lat lon [radius_km=25] [exclude_entry_id] }}` | The `uniqueName` values already used by other `dataLocation` entries within `radius_km` (read through the Management API, so draft names written earlier in the same run are included). |
 | `{{ cute.nearby_car_parks lat lon [radius_m=3219] [language_code] }}` | Up to 12 operational car parks within `radius_m` (2 miles maximum, straight-line), nearest walk first, each with its Google place id, type, address, and walking distance and time to the centre. |
+| `{{ cute.nearby_facilities lat lon [radius_m=1609] [language_code] }}` | Cafes, restaurants, bars and gyms within `radius_m` (1 mile maximum, straight-line): up to 20 of each, most popular first, each with its Google place id, type, rating, review count, price level and distance. A place found under several types is listed once. |
 
 The `DataLocation.AllLocations.UniqueName` generate entry uses both to give each new centre a single, unique, place-based `uniqueName`:
 
@@ -867,6 +868,22 @@ Before the value is saved, any place id Google didn't return is dropped, the add
 ```
 
 `distanceType` is `straight_line` when Google has no walking route. A centre with no car parks stores `"carParks": []`, so it isn't picked up again on the next run. To refresh a centre, clear its `nearbyCarParks` value.
+
+### Nearest facilities (`nearestFacilities`)
+
+The `DataLocation.AllLocations.NearestFacilities` generate entry fills the `nearestFacilities` JSON (Object) field with the 5 best cafes, restaurants, bars and gyms within 1 mile of each centre, in one list, best first:
+
+```powershell
+cute content generate --key DataLocation.AllLocations.NearestFacilities --operation GenerateSingle --apply
+```
+
+It works like the car park job. `cute.nearby_facilities` runs one Google search per type (4 per centre, billed as Nearby Search Enterprise because they include ratings). The model picks the best 5, weighing rating, number of reviews and distance and covering a range of types, and replies with place ids only:
+
+```json
+{"facilities":[{"placeId":"ChIJ...","category":"cafe"}]}
+```
+
+Before saving, unknown place ids are dropped, names and every other fact come from Google, the model's order is kept and the list is capped at 5. Walking routes are fetched for the 5 chosen places only. Each item holds `placeId`, `name`, `category` (`cafe`, `restaurant`, `bar` or `gym`), `type`, `address`, `lat`, `lng`, `rating`, `userRatingCount`, `priceLevel`, `googleMapsUri`, `distanceMetres`, `distanceMiles`, `distanceType`, `walkingMinutes` and `straightLineMetres`, inside the same `source` / `generatedAt` / `maxRadiusMiles` wrapper as `nearbyCarParks`.
 
 ## Configuring `cuteLanguage` and `cuteContentTypeTranslation`
 

@@ -1431,10 +1431,17 @@ public class GenerateBulkAction(
             _ => throw new CliException($"Field '{fieldId}' is of type '{fieldDefinition.Type}' which can't store prompt results."),
         };
 
-        // Car park job: the model only picks Google place ids - rebuild the stored value from Google's data.
-        if (replaceValue is not null && fieldDefinition.Type == "Object" && UsesNearbyCarParks(cuteContentGenerateEntry))
+        // Car park and facilities jobs: the model only picks Google place ids - rebuild the stored value from Google's data.
+        if (replaceValue is not null && fieldDefinition.Type == "Object")
         {
-            replaceValue = HydrateNearbyCarParks(replaceValue, entry);
+            if (UsesNearbyCarParks(cuteContentGenerateEntry))
+            {
+                replaceValue = HydrateNearbyCarParks(replaceValue, entry);
+            }
+            else if (UsesNearbyFacilities(cuteContentGenerateEntry))
+            {
+                replaceValue = HydrateNearestFacilities(replaceValue, entry);
+            }
         }
 
         if (replaceValue is null || (fieldDefinition.Type == "Symbol" && string.IsNullOrWhiteSpace(replaceValue.ToString())))
@@ -1469,20 +1476,37 @@ public class GenerateBulkAction(
     internal static bool UsesNearbyCarParks(CuteContentGenerate cuteContentGenerateEntry) =>
         cuteContentGenerateEntry.Prompt?.Contains("cute.nearby_car_parks", StringComparison.Ordinal) == true;
 
+    internal static bool UsesNearbyFacilities(CuteContentGenerate cuteContentGenerateEntry) =>
+        cuteContentGenerateEntry.Prompt?.Contains("cute.nearby_facilities", StringComparison.Ordinal) == true;
+
     private JObject HydrateNearbyCarParks(JToken modelResult, JObject entry)
+    {
+        var (lat, lon) = GetEntryLatLon(entry, "car park");
+
+        return CuteFunctions.BuildNearbyCarParksField(modelResult, lat, lon);
+    }
+
+    private JObject HydrateNearestFacilities(JToken modelResult, JObject entry)
+    {
+        var (lat, lon) = GetEntryLatLon(entry, "facilities");
+
+        return CuteFunctions.BuildNearestFacilitiesField(modelResult, lat, lon);
+    }
+
+    private (double Lat, double Lon) GetEntryLatLon(JObject entry, string jobName)
     {
         var lat = entry.SelectToken("latLon.lat")?.Value<double?>();
         var lon = entry.SelectToken("latLon.lon")?.Value<double?>();
 
         if (lat is null || lon is null)
         {
-            throw new CliException("The car park job needs the query to return 'latLon { lat lon }' for each entry.");
+            throw new CliException($"The {jobName} job needs the query to return 'latLon {{ lat lon }}' for each entry.");
         }
 
         // Batch results can be processed in a later run, before any prompt has been rendered.
         ConfigureGoogleApiKey();
 
-        return CuteFunctions.BuildNearbyCarParksField(modelResult, lat.Value, lon.Value);
+        return (lat.Value, lon.Value);
     }
 
     // Models sometimes wrap JSON in a ```json ... ``` block - keep only what's inside.
