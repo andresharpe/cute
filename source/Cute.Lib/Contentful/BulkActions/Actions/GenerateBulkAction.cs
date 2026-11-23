@@ -17,6 +17,7 @@ using OpenAI.Chat;
 using Scriban;
 using Scriban.Runtime;
 using System.ClientModel;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace Cute.Lib.Contentful.BulkActions.Actions;
@@ -56,6 +57,18 @@ public class GenerateBulkAction(
     private GenerateOperation _operation = GenerateOperation.GenerateBatch;
 
     private readonly List<GenerationFailure> _failures = new();
+
+    private readonly ConcurrentDictionary<string, byte> _updatedEntryIds = new();
+
+    /// <summary>Ids of the entries this run wrote to.</summary>
+    public IReadOnlyCollection<string> UpdatedEntryIds => _updatedEntryIds.Keys.ToList();
+
+    /// <summary>
+    /// True for jobs that refresh values that already exist (the Google review snapshot). The
+    /// publish step should then publish only the entries this run wrote, never an editor's
+    /// unrelated draft.
+    /// </summary>
+    public bool PublishOnlyUpdatedEntries { get; private set; }
 
     public GenerateBulkAction WithContentTypes(IEnumerable<ContentType> contentTypes)
     {
@@ -117,6 +130,14 @@ public class GenerateBulkAction(
             return;
         }
 
+        var isReviewJob = UsesGoogleReviews(cuteContentGenerateEntryLocalized.GetBasicEntry(defaultLocaleCode, defaultLocaleCode));
+
+        if (isReviewJob)
+        {
+            PublishOnlyUpdatedEntries = true;
+            PrepareGoogleReviewRun();
+        }
+
         foreach (var locale in locales)
         {
             var cuteContentGenerateEntry = cuteContentGenerateEntryLocalized.GetBasicEntry(locale, (await _contentfulConnection.GetDefaultLocaleAsync()).Code);
@@ -125,6 +146,7 @@ public class GenerateBulkAction(
 
             var queryResult = new JArray();
             var totalRead = 0;
+            var reviewSkips = new List<string>();
             await foreach (var entry in GetQueryData(cuteContentGenerateEntry, searchKey))
             {
                 progressUpdater?.Invoke(queryResult.Count, ++totalRead);
@@ -134,12 +156,36 @@ public class GenerateBulkAction(
                     continue;
                 }
 
-                if (!testOnly && await EntryHasExistingContentWithFallback(cuteContentGenerateEntry, entry, locale))
+                // The review snapshot is refreshed on every run, so an existing value doesn't skip the
+                // entry. Entries out of scope, or whose Uberall data is missing or incomplete, are left
+                // as they are.
+                if (isReviewJob)
+                {
+                    var skipReason = CuteFunctions.GetGoogleReviewSkipReason(entry, DateTime.UtcNow);
+
+                    if (skipReason is not null)
+                    {
+                        reviewSkips.Add(skipReason);
+                        displayActions.DisplayDim?.Invoke($"[{entry["key"]}] left unchanged: {skipReason}");
+                        continue;
+                    }
+                }
+                else if (!testOnly && await EntryHasExistingContentWithFallback(cuteContentGenerateEntry, entry, locale))
                 {
                     continue;
                 }
 
                 queryResult.Add(entry);
+            }
+
+            if (reviewSkips.Count > 0)
+            {
+                displayActions.DisplayBlankLine?.Invoke();
+                displayActions.DisplayFormatted?.Invoke($"Left unchanged: {reviewSkips.Count} entries...");
+                foreach (var group in reviewSkips.GroupBy(SkipReasonGroup).OrderByDescending(g => g.Count()))
+                {
+                    displayActions.DisplayFormatted?.Invoke($"  {group.Count()} - {group.Key}");
+                }
             }
 
             displayActions.DisplayFormatted?.Invoke($"Found {queryResult.Count} entries...");
@@ -1419,7 +1465,16 @@ public class GenerateBulkAction(
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(oldValue?.ToString())) return;
+        var isReviewJob = UsesGoogleReviews(cuteContentGenerateEntry);
+
+        if (!isReviewJob && !string.IsNullOrWhiteSpace(oldValue?.ToString())) return;
+
+        // Publishing an entry with an editor's unfinished draft would push that draft live.
+        if (isReviewJob && !IsCleanlyPublished(obj.SystemProperties, out var notCleanReason))
+        {
+            AddFailure(entry, id, "Review snapshot", $"Left unchanged: {notCleanReason}.", displayActions);
+            return;
+        }
 
         JToken? replaceValue = fieldDefinition.Type switch
         {
@@ -1442,6 +1497,20 @@ public class GenerateBulkAction(
             {
                 replaceValue = HydrateNearestFacilities(replaceValue, entry);
             }
+            else if (isReviewJob)
+            {
+                var snapshot = HydrateGoogleReviewSnapshot(cuteContentGenerateEntry, replaceValue, entry, id, displayActions);
+
+                if (snapshot is null) return;
+
+                if (CuteFunctions.GoogleReviewSnapshotsMatch(oldValue, snapshot))
+                {
+                    displayActions.DisplayDim?.Invoke($"[{entry["key"]}] review snapshot unchanged.");
+                    return;
+                }
+
+                replaceValue = snapshot;
+            }
         }
 
         if (replaceValue is null || (fieldDefinition.Type == "Symbol" && string.IsNullOrWhiteSpace(replaceValue.ToString())))
@@ -1455,6 +1524,103 @@ public class GenerateBulkAction(
         await _contentfulConnection.CreateOrUpdateEntryAsync(obj, obj.SystemProperties.Version,
             errorNotifier: (m) => displayActions?.DisplayAlert?.Invoke(m.ToString().Snip(40))
         );
+
+        _updatedEntryIds.TryAdd(id, 0);
+    }
+
+    internal static bool UsesGoogleReviews(CuteContentGenerate cuteContentGenerateEntry) =>
+        cuteContentGenerateEntry.Prompt?.Contains("cute.google_reviews", StringComparison.Ordinal) == true;
+
+    private void PrepareGoogleReviewRun()
+    {
+        CuteFunctions.ContentfulConnection = _contentfulConnection;
+        ConfigureUberallApiKey();
+        CuteFunctions.StartGoogleReviewRun();
+    }
+
+    private void ConfigureUberallApiKey()
+    {
+        if (_appSettings.TryGetValue("Cute__UberallApiKey", out var uberallApiKey) && !string.IsNullOrWhiteSpace(uberallApiKey))
+        {
+            CuteFunctions.UberallApiKey = uberallApiKey;
+        }
+    }
+
+    // Review job: the model only gives verdicts - build the stored value from Uberall's data and run the QA checks.
+    private JObject? HydrateGoogleReviewSnapshot(CuteContentGenerate cuteContentGenerateEntry, JToken modelResult, JObject entry, string id, DisplayActions displayActions)
+    {
+        // Batch results can be processed in a later run, before any prompt has been rendered.
+        CuteFunctions.ContentfulConnection = _contentfulConnection;
+        ConfigureUberallApiKey();
+
+        var problems = new List<string>();
+        var softFlags = new List<string>();
+
+        var model = string.IsNullOrWhiteSpace(cuteContentGenerateEntry.DeploymentModel) ? "default" : cuteContentGenerateEntry.DeploymentModel;
+
+        var snapshot = CuteFunctions.BuildGoogleReviewSnapshotField(modelResult, entry, model, problems, softFlags);
+
+        foreach (var flag in softFlags)
+        {
+            displayActions.DisplayAlert?.Invoke($"[{entry["key"]}] review flag for a person to check (not blocking): {flag}");
+        }
+
+        if (snapshot is null)
+        {
+            AddFailure(entry, id, "Review QA", $"Left unchanged: {string.Join("; ", problems)}", displayActions);
+        }
+
+        return snapshot;
+    }
+
+    internal static bool IsCleanlyPublished(SystemProperties sys, out string reason)
+    {
+        if (sys.ArchivedVersion is not null)
+        {
+            reason = "entry is archived";
+            return false;
+        }
+
+        if (sys.PublishedVersion is null)
+        {
+            reason = "entry has never been published";
+            return false;
+        }
+
+        if (sys.Version != sys.PublishedVersion + 1)
+        {
+            reason = "entry has unpublished changes";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static string SkipReasonGroup(string reason)
+    {
+        if (reason.StartsWith("closed on", StringComparison.Ordinal)) return "closed";
+
+        var cut = reason.IndexOfAny(['(', ':']);
+
+        return (cut > 0 ? reason[..cut] : reason).Trim();
+    }
+
+    private void AddFailure(JObject entry, string id, string stage, string message, DisplayActions displayActions)
+    {
+        displayActions.DisplayAlert?.Invoke($"[{entry["key"]}] {message}");
+
+        lock (_failures)
+        {
+            _failures.Add(new GenerationFailure
+            {
+                EntryKey = entry["key"]?.Value<string>() ?? "(unknown entry key)",
+                EntryTitle = entry["name"]?.Value<string>() ?? string.Empty,
+                EntryId = id,
+                ErrorMessage = message,
+                Stage = stage,
+            });
+        }
     }
 
     // Symbol fields hold a single short value (a name, a title). Models sometimes wrap the

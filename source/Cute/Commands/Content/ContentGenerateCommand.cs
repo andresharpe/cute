@@ -129,16 +129,22 @@ public class ContentGenerateCommand(IConsoleWriter console, ILogger<ContentGener
             return 0;
         }
 
-        await PerformBulkOperations(
-            [
-                new PublishBulkAction(ContentfulConnection, _httpClient)
-                        .WithContentType(targetContentType)
-                        .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
-                        .WithVerbosity(settings.Verbosity)
-                        .WithApplyChanges(!settings.NoPublish)
-                        .WithErrorThreshold(settings.BulkPublishErrorThreshold)
-            ]
-        );
+        var publishAction = new PublishBulkAction(ContentfulConnection, _httpClient)
+                .WithContentType(targetContentType)
+                .WithContentLocales(await ContentfulConnection.GetContentLocalesAsync())
+                .WithVerbosity(settings.Verbosity)
+                .WithApplyChanges(!settings.NoPublish)
+                .WithErrorThreshold(settings.BulkPublishErrorThreshold);
+
+        // Jobs that refresh existing values publish only what they wrote, never an editor's draft.
+        if (_generBulkAction.PublishOnlyUpdatedEntries)
+        {
+            publishAction
+                .WithUseSession(true)
+                .WithSessionEntryIds(_generBulkAction.UpdatedEntryIds);
+        }
+
+        await PerformBulkOperations([publishAction]);
 
         return 0;
     }
