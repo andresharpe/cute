@@ -22,7 +22,8 @@ public class GraphQLUtilities
 
         if (HasField(userField, field))
         {
-            return query;
+            // The key filter (if any) was added to the parsed document, so return that, not the original text.
+            return string.IsNullOrEmpty(searchKey) ? query : Serialize(document);
         }
 
         AddField(userField, field);

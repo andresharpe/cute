@@ -826,6 +826,8 @@ Prompts can call two Google-backed functions so the model works from verified pl
 | `{{ cute.nearby_unique_names lat lon [radius_km=25] [exclude_entry_id] }}` | The `uniqueName` values already used by other `dataLocation` entries within `radius_km` (read through the Management API, so draft names written earlier in the same run are included). |
 | `{{ cute.nearby_car_parks lat lon [radius_m=3219] [language_code] }}` | Up to 12 operational car parks within `radius_m` (2 miles maximum, straight-line), nearest walk first, each with its Google place id, type, address, and walking distance and time to the centre. |
 | `{{ cute.nearby_facilities lat lon [radius_m=1609] [language_code] }}` | Cafes, restaurants, bars and gyms within `radius_m` (1 mile maximum, straight-line): up to 20 of each, most popular first, each with its Google place id, type, rating, review count, price level and distance. A place found under several types is listed once. |
+| `{{ cute.google_reviews dataLocation }}` | The centre's Google reviews from Uberall that the model must check, one JSON object per line (`id`, `date`, `text`). Never includes the rating or the author. Needs `locationNumber` in the query. |
+| `{{ cute.review_building_facts dataLocation }}` | Name, address, 24/7 access, amenity names and up to 10 transit items, for the model to check reviews against. Nothing personal. |
 
 The `DataLocation.AllLocations.UniqueName` generate entry uses both to give each new centre a single, unique, place-based `uniqueName`:
 
@@ -884,6 +886,55 @@ It works like the car park job. `cute.nearby_facilities` runs one Google search 
 ```
 
 Before saving, unknown place ids are dropped, names and every other fact come from Google, the model's order is kept and the list is capped at 5. Walking routes are fetched for the 5 chosen places only. Each item holds `placeId`, `name`, `category` (`cafe`, `restaurant`, `bar` or `gym`), `type`, `address`, `lat`, `lng`, `rating`, `userRatingCount`, `priceLevel`, `googleMapsUri`, `distanceMetres`, `distanceMiles`, `distanceType`, `walkingMinutes` and `straightLineMetres`, inside the same `source` / `generatedAt` / `maxRadiusMiles` wrapper as `nearbyCarParks`.
+
+### Google review snapshot (`googleBusinessReviewSnapshot`)
+
+The `DataLocation.AllLocations.GoogleReviewSnapshot` generate entry fills the `googleBusinessReviewSnapshot` JSON (Object) field with the centre's Google score and up to 5 quotable reviews, taken from Uberall. It runs monthly from the scheduler and needs `Cute__UberallApiKey`:
+
+```powershell
+cute content generate --key DataLocation.AllLocations.GoogleReviewSnapshot --operation GenerateSingle --apply
+```
+
+Unlike the other generate jobs, it refreshes the value on every run instead of only filling empty fields. Uberall supplies every fact; the model only decides which reviews may be quoted:
+
+1. **Scope.** Entries hidden from websites or closed on or before today are left as they are. So is any centre that Uberall doesn't hold, whose `locationNumber` matches more than one Uberall `identifier`, or whose review fetch came back incomplete (fewer distinct reviews than Uberall's `count`). These are listed as "left unchanged" at the start of the run.
+2. **Score.** `count` and `average` cover every Google review fetched. `showScore` is true when the unrounded mean is at least 4.0 and there are at least 3 reviews. Take-downs still count.
+3. **Candidates.** Only when `showScore` is true: the 40 most recent 4- and 5-star reviews, minus take-downs, with the text cleaned (invisible and bidi control characters removed, line ends, tabs and blank lines tidied, no words changed). Reviews that are over 1,200 characters, under 8 words (2 characters count as a word in Han, Hiragana, Katakana and Thai), or contain an email address, link, phone number, Google machine translation or markup never reach the model.
+4. **Model.** The prompt is `{{ cute.review_building_facts dataLocation }}` followed by `{{ cute.google_reviews dataLocation }}`, which sends each candidate as `{id, date, text}`. The system message is `EVAL_SYSTEM` from the reference implementation (iwg-tesseract `scripts/_reviews.mjs`) word for word, plus a short OUTPUT section because Azure OpenAI isn't given its JSON schema here. The model replies with a verdict per review, for example `{"results":[{"id":"750839557","eligible":true,"reasons":[],"language":"fr","note":""}]}`. A review with no verdict, or with any reason, is never shown.
+5. **Rebuild and QA.** The newest 5 reviews that are eligible with no reasons are stored with Uberall's text, rating, author, date and link. Every snapshot then goes through the QA checks (source and rule text, score rule, at most 5 quotes, ratings, length, contact details, control characters, HTML, ISO language code, author, `https://` link, publish date, model check, and no review quoted twice in the run). A location that fails is left unchanged and listed under the run's failures. Quotes over 900 characters or in capitals are flagged for a person to look at but still written.
+6. **Write.** An entry is skipped if the snapshot is unchanged (ignoring `fetchedAt` and `evaluatedAt`), and refused if it has unpublished changes, is archived or was never published, so an editor's draft is never pushed live. The publish step publishes only the entries this run wrote.
+
+Take-downs are review ids in the centre's `googleBusinessReviewExclusions` field (a list; use the testimonial's `id` from `googleBusinessReviewSnapshot`). The query must select that field, even when it is empty: if it is missing the run stops rather than risk showing a removed review. Publish the centre after adding an id (the job refuses entries with unpublished changes), then re-run the job for that centre with `--target-entry-key <dataLocation key>` to remove the review straight away.
+
+The stored value looks like this:
+
+```json
+{
+  "source": "Google reviews via Uberall",
+  "fetchedAt": "2026-12-01T21:30:00.000Z",
+  "uberallId": 1234567,
+  "googlePlaceId": "ChIJ...",
+  "average": 4.62,
+  "count": 87,
+  "showScore": true,
+  "scoreRule": { "minAverage": 4, "minCount": 3 },
+  "testimonials": [
+    {
+      "id": "750839557",
+      "rating": 5,
+      "text": "...exactly as the reviewer wrote it...",
+      "language": "fr",
+      "author": "Reviewer name as on Google",
+      "publishedAt": "2026-04-18T10:56:42.000Z",
+      "directLink": "https://search.google.com/local/reviews?placeid=...",
+      "evaluation": { "eligible": true, "reasons": [], "checkedBy": ["prefilter", "model"] }
+    }
+  ],
+  "selectionRule": "Selected 4- and 5-star Google reviews from members and guests.",
+  "evaluatedAt": "2026-12-01T21:31:00.000Z",
+  "model": "gpt-5.4"
+}
+```
 
 ## Configuring `cuteLanguage` and `cuteContentTypeTranslation`
 
